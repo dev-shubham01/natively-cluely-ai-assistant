@@ -186,8 +186,8 @@ describe('resolveModePolicy against REAL default contracts for every built-in mo
     }
   });
 
-  test('looking-for-work and technical-interview (interview-prep templates) resolve to profile_only, generalKnowledgeAllowed=true, referenceOnly=false', () => {
-    for (const templateType of ['looking-for-work', 'technical-interview']) {
+  test('technical-interview (interview-prep template) resolves to profile_only, generalKnowledgeAllowed=true, referenceOnly=false', () => {
+    for (const templateType of ['technical-interview']) {
       const contract = defaultSourceContractForNewMode(templateType);
       const policy = resolveModePolicy(contract, { id: 'm', name: templateType, isCustom: false, templateType });
       assert.equal(policy.sourceAuthority, 'profile_only', `${templateType} must default to profile_only`);

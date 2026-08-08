@@ -27,14 +27,18 @@ const load = (p) => import(pathToFileURL(path.join(base, p)).href);
 const { createLegacyRetrievalPort } = await load('retrieval/legacy-retrieval-port.js');
 const { decide } = await load('orchestration/orchestrator.js');
 
+// PROJECT_FILE (not REFERENCE_FILE) — technical-interview, the only
+// surviving mode, does not authorize REFERENCE_FILE; per this file's header
+// comment, the source-type vocabulary here is synthetic and not load-bearing
+// for the ranking mechanics under test.
 const registryFor = (ids, types = {}) => ({
-  sourceTypes: new Map(ids.map((id) => [id, types[id] ?? 'REFERENCE_FILE'])),
+  sourceTypes: new Map(ids.map((id) => [id, types[id] ?? 'PROJECT_FILE'])),
   activeVersions: new Map(ids.map((id) => [id, 'v1'])),
   chunkVersions: new Map(ids.map((id) => [id, 'v1'])),
   sourceScopes: new Map(ids.map((id) => [id, { userId: 'u' }])),
 });
 
-const decisionFor = (q, modeId = 'sales') => decide({
+const decisionFor = (q, modeId = 'technical-interview') => decide({
   requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId,
   scope: { userId: 'u', modeId }, sessionId: 's', manualQuestion: q,
 });
@@ -238,29 +242,9 @@ describe('stress: exact duplicate chunks are dropped, near-duplicates are kept',
   });
 });
 
-// ── Imperative generative requests (live turns 65/67) ───────────────────────
-//
-// "Give one tailored distributed-systems interview question." planned NO
-// sources in the 2026-08-01 live run and refused with "cannot be answered
-// from the available material". Fixed at the decision layer earlier in this
-// campaign; pinned here so imperative phrasing keeps planning candidate
-// material while ungrounded generative asks stay FAST.
-
-describe('stress: imperative generative requests plan candidate sources', () => {
-  test('tailored interview-question requests ground in candidate material', () => {
-    for (const q of [
-      'Give one tailored distributed-systems interview question.',
-      'Suggest an interview question based on her resume.',
-    ]) {
-      const d = decisionFor(q, 'recruiting');
-      assert.equal(d.retrievalPlan.shouldRetrieve, true, q);
-      assert.ok(d.retrievalPlan.sourceTypes.includes('CANDIDATE_FILE'),
-        `${q} => ${d.retrievalPlan.sourceTypes.join(',')}`);
-    }
-  });
-
-  test('an ungrounded generative ask stays FAST', () => {
-    const d = decisionFor('Give me a good icebreaker.', 'recruiting');
-    assert.equal(d.retrievalPlan.shouldRetrieve, false);
-  });
-});
+// NOTE: an "imperative generative requests plan candidate sources" describe
+// used to live here (live turns 65/67). Deleted, not adapted — it asserted
+// CANDIDATE_FILE planning for a recruiting-mode interviewer prepping
+// questions about a candidate. technical-interview (the only surviving mode)
+// is the candidate's own side of that conversation and does not authorize
+// CANDIDATE_FILE, so there is no surviving mode that exercises this path.

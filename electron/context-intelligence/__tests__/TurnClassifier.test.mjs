@@ -62,16 +62,10 @@ describe('GROUNDED path — questions about the user require evidence', () => {
     assert.ok(r.claimTypes.includes('JOB_REQUIRED_SKILL'));
   });
 
-  test('meeting fact requires MEETING_TRANSCRIPT', () => {
-    const r = classify('What did we decide about the ledger migration?', 'team-meet');
-    assert.ok(r.requiredSourceTypes.includes('MEETING_TRANSCRIPT'));
-    assert.ok(r.claimTypes.includes('MEETING_STATEMENT'));
-  });
-
-  test('document fact requires REFERENCE_FILE', () => {
-    const r = classify('According to the paper, how many layers are in the encoder?', 'seminar');
-    assert.ok(r.requiredSourceTypes.includes('REFERENCE_FILE'));
-  });
+  // NOTE: "meeting fact requires MEETING_TRANSCRIPT" (team-meet) and
+  // "document fact requires REFERENCE_FILE" (seminar) used to live here.
+  // Deleted, not adapted — technical-interview (the only surviving mode)
+  // authorizes neither source type.
 });
 
 describe('MIXED — claim-level split', () => {
@@ -83,19 +77,14 @@ describe('MIXED — claim-level split', () => {
   });
 });
 
-describe('mode authorization bounds required sources', () => {
-  test('a mode never has an unauthorized source forced into it', () => {
-    // team-meet does not authorize RESUME, so a personal question there must not
-    // demand it — modes AUTHORIZE sources, they do not have them imposed.
-    const r = classify('Tell me about your project.', 'team-meet');
-    assert.equal(r.requiredSourceTypes.includes('RESUME'), false);
-  });
-
-  test('recruiting requires CANDIDATE_FILE, never the user\'s RESUME', () => {
-    const r = classify('What are the required skills for this role?', 'recruiting');
-    assert.equal(r.requiredSourceTypes.includes('RESUME'), false);
-  });
-});
+// NOTE: a "mode authorization bounds required sources" describe used to live
+// here (team-meet never gets RESUME forced in; recruiting requires
+// CANDIDATE_FILE, never RESUME). Deleted, not adapted — both cases are about
+// a mode that LACKS an authorization technical-interview (the only surviving
+// mode) actually has (RESUME). The same principle — a mode never gets a
+// source forced in that it does not authorize — is still exercised for
+// technical-interview by "a meeting question in technical-interview does NOT
+// take the fast path" below (MEETING_TRANSCRIPT).
 
 describe('follow-ups never take the fast path', () => {
   test('a bare "why?" retrieves — it may reference grounded content by pronoun', () => {
@@ -159,12 +148,10 @@ describe('unsupported-in-mode is distinct from "no source needed"', () => {
     assert.match(r.reason, /does not authorize/);
   });
 
-  test('the same question in team-meet IS supported and retrieves', () => {
-    const r = classify('How many backend roles are we opening this quarter?', 'team-meet');
-    assert.deepEqual(r.unsupportedInMode, []);
-    assert.ok(r.requiredSourceTypes.includes('MEETING_TRANSCRIPT'));
-    assert.equal(r.shouldRetrieve, true);
-  });
+  // NOTE: "the same question in team-meet IS supported and retrieves" used to
+  // live here as the contrasting positive case (MEETING_TRANSCRIPT support in
+  // a mode that has it). Deleted, not adapted — no surviving mode authorizes
+  // MEETING_TRANSCRIPT.
 
   test('a genuinely general question reports NO unsupported sources', () => {
     const r = classify('What is idempotency in an HTTP API?', 'technical-interview');
@@ -179,7 +166,7 @@ describe('unsupported-in-mode is distinct from "no source needed"', () => {
   });
 
   test('a named-entity lookup is not mistaken for a general concept question', () => {
-    const r = classify('What is the discount floor for Acme?', 'seminar');
+    const r = classify('What is the discount floor for Acme?', 'technical-interview');
     assert.notEqual(r.path, 'FAST', '"what is X" about a specific entity is a document lookup');
   });
 
@@ -200,7 +187,7 @@ describe('unsupported-in-mode is distinct from "no source needed"', () => {
 
 describe('metric-of-a-definite-subject is grounded, not general', () => {
   test('the G-03 question retrieves and claims the primary source', () => {
-    const c = classify('What is the peak transaction volume of the payments API?', 'looking-for-work');
+    const c = classify('What is the peak transaction volume of the payments API?', 'technical-interview');
     assert.equal(c.shouldRetrieve, true, 'must retrieve — model knowledge cannot hold this value');
     assert.notEqual(c.path, 'FAST');
     assert.ok(c.claimTypes.includes('USER_PROJECT'),
@@ -212,7 +199,7 @@ describe('metric-of-a-definite-subject is grounded, not general', () => {
   test('the bare concept form keeps the fast path — both halves of the pattern required', () => {
     // Metric noun alone is a genuine concept question.
     for (const q of ['What is latency?', 'Explain throughput vs bandwidth']) {
-      const c = classify(q, 'looking-for-work');
+      const c = classify(q, 'technical-interview');
       assert.equal(c.shouldRetrieve, false, `"${q}" must stay general`);
       assert.ok(c.claimTypes.includes('GENERAL_TECHNICAL'), q);
     }
@@ -223,40 +210,37 @@ describe('metric-of-a-definite-subject is grounded, not general', () => {
     // retrieves, finds nothing, and answers general-labeled, which is the mode's
     // stated contract. Asserted here so the two rules' division of labour is
     // pinned rather than rediscovered.
-    const p99 = classify('What is p99 latency?', 'looking-for-work');
+    const p99 = classify('What is p99 latency?', 'technical-interview');
     assert.equal(p99.shouldRetrieve, true, 'identifier rule grounds it (pre-existing, required by F-05)');
   });
 
   test('the definite complement is what flips it', () => {
-    const concept = classify('What is transaction volume?', 'looking-for-work');
-    const lookup = classify('What is the transaction volume of our payments API?', 'looking-for-work');
+    const concept = classify('What is transaction volume?', 'technical-interview');
+    const lookup = classify('What is the transaction volume of our payments API?', 'technical-interview');
     assert.equal(concept.shouldRetrieve, false);
     assert.equal(lookup.shouldRetrieve, true);
   });
 
   test('B-01 stays fast — no metric noun, "of an HTTP API" is not a lookup', () => {
-    const c = classify('What is idempotency in the context of an HTTP API?', 'general');
+    const c = classify('What is idempotency in the context of an HTTP API?', 'technical-interview');
     assert.equal(c.shouldRetrieve, false);
     assert.equal(c.path, 'FAST');
   });
 });
 
 // ── A-12 regression: JD vocabulary in a document-centric mode without a JD ────
+//
+// NOTE: "salary-band lookup in seminar is a DOCUMENT_FACT claim" used to live
+// here — the re-route only fires for a mode that matches JOB_RE vocabulary
+// but authorizes no JOB_DESCRIPTION source at all. Deleted, not adapted —
+// technical-interview (the only surviving mode) DOES authorize
+// JOB_DESCRIPTION, so there is no surviving mode with that gap. The
+// surviving positive case below (a mode WITH a JD keeps the JOB claim) is
+// exactly technical-interview's actual shape.
 
 describe('JD vocabulary re-routes to the document in a doc-centric mode', () => {
-  test('salary-band lookup in seminar is a DOCUMENT_FACT claim', () => {
-    // "salary band" matches JOB_RE, but seminar holds no job description — left
-    // as a JOB claim the mode authorizes no source, sourceTypes resolves empty,
-    // and the turn retrieves nothing while the answer sits in the mode's own
-    // compensation-policy reference file.
-    const c = classify('What is the base salary band for a backend L4?', 'seminar');
-    assert.ok(c.claimTypes.includes('DOCUMENT_FACT'), JSON.stringify(c.claimTypes));
-    assert.ok(!c.claimTypes.includes('JOB_REQUIRED_SKILL'));
-    assert.equal(c.shouldRetrieve, true);
-  });
-
   test('a mode WITH a job description keeps the JOB claim', () => {
-    const c = classify('What are the required skills for this role?', 'looking-for-work');
+    const c = classify('What are the required skills for this role?', 'technical-interview');
     assert.ok(c.claimTypes.includes('JOB_REQUIRED_SKILL'),
       'the re-route must never convert a claim away from a source the mode actually has');
   });
@@ -279,7 +263,7 @@ describe('bare follow-up detection', () => {
   });
 
   test('"would that scale" carries a general-knowledge half', () => {
-    const c = classify('Would that scale?', 'general');
+    const c = classify('Would that scale?', 'technical-interview');
     assert.ok(c.claimTypes.includes('GENERAL_TECHNICAL'),
       'the scaling judgement is general knowledge (§3.7) — this is what makes E-02 PARTIAL rather than NONE');
   });
@@ -290,9 +274,11 @@ describe('bare follow-up detection', () => {
 describe('a definition question keeps general knowledge in a document mode', () => {
   test('"Explain what a VLA model is" is conceptual, not a failed document lookup', () => {
     // Measured: Lecture answered "I could not find a direct definition in the
-    // retrieved sections". Lecture is SOURCE_FIRST — source first, THEN general
-    // knowledge — but suppressing the claim removed the second half entirely.
-    const c = classify('Explain what a VLA model is.', 'lecture');
+    // retrieved sections". Lecture was SOURCE_FIRST — source first, THEN
+    // general knowledge — but suppressing the claim removed the second half
+    // entirely. technical-interview (the only surviving mode) is SOURCE_FIRST
+    // too, so it exercises the same path.
+    const c = classify('Explain what a VLA model is.', 'technical-interview');
     assert.ok(c.claimTypes.includes('GENERAL_TECHNICAL'), JSON.stringify(c.claimTypes));
     assert.equal(c.shouldRetrieve, true, 'it should still check the document FIRST');
   });
@@ -301,19 +287,22 @@ describe('a definition question keeps general knowledge in a document mode', () 
     // The discriminator is acronym vs name: VLA is world knowledge, Acme's
     // discount floor exists only in a private document. An earlier version of
     // this fix let both through and reopened that route.
-    const c = classify('What is the discount floor for Acme?', 'seminar');
+    const c = classify('What is the discount floor for Acme?', 'technical-interview');
     assert.ok(c.claimTypes.includes('DOCUMENT_FACT'), JSON.stringify(c.claimTypes));
     assert.ok(!c.claimTypes.includes('GENERAL_TECHNICAL'));
   });
 
-  test('a VALUE lookup wearing definition grammar stays a lookup', () => {
-    const c = classify('What is the list price per seat?', 'seminar');
-    assert.ok(c.claimTypes.includes('DOCUMENT_FACT'));
-    assert.ok(!c.claimTypes.includes('GENERAL_TECHNICAL'));
-  });
+  // NOTE: "a VALUE lookup wearing definition grammar stays a lookup" used to
+  // live here. Deleted, not adapted — the suppression it pins
+  // (`docLookupHere` in the classifier) is gated on `documentCentricMode`
+  // (primary source === REFERENCE_FILE), a mode CATEGORY technical-interview
+  // does not belong to: its primary source is RESUME. A named-entity value
+  // lookup (the sibling "Acme" case above) still routes correctly for
+  // technical-interview via a different, entity-based path — only this
+  // no-named-entity variant is document-centric-only.
 
   test('genuinely general questions still take the fast path', () => {
-    for (const [q, m] of [['What is a mutex?', 'technical-interview'], ['What is idempotency in an HTTP API?', 'general']]) {
+    for (const [q, m] of [['What is a mutex?', 'technical-interview'], ['What is idempotency in an HTTP API?', 'technical-interview']]) {
       const c = classify(q, m);
       assert.equal(c.shouldRetrieve, false, q);
       assert.ok(c.claimTypes.includes('GENERAL_TECHNICAL'), q);
@@ -339,33 +328,9 @@ describe('response-request follow-ups resolve against the previous turn', () => 
   });
 });
 
-// ── Recruiting was structurally unanswerable ─────────────────────────────────
-//
-// Found by sweeping all eight modes with one question. Recruiting returned ZERO
-// raw candidates where the identical query returned 9 everywhere else — not a
-// retrieval miss, a policy dead end: its primary source is CANDIDATE_FILE, the
-// primary-source fallback emitted USER_PROJECT, and USER_PROJECT listed no
-// source Recruiting authorizes, so authorized sourceTypes resolved to [].
-
-describe('candidate claims are reachable in recruiting', () => {
-  test('a candidate question authorizes the candidate file', () => {
-    const c = classify('Has the candidate worked with GCP?', 'recruiting');
-    assert.ok(c.requiredSourceTypes.includes('CANDIDATE_FILE'),
-      `expected CANDIDATE_FILE, got ${JSON.stringify(c.requiredSourceTypes)}`);
-  });
-
-  test('a qualifications comparison authorizes BOTH sides', () => {
-    // The whole point of the mode: compare the person against the role.
-    const c = classify('Does this candidate meet the minimum qualifications?', 'recruiting');
-    assert.ok(c.requiredSourceTypes.includes('CANDIDATE_FILE'), JSON.stringify(c.requiredSourceTypes));
-    assert.ok(c.requiredSourceTypes.includes('JOB_DESCRIPTION'), JSON.stringify(c.requiredSourceTypes));
-  });
-
-  test('a personal question naming no aspect still makes a claim', () => {
-    // No claim ⇒ no required evidence ⇒ FULL with zero evidence, which licenses
-    // answering from model knowledge about a real person.
-    const c = classify("What is the candidate's strongest signal?", 'recruiting');
-    assert.ok(c.claimTypes.length > 0, 'must not resolve to zero claims');
-    assert.equal(c.shouldRetrieve, true);
-  });
-});
+// NOTE: a "candidate claims are reachable in recruiting" describe used to
+// live here (found by sweeping all eight modes with one question — recruiting
+// returned ZERO raw candidates where the identical query returned 9
+// everywhere else, a CANDIDATE_FILE policy dead end). Deleted, not adapted —
+// entirely about recruiting's own CANDIDATE_FILE authorization, which
+// technical-interview (the only surviving mode) does not have.

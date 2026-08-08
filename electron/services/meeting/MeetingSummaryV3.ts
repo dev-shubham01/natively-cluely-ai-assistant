@@ -138,9 +138,6 @@ export interface MeetingSummaryModeMeta {
   selectedModeId?: string;
   selectedModeName?: string;
   selectedTemplateType?: string;
-  detectedModeId?: string;
-  detectedModeName?: string;
-  detectedConfidence?: number;
   summaryModeUsed?: string;
 }
 
@@ -535,14 +532,10 @@ export function sanitizeFollowUpDraft(value: unknown): FollowUpDraft | undefined
 
 function sanitizeMode(value: unknown): MeetingSummaryModeMeta {
   const raw = (value && typeof value === 'object') ? value as any : {};
-  const conf = num(raw.detectedConfidence);
   return {
     ...(raw.selectedModeId ? { selectedModeId: cleanString(raw.selectedModeId).slice(0, 80) } : {}),
     ...(raw.selectedModeName ? { selectedModeName: cleanString(raw.selectedModeName).slice(0, 80) } : {}),
     ...(raw.selectedTemplateType ? { selectedTemplateType: cleanString(raw.selectedTemplateType).slice(0, 80) } : {}),
-    ...(raw.detectedModeId ? { detectedModeId: cleanString(raw.detectedModeId).slice(0, 80) } : {}),
-    ...(raw.detectedModeName ? { detectedModeName: cleanString(raw.detectedModeName).slice(0, 80) } : {}),
-    ...(conf !== undefined ? { detectedConfidence: clamp(conf, 0, 1) } : {}),
     ...(raw.summaryModeUsed ? { summaryModeUsed: cleanString(raw.summaryModeUsed).slice(0, 80) } : {}),
   };
 }

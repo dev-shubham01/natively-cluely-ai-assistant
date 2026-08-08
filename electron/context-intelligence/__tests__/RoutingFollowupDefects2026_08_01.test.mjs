@@ -34,79 +34,15 @@ const { strictDocumentGroundedFromContract, documentGroundedFromContract, defaul
 const classify = (q, modeId, over = {}) =>
   classifyTurn({ resolvedQuestion: q, policy: MODE_POLICIES[modeId], isFollowUp: false, ...over });
 
-// ── Defect A — Team Meet: reference facts vs transcript events ──────────────
-
-describe('Defect A: reference-stated meeting facts route to the reference file', () => {
-  for (const q of [
-    'What is the objective of this meeting?',
-    'What are we planning to review?',
-    'What are the current success criteria?',
-  ]) {
-    test(`team-meet: "${q}" plans REFERENCE_FILE, not the transcript`, () => {
-      const r = classify(q, 'team-meet');
-      assert.ok(r.requiredSourceTypes.includes('REFERENCE_FILE'),
-        `expected REFERENCE_FILE in ${JSON.stringify(r.requiredSourceTypes)} (${r.reason})`);
-      assert.ok(!r.requiredSourceTypes.includes('MEETING_TRANSCRIPT'),
-        `transcript must not be planned for a reference fact: ${JSON.stringify(r.requiredSourceTypes)}`);
-      assert.equal(r.path, 'GROUNDED');
-      assert.equal(r.shouldRetrieve, true);
-    });
-  }
-
-  test('team-meet: "success criteria" must not silently take the FAST path', () => {
-    // Pre-fix this question was WORSE than the report said: no meeting cue at
-    // all, so it fabricated with answerability FULL and zero evidence.
-    const r = classify('What are the current success criteria?', 'team-meet');
-    assert.notEqual(r.path, 'FAST');
-  });
-});
-
-describe('Defect A: transcript events stay transcript-only', () => {
-  for (const q of [
-    'What did we decide?',
-    'What are the action items?',
-    'Who owns the source-contract patch?',
-    'Summarise the discussion so far.',
-  ]) {
-    test(`team-meet: "${q}" plans MEETING_TRANSCRIPT only`, () => {
-      const r = classify(q, 'team-meet');
-      assert.deepEqual(r.requiredSourceTypes, ['MEETING_TRANSCRIPT'],
-        `${JSON.stringify(r.requiredSourceTypes)} (${r.reason})`);
-    });
-  }
-});
-
-describe('Defect A: mixed and assistance shapes', () => {
-  test('team-meet: "Is it decided whether Lecture can use general knowledge?" claims BOTH sides', () => {
-    const r = classify('Is it decided whether Lecture can use general knowledge?', 'team-meet');
-    assert.ok(r.requiredSourceTypes.includes('MEETING_TRANSCRIPT'), JSON.stringify(r.requiredSourceTypes));
-    assert.ok(r.requiredSourceTypes.includes('REFERENCE_FILE'), JSON.stringify(r.requiredSourceTypes));
-  });
-
-  test('team-meet: facilitator advice reaches the brief, not the transcript alone', () => {
-    const r = classify('What should the facilitator ask first?', 'team-meet');
-    assert.ok(r.requiredSourceTypes.includes('REFERENCE_FILE'), JSON.stringify(r.requiredSourceTypes));
-    assert.equal(r.shouldRetrieve, true);
-  });
-
-  test('team-meet: unclassified factual questions plan the reference alongside the transcript', () => {
-    const r = classify('What caused the checkout latency regression?', 'team-meet');
-    assert.ok(r.requiredSourceTypes.includes('REFERENCE_FILE'), JSON.stringify(r.requiredSourceTypes));
-    assert.ok(r.requiredSourceTypes.includes('MEETING_TRANSCRIPT'), JSON.stringify(r.requiredSourceTypes));
-  });
-
-  test('lecture: "What does this handout say about quantum computing?" is a document claim', () => {
-    const r = classify('What does this handout say about quantum computing?', 'lecture');
-    assert.ok(r.requiredSourceTypes.includes('REFERENCE_FILE'), JSON.stringify(r.requiredSourceTypes));
-  });
-
-  test('concept questions keep the fast path in OPEN_KNOWLEDGE modes', () => {
-    for (const q of ['What is a mutex?', 'What is the goal of dependency injection?']) {
-      const r = classify(q, 'team-meet');
-      assert.equal(r.path, 'FAST', `"${q}" → ${r.path} (${r.reason})`);
-    }
-  });
-});
+// NOTE: a whole "Defect A — Team Meet: reference facts vs transcript events"
+// section used to live here (3 describe blocks, 13 cases) — team-meet's
+// REFERENCE_FILE-vs-MEETING_TRANSCRIPT routing and lecture's handout-as-
+// REFERENCE_FILE lookup. Deleted, not adapted — technical-interview (the
+// only surviving mode) authorizes neither REFERENCE_FILE nor
+// MEETING_TRANSCRIPT, so there is no surviving mode to exercise any of it.
+// The one mode-agnostic case in the set (concept questions stay FAST even in
+// an OPEN_KNOWLEDGE-policy mode) is already covered by the classifier's
+// grounding-policy-driven FAST-path matrix in OpenKnowledgeRouting2026_08_02.test.mjs.
 
 // ── Defect C — explicit strictness only ─────────────────────────────────────
 
@@ -145,9 +81,11 @@ describe('Defect C: default modes are never strict document-grounded', () => {
     assert.equal(documentGroundedFromContract(contract, false), false);
   });
 
-  test('knowledge policies stay template-declared: team-meet OPEN, lecture SOURCE_FIRST', () => {
-    assert.equal(MODE_POLICIES['team-meet'].groundingPolicy, 'OPEN_KNOWLEDGE');
-    assert.equal(MODE_POLICIES['lecture'].groundingPolicy, 'SOURCE_FIRST');
+  test('knowledge policies stay template-declared: technical-interview is SOURCE_FIRST', () => {
+    // NOTE: this used to also assert team-meet's OPEN_KNOWLEDGE grounding —
+    // deleted along with team-meet itself; technical-interview is the only
+    // template-declared policy left to pin.
+    assert.equal(MODE_POLICIES['technical-interview'].groundingPolicy, 'SOURCE_FIRST');
   });
 });
 
@@ -209,7 +147,7 @@ describe('Defect D: the fallback verdict reaches the prompt', () => {
   const decision = (over = {}) => ({
     requestId: 'r1', requestSequence: 1,
     rawQuestion: 'Why not?', resolvedQuestion: 'Why not?',
-    modeId: 'lecture', modePolicyVersion: '1.0.0',
+    modeId: 'technical-interview', modePolicyVersion: '1.0.0',
     scope: { userId: 'local', sessionId: 's1' },
     questionTypes: ['FOLLOW_UP'], claimRequirements: [],
     requiredSourceTypes: [], unsupportedInMode: [],
@@ -223,7 +161,7 @@ describe('Defect D: the fallback verdict reaches the prompt', () => {
 
   test('CLARIFICATION renders an explicit follow-up instruction', () => {
     const composed = composePrompt({
-      decision: decision(), policy: MODE_POLICIES['lecture'], evidence: [],
+      decision: decision(), policy: MODE_POLICIES['technical-interview'], evidence: [],
       fallbackUsed: 'CLARIFICATION',
     });
     assert.ok(composed.system.includes('# Follow-up'), composed.system);
@@ -233,7 +171,7 @@ describe('Defect D: the fallback verdict reaches the prompt', () => {
   test('a strict-mode follow-up gets the policy explanation, not a second bare refusal', () => {
     const composed = composePrompt({
       decision: decision({ groundingPolicy: 'STRICT_SOURCE_ONLY' }),
-      policy: { ...MODE_POLICIES['lecture'], groundingPolicy: 'STRICT_SOURCE_ONLY' },
+      policy: { ...MODE_POLICIES['technical-interview'], groundingPolicy: 'STRICT_SOURCE_ONLY' },
       evidence: [],
       conversationSummary: 'Previous question: What is a mutex?\nPrevious answer (referent only, NOT evidence): Not covered.',
       fallbackUsed: 'STRICT_NOT_FOUND',
@@ -245,7 +183,7 @@ describe('Defect D: the fallback verdict reaches the prompt', () => {
   test('a plain grounded turn renders no follow-up section', () => {
     const composed = composePrompt({
       decision: decision({ isFollowUp: false, questionTypes: ['DOCUMENT_FACT'] }),
-      policy: MODE_POLICIES['lecture'], evidence: [], fallbackUsed: 'NONE',
+      policy: MODE_POLICIES['technical-interview'], evidence: [], fallbackUsed: 'NONE',
     });
     assert.ok(!composed.system.includes('# Follow-up'), composed.system);
   });
@@ -254,28 +192,35 @@ describe('Defect D: the fallback verdict reaches the prompt', () => {
 // ── Defect E — direct document facts beat generic answers ───────────────────
 
 describe('Defect E: process/stage lookups do not FAST-path past a document', () => {
-  test('recruiting: "What is the interview process?" plans the JD', () => {
-    const r = classify('What is the interview process?', 'recruiting');
+  test('technical-interview: "What is the interview process?" plans the JD', () => {
+    const r = classify('What is the interview process?', 'technical-interview');
     assert.ok(r.requiredSourceTypes.includes('JOB_DESCRIPTION'),
       `${JSON.stringify(r.requiredSourceTypes)} (${r.reason})`);
     assert.equal(r.path, 'GROUNDED');
     assert.equal(r.shouldRetrieve, true);
   });
 
-  test('lecture: "What is the deployment process?" is a document lookup', () => {
-    const r = classify('What is the deployment process?', 'lecture');
-    assert.ok(r.requiredSourceTypes.includes('REFERENCE_FILE'),
+  test('technical-interview: "What is the deployment process?" is a document lookup', () => {
+    // PROJECT_FILE, not REFERENCE_FILE — technical-interview (the only
+    // surviving mode) does not authorize REFERENCE_FILE.
+    const r = classify('What is the deployment process?', 'technical-interview');
+    assert.ok(r.requiredSourceTypes.includes('PROJECT_FILE'),
       `${JSON.stringify(r.requiredSourceTypes)} (${r.reason})`);
     assert.notEqual(r.path, 'FAST');
   });
 
-  test('general mode keeps the fast path for the same grammar', () => {
-    const r = classify('What is the deployment process?', 'general');
+  test('OPEN_KNOWLEDGE grounding keeps the fast path for the same grammar', () => {
+    // Synthetic policy override, not a registered mode — no surviving mode
+    // is OPEN_KNOWLEDGE, and this is purely about how that grounding policy
+    // (contrasted with the SOURCE_FIRST case just above) routes the same
+    // question.
+    const policy = { ...MODE_POLICIES['technical-interview'], groundingPolicy: 'OPEN_KNOWLEDGE' };
+    const r = classifyTurn({ resolvedQuestion: 'What is the deployment process?', policy, isFollowUp: false });
     assert.equal(r.path, 'FAST', r.reason);
   });
 
   test('true concept questions are untouched everywhere', () => {
-    for (const modeId of ['lecture', 'recruiting', 'technical-interview']) {
+    for (const modeId of ['technical-interview']) {
       const r = classify('What is a bloom filter?', modeId);
       assert.equal(r.shouldRetrieve && r.requiredSourceTypes.length > 0, false,
         `"What is a bloom filter?" must not demand a private source in ${modeId}`);
@@ -284,22 +229,15 @@ describe('Defect E: process/stage lookups do not FAST-path past a document', () 
 });
 
 // ── Defect F — candidate motivation is reachable in Recruiting ──────────────
+//
+// NOTE: the two affirmative "retrieves the candidate file" cases that used to
+// live here are deleted, not adapted — they are specifically about
+// RECRUITING's CANDIDATE_FILE reachability (a recruiter asking why a
+// candidate left a role), which has no analog in technical-interview (the
+// candidate's own side of that conversation, which never authorizes
+// CANDIDATE_FILE at all). The two mode-agnostic/negative cases below survive.
 
 describe('Defect F: USER_MOTIVATION reaches the candidate file', () => {
-  for (const q of [
-    'Why did the candidate leave her last role?',
-    'What led the candidate to switch to backend work?',
-  ]) {
-    test(`recruiting: "${q}" retrieves the candidate file`, () => {
-      const r = classify(q, 'recruiting');
-      assert.ok(r.claimTypes.includes('USER_MOTIVATION'), JSON.stringify(r.claimTypes));
-      assert.ok(r.requiredSourceTypes.includes('CANDIDATE_FILE'),
-        `${JSON.stringify(r.requiredSourceTypes)} (${r.reason})`);
-      assert.equal(r.shouldRetrieve, true,
-        'pre-fix this was GROUNDED/shouldRetrieve=false — the résumé was never queried');
-    });
-  }
-
   test('claim authority matches the planner (two-map consistency)', () => {
     assert.ok(CLAIM_AUTHORITY.USER_MOTIVATION.authoritative.includes('CANDIDATE_FILE'));
     // The operator's own résumé stays prohibited: facts are not motives.
@@ -307,8 +245,8 @@ describe('Defect F: USER_MOTIVATION reaches the candidate file', () => {
     assert.ok(CLAIM_AUTHORITY.USER_MOTIVATION.prohibited.includes('JOB_DESCRIPTION'));
   });
 
-  test('looking-for-work motivation routing is unchanged (no CANDIDATE_FILE there)', () => {
-    const r = classify('Why did I build the PriceX project?', 'looking-for-work');
+  test('technical-interview motivation routing never reaches CANDIDATE_FILE', () => {
+    const r = classify('Why did I build the PriceX project?', 'technical-interview');
     assert.ok(!r.requiredSourceTypes.includes('CANDIDATE_FILE'), JSON.stringify(r.requiredSourceTypes));
   });
 });

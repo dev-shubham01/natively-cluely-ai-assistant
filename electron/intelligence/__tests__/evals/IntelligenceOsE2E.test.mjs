@@ -59,7 +59,14 @@ describe('E2E — Routing category', () => {
     ['what did we discuss last time?', 'manual_input', 'sales', d => d.useHindsightRecall && d.useMeetingSummary],
     ['write code for two sum', 'manual_input', 'technical-interview', d => d.answerContract === 'coding_answer' && !d.useProfileTree],
     ['create notes from this lecture', 'manual_input', 'lecture', d => d.answerContract === 'lecture_notes'],
-    ['generate a diagram for TCP', 'manual_input', 'lecture', d => d.useDiagramIntelligence],
+    // NOTE: a 'generate a diagram for TCP' → useDiagramIntelligence case used
+    // to live here. Deleted, not adapted — "TCP"/"diagram" alone carry no
+    // LECTURE_PATTERNS keyword, so it relied entirely on the mode-fallback
+    // path (applyModeFallback / MODE_CONTEXT_PROFILES), now permanently inert
+    // since MODE_CONTEXT_PROFILES shrank to technical-interview only. The
+    // sibling case above survives because "lecture" itself is a
+    // LECTURE_PATTERNS keyword and reaches lecture_answer through content
+    // matching instead.
   ];
   for (const [q, src, mode, check] of cases) {
     test(`route: "${q}"`, () => {

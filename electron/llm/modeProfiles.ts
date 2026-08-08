@@ -27,22 +27,7 @@ import type { ModeSourceContract } from '../services/modeSourceContract';
 /** Mirror of ModesManager's ModeTemplateType (kept local so this module stays
  *  pure and AnswerPlanner never imports from services/). Structurally identical
  *  string union — a drift would surface as a type error at the call sites. */
-export type ModeTemplateType =
-    | 'general'
-    | 'looking-for-work'
-    | 'sales'
-    | 'recruiting'
-    | 'team-meet'
-    | 'lecture'
-    | 'technical-interview'
-    // Campaign-3 (fix/answer-policy-engine, 2026-07-19): 8th built-in mode.
-    // 'seminar' enforces `evidencePreference=required` + `say_not_found_then_answer_general`
-    // (the founder's strictest profile). Mirrored in three places:
-    // electron/services/ModesManager.ts (canonical) and
-    // electron/services/modeSourceContract.ts (ContractTemplateType).
-    // Drift is guarded by the type system — a fourth site that uses the
-    // union without updating would compile-error.
-    | 'seminar';
+export type ModeTemplateType = 'technical-interview';
 
 /** The slice of the active mode the planner needs. Built by
  *  ModesManager.getActiveModeInfo() (cached) and threaded through
@@ -107,34 +92,7 @@ const NEUTRAL: ModeContextProfile = {
  *   (Campaign-3, 2026-07-19.)
  */
 export const MODE_CONTEXT_PROFILES: Record<ModeTemplateType, ModeContextProfile> = {
-    'general': NEUTRAL,
     'technical-interview': NEUTRAL,
-    'looking-for-work': NEUTRAL,
-    'sales': {
-        fallbackLiveAnswerType: 'sales_answer',
-        fallbackManualAnswerType: 'sales_answer',
-    },
-    'lecture': {
-        fallbackLiveAnswerType: 'lecture_answer',
-        fallbackManualAnswerType: 'lecture_answer',
-    },
-    'recruiting': {
-        fallbackLiveAnswerType: 'general_meeting_answer',
-        fallbackManualAnswerType: 'general_meeting_answer',
-    },
-    'team-meet': {
-        fallbackLiveAnswerType: 'general_meeting_answer',
-        fallbackManualAnswerType: 'general_meeting_answer',
-    },
-    'seminar': {
-        // Ambiguous live turns in Seminar mode default to file-grounded
-        // lecture_answer (which requires reference_files and forbids resume/jd/
-        // negotiation — exactly the strictest contract). The groundingProfile
-        // (required / say_not_found_then_answer_general) is layered on top by
-        // TurnPlanner, not by changing this answerType.
-        fallbackLiveAnswerType: 'lecture_answer',
-        fallbackManualAnswerType: 'lecture_answer',
-    },
 };
 
 /** The two floor types the classification chain can fall through to. The mode

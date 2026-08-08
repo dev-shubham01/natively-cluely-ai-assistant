@@ -17,14 +17,13 @@ interface LauncherProps {
     onStartMeeting: () => void;
     onOpenSettings: (tab?: string) => void;
     onOpenProfile?: () => void;
-    onOpenModes?: () => void;
     onPageChange?: (isMain: boolean) => void;
     ollamaPullStatus?: 'idle' | 'downloading' | 'complete' | 'failed';
     ollamaPullPercent?: number;
     ollamaPullMessage?: string;
 }
 
-const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onOpenProfile, onOpenModes: _onOpenModes, onPageChange, ollamaPullStatus = 'idle', ollamaPullPercent = 0, ollamaPullMessage = '' }) => {
+const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onOpenProfile, onPageChange, ollamaPullStatus = 'idle', ollamaPullPercent = 0, ollamaPullMessage = '' }) => {
     const t = useT();
     const [isDetectable, setIsDetectable] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);

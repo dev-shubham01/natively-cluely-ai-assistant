@@ -32,8 +32,10 @@
 // privacy/mode-boundary guarantees here as proven-by-test, ENFORCED wherever this
 // store is the resolver — not yet the live default.
 
-export type MemoryMode = 'general' | 'interview' | 'technical-interview' | 'looking-for-work'
-  | 'coding' | 'sales' | 'lecture' | 'team-meet' | 'recruiting' | 'negotiation';
+// Natively (personal build): only technical-interview (mode-derived) and the two
+// answer-type-derived overrides (coding, negotiation — see effectiveMemoryMode in
+// liveSessionMemory.ts) are ever reachable now. Was a 10-value union.
+export type MemoryMode = 'technical-interview' | 'coding' | 'negotiation';
 
 export type MemoryItemKind =
   | 'project'     // a named project on the table ("Natively", "TalentScope")
@@ -87,22 +89,18 @@ export interface MemoryRecall {
 // cross-mode request). This is the leak-boundary table. A kind not listed is blocked
 // for that mode unless explicitCrossMode is set.
 const MODE_ALLOWED_KINDS: Record<MemoryMode, Set<MemoryItemKind>> = {
-  general: new Set<MemoryItemKind>(['project', 'skill', 'company', 'person', 'topic', 'decision', 'objection', 'jd_topic']),
-  interview: new Set<MemoryItemKind>(['project', 'skill', 'company', 'jd_topic']),
   'technical-interview': new Set<MemoryItemKind>(['project', 'skill', 'topic', 'jd_topic']),
-  'looking-for-work': new Set<MemoryItemKind>(['project', 'skill', 'company', 'jd_topic']),
   // Coding answers are profile-forbidden: NO project/company/skill recall unless the
   // user explicitly invites it. Only neutral topics (the algorithm at hand).
   coding: new Set<MemoryItemKind>(['topic']),
-  // Sales sees its own customer/objection context — NOT meeting decisions/action
-  // items (those belong to team-meet; leaking them into a sales pitch is wrong).
-  sales: new Set<MemoryItemKind>(['company', 'objection', 'person']),
-  lecture: new Set<MemoryItemKind>(['topic']),
-  'team-meet': new Set<MemoryItemKind>(['decision', 'person', 'company', 'topic']),
-  recruiting: new Set<MemoryItemKind>(['project', 'skill', 'company', 'jd_topic']),
   // Negotiation is the ONLY mode that may recall comp; it also sees role/jd context.
   negotiation: new Set<MemoryItemKind>(['comp', 'jd_topic', 'company']),
 };
+
+// Fail-closed fallback for a mode value that somehow isn't a recognized MemoryMode
+// at runtime (MODE_ALLOWED_KINDS is a total map over the type, so this is defensive
+// only) — allow nothing rather than falling back to a broad 'general' set.
+const EMPTY_KINDS: Set<MemoryItemKind> = new Set();
 
 // Half-life (seconds) for salience decay, by kind. Pinned/entity items live longer.
 const HALF_LIFE: Record<MemoryItemKind, number> = {
@@ -163,7 +161,7 @@ export class SessionMemory {
    * then asks for clarification rather than guessing).
    */
   recall(query: MemoryQuery): MemoryRecall {
-    const allowed = MODE_ALLOWED_KINDS[query.mode] ?? MODE_ALLOWED_KINDS.general;
+    const allowed = MODE_ALLOWED_KINDS[query.mode] ?? EMPTY_KINDS;
     const crossOk = query.explicitCrossMode === true;
     // Comp NEVER surfaces outside negotiation, even with explicitCrossMode — salary
     // is its own gated channel (hardening rule: no salary leakage outside comp Qs).
@@ -208,7 +206,7 @@ export class SessionMemory {
 
   /** All items of a kind currently visible in a mode (for diagnostics/tests). */
   visible(kind: MemoryItemKind, mode: MemoryMode, explicitCrossMode = false): MemoryItem[] {
-    const allowed = MODE_ALLOWED_KINDS[mode] ?? MODE_ALLOWED_KINDS.general;
+    const allowed = MODE_ALLOWED_KINDS[mode] ?? EMPTY_KINDS;
     if (COMP_KINDS.has(kind) && mode !== 'negotiation') return [];
     if (!allowed.has(kind) && !explicitCrossMode) return [];
     return this.items.filter(i => i.kind === kind);
@@ -224,6 +222,6 @@ export class SessionMemory {
 /** Is recall of `kind` allowed in `mode` without an explicit cross-mode request? */
 export function isKindAllowedInMode(kind: MemoryItemKind, mode: MemoryMode): boolean {
   if (COMP_KINDS.has(kind)) return mode === 'negotiation';
-  const allowed = MODE_ALLOWED_KINDS[mode] ?? MODE_ALLOWED_KINDS.general;
+  const allowed = MODE_ALLOWED_KINDS[mode] ?? EMPTY_KINDS;
   return allowed.has(kind);
 }

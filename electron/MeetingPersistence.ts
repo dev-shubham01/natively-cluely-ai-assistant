@@ -373,33 +373,6 @@ export class MeetingPersistence {
                 console.warn('[MeetingPersistence] Failed to load mode sections:', modeErr?.message);
             }
 
-            // MODE AUTO-DETECTION (Phase 10, behind meetingModeAutoDetect). Deterministic,
-            // no LLM, no provider call — safe even when post_call_summary scope is denied.
-            // NEVER switches the live mode; only records a suggestion in summary.mode.detected*.
-            let detectedMode: { templateType: string; modeId?: string; modeName?: string; confidence: number } | undefined;
-            try {
-                if (isIntelligenceFlagEnabled('meetingModeAutoDetect') && data.transcript.length > 2) {
-                    const { MeetingModeDetector } = require('./services/meeting/MeetingModeDetector');
-                    const detection = new MeetingModeDetector().detect({
-                        transcript: data.transcript,
-                        calendarTitle: metadata?.title,
-                    });
-                    if (detection.confidence > 0 && detection.templateType !== 'general') {
-                        let modeId: string | undefined;
-                        let modeName: string | undefined;
-                        try {
-                            const { ModesManager } = require('./services/ModesManager');
-                            const match = ModesManager.getInstance().getModes().find((m: { id: string; name: string; templateType: string }) => m.templateType === detection.templateType);
-                            if (match) { modeId = match.id; modeName = match.name; }
-                        } catch { /* non-fatal */ }
-                        detectedMode = { templateType: detection.templateType, modeId, modeName, confidence: detection.confidence };
-                        console.log(`[MeetingPersistence] Mode auto-detect: ${detection.templateType} (conf ${detection.confidence})`);
-                    }
-                }
-            } catch (detErr: any) {
-                console.warn('[MeetingPersistence] Mode auto-detect skipped (non-fatal):', detErr?.message);
-            }
-
             // Generate Structured Summary. V3 is the long-context path: it never uses a
             // naïve transcript prefix as the primary summary input. If it fails or is
             // disabled, the existing V2 single-pass path below remains the compatibility fallback.
@@ -418,12 +391,7 @@ export class MeetingPersistence {
                         ...(modeSnapshot?.id ? { selectedModeId: modeSnapshot.id } : {}),
                         ...(modeSnapshot?.name ? { selectedModeName: modeSnapshot.name } : {}),
                         ...(modeSnapshot?.templateType ? { selectedTemplateType: modeSnapshot.templateType } : {}),
-                        ...(detectedMode ? {
-                            ...(detectedMode.modeId ? { detectedModeId: detectedMode.modeId } : {}),
-                            detectedModeName: detectedMode.modeName || detectedMode.templateType,
-                            detectedConfidence: detectedMode.confidence,
-                        } : {}),
-                        summaryModeUsed: modeSnapshot?.templateType || 'general',
+                        summaryModeUsed: modeSnapshot?.templateType || 'technical-interview',
                     },
                     startedAtMs: v3StartedMs,
                     startedAtIso: new Date(v3StartedMs).toISOString(),

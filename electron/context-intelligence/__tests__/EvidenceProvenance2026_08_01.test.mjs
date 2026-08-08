@@ -21,7 +21,6 @@ const base = path.resolve(process.cwd(), 'dist-electron/electron/context-intelli
 const load = (p) => import(pathToFileURL(path.join(base, p)).href);
 
 const { createModeRetrievalPort } = await load('retrieval/mode-retrieval-port.js');
-const { createMeetingRetrievalPort } = await load('retrieval/meeting-retrieval-port.js');
 const { adaptLegacyChunks } = await load('retrieval/legacy-adapter.js');
 const { decide, evidenceSupportsClaim } = await load('orchestration/orchestrator.js');
 const { composePrompt } = await load('generation/prompt-composer.js');
@@ -40,56 +39,29 @@ describe('provenance: mode port stamps MODE_REFERENCE_FILE regardless of filenam
           chunks: [{ sourceId: 'f1', fileName: '03_standup_transcript.md', text: 'Anita: we should ship Friday.', chunkIndex: 0, score: 0.9 }],
         }),
       },
-      modeInfo: { id: 'team-meet' },
+      modeInfo: { id: 'technical-interview' },
       files: [{ id: 'f1', fileName: '03_standup_transcript.md', content: 'Anita: we should ship Friday.' }],
-      allowedSourceTypes: ['REFERENCE_FILE'],
+      // PROJECT_FILE, not REFERENCE_FILE — technical-interview (the only
+      // surviving mode) does not authorize REFERENCE_FILE.
+      allowedSourceTypes: ['PROJECT_FILE'],
       tokenBudget: 2000,
       userId: 'u',
     });
-    // Note: asking about "the transcript" plans MEETING_TRANSCRIPT only and the
-    // reference file is (correctly) filtered — that isolation is pinned
-    // elsewhere. Here the question targets the brief so the file IS admitted,
-    // and the transcript-like FILENAME must not affect its provenance.
     const { evidence } = await port.retrieve({
-      decision: decisionFor('What is the meeting objective?', 'team-meet'),
+      decision: decisionFor('What does the project note say about shipping?', 'technical-interview'),
     });
     assert.ok(evidence.length > 0, 'fixture must retrieve');
     assert.equal(evidence[0].provenance, 'MODE_REFERENCE_FILE');
   });
 });
 
-describe('provenance: meeting port stamps transcript provenance', () => {
-  const mkPort = () => createMeetingRetrievalPort({
-    retriever: {
-      retrieve: async () => ({
-        chunks: [{ meetingId: 'm1', text: 'Decision: adopt the rollout plan.', chunkIndex: 0, similarity: 0.8 }],
-      }),
-    },
-    currentMeetingId: 'm1', userId: 'u', tokenBudget: 2000,
-  });
-  const meetingDecision = () => decide({
-    requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'team-meet',
-    scope: { userId: 'u', modeId: 'team-meet', meetingId: 'm1' }, sessionId: 's',
-    manualQuestion: 'What did we decide?',
-  });
-
-  test('LIVE_STT by default', async () => {
-    delete process.env.NATIVELY_TEST_TRANSCRIPT_INJECTION;
-    const { evidence } = await mkPort().retrieve({ decision: meetingDecision() });
-    assert.ok(evidence.length > 0, 'meeting chunk must be admitted');
-    assert.equal(evidence[0].provenance, 'LIVE_STT');
-  });
-
-  test('TEST_TRANSCRIPT under the injection env — never LIVE_STT in a test run', async () => {
-    process.env.NATIVELY_TEST_TRANSCRIPT_INJECTION = '1';
-    try {
-      const { evidence } = await mkPort().retrieve({ decision: meetingDecision() });
-      assert.equal(evidence[0]?.provenance, 'TEST_TRANSCRIPT');
-    } finally {
-      delete process.env.NATIVELY_TEST_TRANSCRIPT_INJECTION;
-    }
-  });
-});
+// NOTE: a "provenance: meeting port stamps transcript provenance" describe
+// used to live here. Deleted, not adapted — createMeetingRetrievalPort
+// hardcodes its registry source type to MEETING_TRANSCRIPT with no override
+// (unlike the mode port above), and technical-interview's policy does not
+// authorize MEETING_TRANSCRIPT, so this evidence can never be admitted for
+// the only surviving mode. Same structural dead-end as the deleted
+// MeetingRetrievalPort.test.mjs.
 
 describe('provenance: adapter passes known values and drops unknown ones', () => {
   const opts = {
@@ -143,9 +115,9 @@ describe('provenance: meeting claims reject stamped non-transcript evidence', ()
 
 describe('provenance: packer renders the attribute', () => {
   test('provenance appears on the evidence tag', async () => {
-    const d = decisionFor('What does the brief say about rollout?', 'team-meet');
+    const d = decisionFor('What does the brief say about rollout?', 'technical-interview');
     const composed = composePrompt({
-      decision: d, policy: MODE_POLICIES['team-meet'],
+      decision: d, policy: MODE_POLICIES['technical-interview'],
       evidence: [{
         evidenceId: 'ev-1', sourceType: 'REFERENCE_FILE', sourceId: 'f1', versionId: 'v1',
         retrievedVersionId: 'v1', scopeId: 'u:u', documentTitle: 'brief.md', chunkIndex: 0,

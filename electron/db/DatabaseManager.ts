@@ -2913,15 +2913,11 @@ natively.contact@gmail.com`;
                     ],
                 },
 
-                // CARD 2 — mode auto-detect suggestion (detected differs from selected, conf ≥ 0.5).
                 mode: {
-                    selectedModeId: 'mode_general_default',
-                    selectedModeName: 'General',
-                    selectedTemplateType: 'general',
-                    detectedModeId: 'mode_product_demo',
-                    detectedModeName: 'Product Demo',
-                    detectedConfidence: 0.78,
-                    summaryModeUsed: 'general',
+                    selectedModeId: 'mode_technical_interview_default',
+                    selectedModeName: 'Technical Interview',
+                    selectedTemplateType: 'technical-interview',
+                    summaryModeUsed: 'technical-interview',
                 },
 
                 // CARD 3 — cross-meeting recall (stillOpen non-empty).

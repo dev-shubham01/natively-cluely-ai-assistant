@@ -1,14 +1,6 @@
 import * as crypto from 'crypto';
 
-export type PostCallModeType =
-  | 'general'
-  | 'looking-for-work'
-  | 'sales'
-  | 'recruiting'
-  | 'team-meet'
-  | 'lecture'
-  | 'technical-interview'
-  | string;
+export type PostCallModeType = string;
 
 export interface PostCallTranscriptSegment {
   speaker: string;
@@ -109,13 +101,11 @@ export function extractStructuredActionItems(
 }
 
 export function buildFollowUpDraft(
-  modeTemplateType: PostCallModeType | null | undefined,
+  _modeTemplateType: PostCallModeType | null | undefined,
   actionItems: StructuredActionItem[],
   summaryData?: { overview?: string; keyPoints?: string[]; sections?: Array<{ title: string; bullets: string[] }> }
 ): string {
-  const greeting = modeTemplateType === 'sales' || modeTemplateType === 'recruiting'
-    ? 'Hi,'
-    : 'Hi team,';
+  const greeting = 'Hi team,';
   const lines = [greeting, '', 'Thanks for the conversation today.'];
 
   if (summaryData?.overview) {
@@ -142,7 +132,7 @@ export function buildFollowUpDraft(
 
 export function generateCoachingInsights(
   transcript: PostCallTranscriptSegment[],
-  modeTemplateType: PostCallModeType | null | undefined,
+  _modeTemplateType: PostCallModeType | null | undefined,
   summaryData?: { sections?: Array<{ title: string; bullets: string[] }> }
 ): CoachingInsight[] {
   const text = transcript.map(segment => segment.text).join('\n');
@@ -152,31 +142,10 @@ export function generateCoachingInsights(
     insights.push({ id: `coach_${crypto.randomUUID()}`, type, title, detail, severity, ...(evidence ? { evidence } : {}) });
   };
 
-  if (modeTemplateType === 'sales') {
-    const hasObjection = /\b(price|pricing|cost|expensive|competitor|budget|too much|not sure)\b/i.test(text);
-    const hasNextStep = /\b(next step|follow up|send|schedule|pilot|trial|contract|proposal)\b/i.test(text);
-    if (hasObjection && !sectionHasContent(summaryData, 'Objections')) {
-      add('missed_objection', 'Objection may need a clearer note', 'The conversation included objection language, but the objection section is empty.', 'opportunity', firstMatch(text, /[^.!?]*(?:price|pricing|cost|expensive|competitor|budget|too much|not sure)[^.!?]*/i));
-    }
-    if (!hasNextStep) {
-      add('missing_next_step', 'Next step was not explicit', 'Consider ending sales calls with a concrete owner and follow-up date.', 'opportunity');
-    }
-  } else if (modeTemplateType === 'recruiting') {
-    if (!/\b(compensation|salary|timeline|notice period|availability|start date)\b/i.test(text)) {
-      add('missing_logistics', 'Recruiting logistics not captured', 'Consider confirming compensation, timing, and availability before closing the screen.', 'opportunity');
-    }
-  } else if (modeTemplateType === 'looking-for-work' || modeTemplateType === 'technical-interview') {
-    if (/\b(i don'?t know|not sure|maybe|i think)\b/i.test(text)) {
-      add('uncertainty_pattern', 'Uncertainty appeared in answers', 'Review these moments and prepare a tighter explanation or fallback answer.', 'info', firstMatch(text, /[^.!?]*(?:i don'?t know|not sure|maybe|i think)[^.!?]*/i));
-    }
-  } else if (modeTemplateType === 'team-meet') {
-    if (!/\b(owner|by|deadline|due|next step|action item)\b/i.test(text)) {
-      add('missing_ownership', 'Ownership may be unclear', 'Team meetings are more useful when decisions include owners and dates.', 'opportunity');
-    }
-  } else if (modeTemplateType === 'lecture') {
-    if (/\b(homework|assignment|read|chapter|due|exam|quiz)\b/i.test(text)) {
-      add('study_follow_up', 'Study follow-up detected', 'Add the assignment or study item to follow-up work so it is not missed.', 'info', firstMatch(text, /[^.!?]*(?:homework|assignment|read|chapter|due|exam|quiz)[^.!?]*/i));
-    }
+  // Only technical-interview exists now — the sales/recruiting/team-meet/lecture
+  // coaching branches were removed with those modes.
+  if (/\b(i don'?t know|not sure|maybe|i think)\b/i.test(text)) {
+    add('uncertainty_pattern', 'Uncertainty appeared in answers', 'Review these moments and prepare a tighter explanation or fallback answer.', 'info', firstMatch(text, /[^.!?]*(?:i don'?t know|not sure|maybe|i think)[^.!?]*/i));
   }
 
   return insights.slice(0, 5);

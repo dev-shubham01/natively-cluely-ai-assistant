@@ -46,7 +46,6 @@ import {
 } from './premium'
 import { analytics } from "./lib/analytics/analytics.service"
 import { ErrorBoundary } from "./components/ErrorBoundary"
-import ModesSettings from "./components/settings/ModesSettings"
 import { ProfileIntelligenceSettings } from "./components/ProfileIntelligenceSettings"
 
 
@@ -78,7 +77,7 @@ const queryClient = new QueryClient()
 const CropperWindow = React.lazy(() => import('./components/Cropper'))
 
 type LauncherIsolation = 'onboarding' | 'global-surfaces' | 'permissions-toaster' | 'no-modals' | null
-type ManagerPanel = 'modes' | 'profile' | null
+type ManagerPanel = 'profile' | null
 
 type ManagerPanelDirection = 'forward' | 'backward'
 
@@ -220,16 +219,8 @@ const App: React.FC = () => {
 
   const openProfileExclusive = useCallback(() => {
     if (!activeManagerPanel) rememberManagerOpener();
-    if (activeManagerPanel === 'modes') setManagerPanelDirection('forward');
     setIsSettingsOpen(false);
     setActiveManagerPanel('profile');
-  }, [activeManagerPanel, rememberManagerOpener]);
-
-  const openModesExclusive = useCallback(() => {
-    if (!activeManagerPanel) rememberManagerOpener();
-    if (activeManagerPanel === 'profile') setManagerPanelDirection('backward');
-    setIsSettingsOpen(false);
-    setActiveManagerPanel('modes');
   }, [activeManagerPanel, rememberManagerOpener]);
 
   useEffect(() => {
@@ -1013,7 +1004,6 @@ const App: React.FC = () => {
                     onStartMeeting={handleStartMeeting}
                     onOpenSettings={(tab = 'general') => openSettingsExclusive(tab)}
                     onOpenProfile={() => openProfileExclusive()}
-                    onOpenModes={() => openModesExclusive()}
                     onPageChange={setIsLauncherMainView}
                     ollamaPullStatus={ollamaPullStatus}
                     ollamaPullPercent={ollamaPullPercent}
@@ -1048,7 +1038,7 @@ const App: React.FC = () => {
                         data-testid="manager-panel-host"
                         role="dialog"
                         aria-modal="true"
-                        aria-label={activeManagerPanel === 'modes' ? 'Modes Manager' : 'Profile Intelligence'}
+                        aria-label="Profile Intelligence"
                         tabIndex={-1}
                         variants={managerCardVariants}
                         onClick={(event) => event.stopPropagation()}
@@ -1068,20 +1058,10 @@ const App: React.FC = () => {
                           exit="exit"
                           className="h-full w-full"
                         >
-                          {activeManagerPanel === 'modes' ? (
-                            <ModesSettings
-                              onClose={closeManagerPanel}
-                              isPremium={isPremiumActive}
-                              isLoaded={hasLoadedLicense}
-                              isTrialActive={!!activeTrial}
-                              onOpenNativelyAPI={() => openSettingsExclusive('plans')}
-                            />
-                          ) : (
-                            <ProfileIntelligenceSettings
-                              onClose={closeManagerPanel}
-                              onOpenNativelyAPI={() => openSettingsExclusive('plans')}
-                            />
-                          )}
+                          <ProfileIntelligenceSettings
+                            onClose={closeManagerPanel}
+                            onOpenNativelyAPI={() => openSettingsExclusive('plans')}
+                          />
                         </motion.div>
                         </AnimatePresence>
                       </motion.div>

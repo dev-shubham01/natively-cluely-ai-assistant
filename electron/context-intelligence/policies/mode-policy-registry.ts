@@ -18,23 +18,10 @@
 
 import type { SourceType, GroundingPolicy } from '../contracts/types';
 
-/** The eight built-in modes. `thesis` and `coding-interview` are deliberately
- *  absent: they do not exist in this codebase (verified across all DB
- *  migrations) and are served by `seminar` and `technical-interview`. */
-export type ModeId =
-  | 'general'
-  | 'sales'
-  | 'recruiting'
-  | 'team-meet'
-  | 'looking-for-work'
-  | 'technical-interview'
-  | 'lecture'
-  | 'seminar';
+/** Natively (personal build): the only supported mode. */
+export type ModeId = 'technical-interview';
 
-export const MODE_IDS: readonly ModeId[] = [
-  'general', 'sales', 'recruiting', 'team-meet',
-  'looking-for-work', 'technical-interview', 'lecture', 'seminar',
-] as const;
+export const MODE_IDS: readonly ModeId[] = ['technical-interview'] as const;
 
 export interface CapabilityPolicy {
   explainSourceContent: boolean;
@@ -141,79 +128,6 @@ const retrieval = (candidates: number, accepted: number) =>
 // ── the registry ────────────────────────────────────────────────────────────
 
 export const MODE_POLICIES: Record<ModeId, ModePolicy> = {
-  general: {
-    id: 'general', version: '1.0.0', name: 'General',
-    purpose: 'Universal adaptive copilot for any meeting or conversation.',
-    allowedSourceTypes: ['REFERENCE_FILE', 'MEETING_TRANSCRIPT', 'CONVERSATION_STATE', 'SCREEN_CONTEXT'],
-    sourcePriorities: { REFERENCE_FILE: 1, MEETING_TRANSCRIPT: 2 },
-    profileSources: [],
-    groundingPolicy: 'OPEN_KNOWLEDGE', capabilityPolicy: OPEN_CAPS,
-    personalClaimsRequireEvidence: true, documentClaimsRequireEvidence: true,
-    meetingClaimsRequireEvidence: true, jobClaimsRequireJdEvidence: true,
-    retrievalPolicy: retrieval(20, 6), contextBudget: budget(1500, 600, 800, 400),
-    citations: 'HIDDEN',
-  },
-
-  sales: {
-    id: 'sales', version: '1.0.0', name: 'Sales',
-    purpose: 'Close deals with strategic discovery and objection handling.',
-    allowedSourceTypes: ['REFERENCE_FILE', 'MEETING_TRANSCRIPT', 'CONVERSATION_STATE', 'SCREEN_CONTEXT'],
-    sourcePriorities: { REFERENCE_FILE: 1, MEETING_TRANSCRIPT: 2 },
-    profileSources: [],
-    groundingPolicy: 'SOURCE_FIRST', capabilityPolicy: OPEN_CAPS,
-    // Pricing, commitments and customer statements are product claims: they
-    // require evidence and must never be generated.
-    personalClaimsRequireEvidence: true, documentClaimsRequireEvidence: true,
-    meetingClaimsRequireEvidence: true, jobClaimsRequireJdEvidence: true,
-    retrievalPolicy: retrieval(20, 6), contextBudget: budget(1800, 600, 900, 300),
-    citations: 'OPTIONAL',
-  },
-
-  recruiting: {
-    id: 'recruiting', version: '1.0.0', name: 'Recruiting',
-    purpose: 'Evaluate candidates with structured interview insights.',
-    // CANDIDATE_FILE is a distinct source type from RESUME so a candidate's
-    // documents can never be confused with the Natively user's own resume.
-    allowedSourceTypes: ['CANDIDATE_FILE', 'JOB_DESCRIPTION', 'REFERENCE_FILE', 'MEETING_TRANSCRIPT', 'CONVERSATION_STATE'],
-    sourcePriorities: { CANDIDATE_FILE: 1, JOB_DESCRIPTION: 2, REFERENCE_FILE: 3 },
-    // The user's OWN profile must never describe a candidate: no hydration.
-    profileSources: [],
-    groundingPolicy: 'SOURCE_FIRST', capabilityPolicy: OPEN_CAPS,
-    personalClaimsRequireEvidence: true, documentClaimsRequireEvidence: true,
-    meetingClaimsRequireEvidence: true, jobClaimsRequireJdEvidence: true,
-    retrievalPolicy: retrieval(20, 6), contextBudget: budget(1800, 600, 900, 200),
-    citations: 'OPTIONAL',
-  },
-
-  'team-meet': {
-    id: 'team-meet', version: '1.0.0', name: 'Team Meet',
-    purpose: 'Track action items and key decisions from meetings.',
-    allowedSourceTypes: ['MEETING_TRANSCRIPT', 'REFERENCE_FILE', 'SCREEN_CONTEXT', 'CONVERSATION_STATE'],
-    sourcePriorities: { MEETING_TRANSCRIPT: 1, REFERENCE_FILE: 2 },
-    profileSources: [],
-    groundingPolicy: 'OPEN_KNOWLEDGE', capabilityPolicy: OPEN_CAPS,
-    personalClaimsRequireEvidence: true, documentClaimsRequireEvidence: true,
-    meetingClaimsRequireEvidence: true, jobClaimsRequireJdEvidence: true,
-    retrievalPolicy: retrieval(20, 6), contextBudget: budget(1200, 800, 1400, 400),
-    citations: 'HIDDEN',
-  },
-
-  'looking-for-work': {
-    id: 'looking-for-work', version: '1.1.0', name: 'Looking for work',
-    purpose: 'Answer interview questions with confidence and clarity.',
-    allowedSourceTypes: ['RESUME', 'JOB_DESCRIPTION', 'PROFILE_FACT', 'REFERENCE_FILE', 'CONVERSATION_STATE'],
-    // Resume outranks JD: the JD may shape EMPHASIS, never prove experience.
-    sourcePriorities: { RESUME: 1, PROFILE_FACT: 2, JOB_DESCRIPTION: 3 },
-    // Profile Intelligence is the PRIMARY source here (uploaded once in
-    // Profile settings); mode attachments are optional supplements.
-    profileSources: ['RESUME', 'JOB_DESCRIPTION', 'PROFILE_FACT'],
-    groundingPolicy: 'SOURCE_FIRST', capabilityPolicy: OPEN_CAPS,
-    personalClaimsRequireEvidence: true, documentClaimsRequireEvidence: true,
-    meetingClaimsRequireEvidence: true, jobClaimsRequireJdEvidence: true,
-    retrievalPolicy: retrieval(20, 6), contextBudget: budget(1800, 600, 600, 200),
-    citations: 'HIDDEN',
-  },
-
   'technical-interview': {
     id: 'technical-interview', version: '1.1.0', name: 'Technical Interview',
     purpose: 'Whiteboard-style coding and system design support.',
@@ -228,35 +142,6 @@ export const MODE_POLICIES: Record<ModeId, ModePolicy> = {
     meetingClaimsRequireEvidence: true, jobClaimsRequireJdEvidence: true,
     retrievalPolicy: retrieval(20, 6), contextBudget: budget(1600, 700, 700, 800),
     citations: 'HIDDEN',
-  },
-
-  lecture: {
-    id: 'lecture', version: '1.0.0', name: 'Lecture',
-    purpose: 'Capture key concepts and content from lectures.',
-    allowedSourceTypes: ['REFERENCE_FILE', 'MEETING_TRANSCRIPT', 'CONVERSATION_STATE'],
-    sourcePriorities: { REFERENCE_FILE: 1, MEETING_TRANSCRIPT: 2 },
-    profileSources: [],
-    groundingPolicy: 'SOURCE_FIRST', capabilityPolicy: OPEN_CAPS,
-    personalClaimsRequireEvidence: true, documentClaimsRequireEvidence: true,
-    meetingClaimsRequireEvidence: true, jobClaimsRequireJdEvidence: true,
-    retrievalPolicy: retrieval(24, 8), contextBudget: budget(2000, 500, 1000, 200),
-    citations: 'OPTIONAL',
-  },
-
-  seminar: {
-    id: 'seminar', version: '1.0.0', name: 'Seminar',
-    purpose: 'Strict file-grounded Q&A for presentations, thesis defences and paper walkthroughs.',
-    allowedSourceTypes: ['REFERENCE_FILE', 'MEETING_TRANSCRIPT', 'CONVERSATION_STATE'],
-    sourcePriorities: { REFERENCE_FILE: 1, MEETING_TRANSCRIPT: 2 },
-    profileSources: [],
-    // SOURCE_FIRST, not STRICT_SOURCE_ONLY: the existing seminar contract is
-    // "answer general-labeled with a visible preamble, NEVER refuse". §27.2
-    // forbids hiding failures behind over-refusal, so labelling beats refusing.
-    groundingPolicy: 'SOURCE_FIRST', capabilityPolicy: STRICT_DOC_CAPS,
-    personalClaimsRequireEvidence: true, documentClaimsRequireEvidence: true,
-    meetingClaimsRequireEvidence: true, jobClaimsRequireJdEvidence: true,
-    retrievalPolicy: retrieval(24, 8), contextBudget: budget(2400, 400, 800, 200),
-    citations: 'VISIBLE',
   },
 };
 

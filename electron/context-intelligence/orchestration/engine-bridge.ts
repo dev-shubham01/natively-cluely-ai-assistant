@@ -155,8 +155,8 @@ export async function buildV3Prompt(input: BridgeInput): Promise<BridgeResult | 
     const question = String(input.question || '').trim();
     if (!question) return null;
 
-    const raw = input.modeTemplateType ?? 'general';
-    const modeId: ModeId = isModeId(raw) ? raw : 'general';
+    const raw = input.modeTemplateType ?? 'technical-interview';
+    const modeId: ModeId = isModeId(raw) ? raw : 'technical-interview';
 
     // The user's per-mode grounding choice (§6). Read per turn — not cached on
     // the bridge — so a change in Settings applies to the very next answer.

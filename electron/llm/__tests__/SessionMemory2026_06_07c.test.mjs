@@ -66,25 +66,25 @@ describe('Supersession — newer same-kind mention wins', () => {
 describe('Corrections override earlier memory', () => {
   test('"actually use TalentScope" corrects the best project', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'looking-for-work');
-    m.note('project', 'TalentScope', 10 * MIN, 'looking-for-work', { corrects: true });
-    const r = m.recall({ now: 20 * MIN, kind: 'project', mode: 'looking-for-work' });
+    m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+    m.note('project', 'TalentScope', 10 * MIN, 'technical-interview', { corrects: true });
+    const r = m.recall({ now: 20 * MIN, kind: 'project', mode: 'technical-interview' });
     assert.equal(r.item?.value, 'TalentScope');
     assert.equal(r.reason, 'correction_override');
   });
   test('a correction wins even if older than a non-correction mention', () => {
     const m = new SessionMemory();
-    m.note('company', 'Acme', 1 * MIN, 'sales');
-    m.note('company', 'Globex', 2 * MIN, 'sales', { corrects: true });
-    m.note('company', 'Acme', 3 * MIN, 'sales'); // stray re-mention
-    const r = m.recall({ now: 5 * MIN, kind: 'company', mode: 'sales' });
+    m.note('company', 'Acme', 1 * MIN, 'negotiation');
+    m.note('company', 'Globex', 2 * MIN, 'negotiation', { corrects: true });
+    m.note('company', 'Acme', 3 * MIN, 'negotiation'); // stray re-mention
+    const r = m.recall({ now: 5 * MIN, kind: 'company', mode: 'negotiation' });
     assert.equal(r.item?.value, 'Globex', 'correction is authoritative');
   });
-  test('lecture topic correction BFS → DFS', () => {
+  test('topic correction BFS → DFS', () => {
     const m = new SessionMemory();
-    m.note('topic', 'BFS', 1 * MIN, 'lecture');
-    m.note('topic', 'DFS', 5 * MIN, 'lecture', { corrects: true });
-    const r = m.recall({ now: 10 * MIN, kind: 'topic', mode: 'lecture' });
+    m.note('topic', 'BFS', 1 * MIN, 'technical-interview');
+    m.note('topic', 'DFS', 5 * MIN, 'technical-interview', { corrects: true });
+    const r = m.recall({ now: 10 * MIN, kind: 'topic', mode: 'technical-interview' });
     assert.equal(r.item?.value, 'DFS');
   });
 });
@@ -162,8 +162,8 @@ describe('Compensation is gated to negotiation mode ONLY', () => {
   });
   test('a non-comp value ("ship by Friday") is NOT auto-promoted', () => {
     const m = new SessionMemory();
-    m.note('decision', 'ship by Friday', 1 * MIN, 'team-meet');
-    assert.equal(m.recall({ now: 5 * MIN, kind: 'decision', mode: 'team-meet' }).item?.value, 'ship by Friday');
+    m.note('topic', 'ship by Friday', 1 * MIN, 'technical-interview');
+    assert.equal(m.recall({ now: 5 * MIN, kind: 'topic', mode: 'technical-interview' }).item?.value, 'ship by Friday');
   });
 });
 
@@ -197,19 +197,19 @@ describe('Adversarial: competing entities + stale-vs-fresh + double-correction (
   });
   test('double correction — the LATEST correction wins (Natively → TalentScope → Natively)', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 2 * MIN, 'looking-for-work');
-    m.note('project', 'TalentScope', 4 * MIN, 'looking-for-work', { corrects: true });
-    m.note('project', 'Natively', 8 * MIN, 'looking-for-work', { corrects: true });
-    const r = m.recall({ now: 12 * MIN, kind: 'project', mode: 'looking-for-work' });
+    m.note('project', 'Natively', 2 * MIN, 'technical-interview');
+    m.note('project', 'TalentScope', 4 * MIN, 'technical-interview', { corrects: true });
+    m.note('project', 'Natively', 8 * MIN, 'technical-interview', { corrects: true });
+    const r = m.recall({ now: 12 * MIN, kind: 'project', mode: 'technical-interview' });
     assert.equal(r.item?.value, 'Natively', 'latest correction is authoritative');
     assert.equal(r.reason, 'correction_override');
   });
   test('a fresh non-correction does NOT override an explicit correction', () => {
     const m = new SessionMemory();
-    m.note('company', 'Acme', 1 * MIN, 'sales');
-    m.note('company', 'Globex', 2 * MIN, 'sales', { corrects: true });
-    m.note('company', 'Acme', 10 * MIN, 'sales'); // later stray mention, NOT a correction
-    const r = m.recall({ now: 12 * MIN, kind: 'company', mode: 'sales' });
+    m.note('company', 'Acme', 1 * MIN, 'negotiation');
+    m.note('company', 'Globex', 2 * MIN, 'negotiation', { corrects: true });
+    m.note('company', 'Acme', 10 * MIN, 'negotiation'); // later stray mention, NOT a correction
+    const r = m.recall({ now: 12 * MIN, kind: 'company', mode: 'negotiation' });
     assert.equal(r.item?.value, 'Globex', 'the correction stays authoritative over a later stray mention');
   });
 });
@@ -217,10 +217,10 @@ describe('Adversarial: competing entities + stale-vs-fresh + double-correction (
 describe('Memory bounds + reset', () => {
   test('respects maxItems cap while keeping pinned', () => {
     const m = new SessionMemory(5);
-    m.note('topic', 'pinned-one', 0, 'lecture', { pinned: true });
-    for (let i = 1; i <= 20; i++) m.note('topic', `t${i}`, i, 'lecture');
+    m.note('topic', 'pinned-one', 0, 'technical-interview', { pinned: true });
+    for (let i = 1; i <= 20; i++) m.note('topic', `t${i}`, i, 'technical-interview');
     assert.ok(m.size() <= 5);
-    const r = m.recall({ now: 100, kind: 'topic', mode: 'lecture' });
+    const r = m.recall({ now: 100, kind: 'topic', mode: 'technical-interview' });
     assert.ok(r.item, 'still recalls something');
   });
   test('reset clears memory', () => {

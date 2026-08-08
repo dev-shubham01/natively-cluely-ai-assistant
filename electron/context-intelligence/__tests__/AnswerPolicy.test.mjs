@@ -79,11 +79,10 @@ describe('the control cannot widen authorization', () => {
 });
 
 describe('the control is only offered where it means something', () => {
-  test('shown for modes that authorize reference files', () => {
-    for (const modeId of ['seminar', 'lecture', 'sales', 'general']) {
-      assert.equal(shouldOfferAnswerPolicyControl(modeId), true, modeId);
-    }
-  });
+  // NOTE: a "shown for modes that authorize reference files" case used to live
+  // here. It's no longer testable — technical-interview is the only surviving
+  // mode and does not authorize REFERENCE_FILE (see the next test), so there
+  // is no example left to demonstrate the "shown" side of this split with.
 
   test('hidden where the mode has no reference files to be strict about', () => {
     // "Only answer from references" in a mode with no reference files is a

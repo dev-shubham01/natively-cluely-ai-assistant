@@ -1,7 +1,5 @@
 import {
-  MODE_GENERAL_PROMPT, MODE_LECTURE_PROMPT, MODE_LOOKING_FOR_WORK_PROMPT,
-  MODE_RECRUITING_PROMPT, MODE_SALES_PROMPT, MODE_SEMINAR_PROMPT,
-  MODE_TEAM_MEET_PROMPT, MODE_TECHNICAL_INTERVIEW_PROMPT,
+  MODE_TECHNICAL_INTERVIEW_PROMPT,
 } from '../llm/prompts';
 import {
   DIRECT_VISION_SYSTEM_PROMPT, GENERAL_VISION_SYSTEM_PROMPT,
@@ -11,14 +9,7 @@ import { promptHash } from './core';
 import type { BenchmarkPromptKind, PromptPreview } from './types';
 
 const PRODUCTION_MODES: Record<string, string> = {
-  general: MODE_GENERAL_PROMPT,
-  'looking-for-work': MODE_LOOKING_FOR_WORK_PROMPT,
-  sales: MODE_SALES_PROMPT,
-  recruiting: MODE_RECRUITING_PROMPT,
-  'team-meeting': MODE_TEAM_MEET_PROMPT,
-  lecture: MODE_LECTURE_PROMPT,
   'technical-interview': MODE_TECHNICAL_INTERVIEW_PROMPT,
-  seminar: MODE_SEMINAR_PROMPT,
 };
 
 export const BENCHMARK_PROMPT_OPTIONS = [

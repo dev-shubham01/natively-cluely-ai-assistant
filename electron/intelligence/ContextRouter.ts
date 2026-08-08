@@ -114,9 +114,7 @@ const DIAGRAM_RE = /\b(diagram|flow ?chart|sequence diagram|state (machine|diagr
 const LECTURE_RECALL_RE = /\b(which lecture|last lecture|previous lecture|across (all )?lectures|course (memory|so far)|revision (plan|notes|checklist)|flash ?cards?|exam questions?|what did we cover|weak (concepts?|topics?))\b/i;
 
 // Mode template ids planAnswer/decideProfileIntelligence accept as a routing prior.
-const MODE_TEMPLATE_TYPES = new Set([
-  'general', 'looking-for-work', 'sales', 'recruiting', 'team-meet', 'lecture', 'technical-interview',
-]);
+const MODE_TEMPLATE_TYPES = new Set(['technical-interview']);
 
 /** Normalize a mode-id string into the ActiveModeInfo planAnswer expects (or null). */
 function toActiveModeInfo(mode?: string): ActiveModeInfo | null {
@@ -314,8 +312,10 @@ export function routeContext(
     answerType === 'resume_jd_gap_answer' ||
     answerType === 'source_code_evidence_answer';
 
-  // LECTURE / DIAGRAM (Phase 6 V2): only meaningful in lecture mode.
-  const lectureMode = activeModeInfo?.templateType === 'lecture' || answerType === 'lecture_answer';
+  // LECTURE / DIAGRAM (Phase 6 V2): lecture mode no longer exists; only the
+  // answer-type signal can still trigger this (e.g. a lecture-shaped question
+  // asked inside technical-interview).
+  const lectureMode = answerType === 'lecture_answer';
   // Diagram intelligence: an explicit diagram-worthy ask in a lecture context.
   const useDiagramIntelligence = DIAGRAM_RE.test(input.userQuery) && lectureMode;
   // Lecture memory: cross-lecture/course recall asks ("which lecture mentioned X",

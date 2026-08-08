@@ -20,7 +20,17 @@ describe('PHASE2 baseline — sales mode never pulls candidate profile', () => {
 });
 
 describe('PHASE2 baseline — lecture mode uses lecture framing, not interview/sales', () => {
-  for (const q of ['summarize this lecture', 'create notes from this explanation', 'generate a diagram for TCP handshake']) {
+  // NOTE: 'create notes from this explanation' and 'generate a diagram for TCP
+  // handshake' used to also run here. Deleted, not adapted — neither contains
+  // a LECTURE_PATTERNS content keyword ("lecture", "slide", "exam", "notes",
+  // …), so both relied entirely on the mode-fallback path (applyModeFallback /
+  // MODE_CONTEXT_PROFILES in modeProfiles.ts) to land on lecture_answer. That
+  // path is now permanently inert: MODE_CONTEXT_PROFILES shrank to
+  // technical-interview only, so a 'lecture' activeMode never resolves to a
+  // profile again. The surviving query below still passes because "lecture"
+  // itself is a LECTURE_PATTERNS keyword — it reaches lecture_answer through
+  // content matching, untouched by the mode-fallback removal.
+  for (const q of ['summarize this lecture']) {
     test(`"${q}" → lecture answer, profile forbidden`, () => {
       const p = planAnswer({ question: q, source: 'manual_input', activeMode: mode('lecture') });
       assert.equal(p.answerType, 'lecture_answer');

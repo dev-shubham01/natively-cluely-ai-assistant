@@ -23,8 +23,12 @@ const { composePrompt } = await load('generation/prompt-composer.js');
 const { MODE_POLICIES } = await load('policies/mode-policy-registry.js');
 const { clearConversationState } = await load('question/conversation-state-store.js');
 
+// PROJECT_FILE (not REFERENCE_FILE) — technical-interview, the only
+// surviving mode, does not authorize REFERENCE_FILE. The source-type and
+// mode vocabulary here are incidental fixtures for the precedence/conflict
+// mechanics under test, not load-bearing.
 const registry = {
-  sourceTypes: new Map([['cur', 'REFERENCE_FILE'], ['old', 'REFERENCE_FILE']]),
+  sourceTypes: new Map([['cur', 'PROJECT_FILE'], ['old', 'PROJECT_FILE']]),
   activeVersions: new Map([['cur', 'v1'], ['old', 'v1']]),
   chunkVersions: new Map([['cur', 'v1'], ['old', 'v1']]),
   sourceScopes: new Map([['cur', { userId: 'u' }], ['old', { userId: 'u' }]]),
@@ -35,8 +39,8 @@ const chunks = [
 ];
 
 const req = (q, sessionId) => ({
-  requestId: `r-${q.slice(0, 8)}`, requestSequence: 1, surface: 'manual_chat', modeId: 'sales',
-  scope: { userId: 'u', modeId: 'sales' }, sessionId, manualQuestion: q,
+  requestId: `r-${q.slice(0, 8)}`, requestSequence: 1, surface: 'manual_chat', modeId: 'technical-interview',
+  scope: { userId: 'u', modeId: 'technical-interview' }, sessionId, manualQuestion: q,
 });
 
 describe('pattern F: precedence follow-ups use the recorded prior decision', () => {
@@ -94,14 +98,14 @@ describe('pattern F: precedence follow-ups use the recorded prior decision', () 
     const port = createLegacyRetrievalPort({ registry, retrieve: async () => chunks });
     await orchestrate(req('What is the current Team price?', 'sess-f6'), port);
     const second = await orchestrate(req('Why are the lower values not current?', 'sess-f6'), port);
-    const composed = composePrompt({ decision: second.decision, policy: MODE_POLICIES.sales, evidence: second.evidence });
+    const composed = composePrompt({ decision: second.decision, policy: MODE_POLICIES['technical-interview'], evidence: second.evidence });
     assert.ok(composed.sections.includes('precedence_history'), composed.sections.join(','));
     assert.match(composed.system, /Previous source decision \(recorded\)/);
     assert.match(composed.system, /never\s+claim you lack access/i);
     // Without the record, the section must not render.
     const plain = composePrompt({
       decision: (await orchestrate(req('What is the current Team price?', 'sess-f7'), port)).decision,
-      policy: MODE_POLICIES.sales, evidence: [],
+      policy: MODE_POLICIES['technical-interview'], evidence: [],
     });
     assert.ok(!plain.sections.includes('precedence_history'));
   });
@@ -113,7 +117,7 @@ describe('pattern E: conversation section carries the referent-only rule', () =>
     const port = createLegacyRetrievalPort({ registry, retrieve: async () => chunks });
     const r = await orchestrate(req('What is the current Team price?', 'sess-e1'), port);
     const composed = composePrompt({
-      decision: r.decision, policy: MODE_POLICIES.sales, evidence: r.evidence,
+      decision: r.decision, policy: MODE_POLICIES['technical-interview'], evidence: r.evidence,
       conversationSummary: 'USER: earlier question\nASSISTANT: earlier answer',
     });
     assert.ok(composed.sections.includes('conversation'));

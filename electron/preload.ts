@@ -954,21 +954,6 @@ interface ElectronAPI {
     name: string;
     templateType: string;
   }) => Promise<{ success: boolean; mode?: any; error?: string }>;
-  modesGenerateFromBrief: (params: {
-    brief: string;
-    requiresGrounding?: boolean;
-    templateHint?: string;
-    key?: string;
-    persist?: boolean;
-  }) => Promise<{
-    success: boolean;
-    mode?: any;
-    draft?: any;
-    attempts?: number;
-    issues?: any[];
-    persisted?: boolean;
-    error?: string;
-  }>;
   e2eInvoke: (channel: string, ...args: any[]) => Promise<any>;
   modesUpdate: (
     id: string,
@@ -2558,13 +2543,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   modesGetActive: () => ipcRenderer.invoke('modes:get-active'),
   modesCreate: (params: { name: string; templateType: string }) =>
     ipcRenderer.invoke('modes:create', params),
-  modesGenerateFromBrief: (params: {
-    brief: string;
-    requiresGrounding?: boolean;
-    templateHint?: string;
-    key?: string;
-    persist?: boolean;
-  }) => ipcRenderer.invoke('modes:generate-from-brief', params),
   // E2E test bridge — generic invoke for the __e2e__:* handlers, which only exist
   // when the main process was started with NATIVELY_E2E=1. No-op surface in a
   // shipped app (the handlers aren't registered, so invoke rejects).

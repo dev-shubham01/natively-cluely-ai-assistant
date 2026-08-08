@@ -183,15 +183,6 @@ describe('P6: sales template voice', () => {
             assert.ok(p.forbiddenContextLayers.includes('resume'), q);
         }
     });
-    test('named-competitor comparison routes to sales via the SALES MODE prior (the real set-17 setup)', () => {
-        // "how do you compare with Cluely?" has no generic sales keyword — adding
-        // one would capture "how do you compare two algorithms" (checked before
-        // technical). The W1 mode prior owns this: ambiguous turn + sales mode.
-        const salesMode = { id: 'm', templateType: 'sales', name: 'Sales', isCustom: false };
-        const p = planAnswer({ question: 'how do you compare with Cluely?', source: 'manual_input', speakerPerspective: 'user', activeMode: salesMode });
-        assert.equal(p.answerType, 'sales_answer');
-        assert.match(formatAnswerPlanForPrompt(p, false), /SELLER'S spoken voice/i);
-    });
     test('customer-objection coaching routes to sales with seller voice', () => {
         const p = planAnswer({ question: 'customer says it is too slow, what should I say?', source: 'manual_input', speakerPerspective: 'user' });
         assert.equal(p.answerType, 'sales_answer');

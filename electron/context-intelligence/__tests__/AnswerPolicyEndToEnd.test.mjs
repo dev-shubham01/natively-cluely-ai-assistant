@@ -71,7 +71,7 @@ describe('decide() honours the choice', () => {
 
   test('the choice cannot widen: relaxing a strict-by-default mode is the ONLY loosening, and it stays inside the two options', () => {
     const relaxed = decide(req({
-      modeId: 'seminar', manualQuestion: 'What does the document say about attention?',
+      modeId: 'technical-interview', manualQuestion: 'What does the document say about attention?',
       userAnswerPolicy: 'use_references_when_relevant',
     }));
     assert.equal(relaxed.groundingPolicy, 'SOURCE_FIRST');

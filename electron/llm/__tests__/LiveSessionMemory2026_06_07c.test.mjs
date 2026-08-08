@@ -80,11 +80,11 @@ describe('resolveLiveFollowup — the 12 live edge cases (Phase 3)', () => {
     assert.match(r.resolvedQuestion, /SQL/i);
   });
   test('6. correction → TalentScope wins', () => {
-    const r = resolveLiveFollowup({ turns: [{ role: 'interviewer', text: 'What is your best project?', t: 0 }, { role: 'user', text: 'Natively.', t: 5 }, { role: 'user', text: 'Actually use TalentScope.', t: 60 }, { role: 'interviewer', text: 'Why is it your best?', t: 120 }], latestQuestion: 'Why is it your best?', mode: 'looking-for-work', surface: 'manual' });
+    const r = resolveLiveFollowup({ turns: [{ role: 'interviewer', text: 'What is your best project?', t: 0 }, { role: 'user', text: 'Natively.', t: 5 }, { role: 'user', text: 'Actually use TalentScope.', t: 60 }, { role: 'interviewer', text: 'Why is it your best?', t: 120 }], latestQuestion: 'Why is it your best?', mode: 'technical-interview', surface: 'manual' });
     assert.equal(r.recalledEntity, 'TalentScope');
   });
   test('7. double correction A→B→A → Natively', () => {
-    const r = resolveLiveFollowup({ turns: [{ role: 'interviewer', text: 'Best project?', t: 0 }, { role: 'user', text: 'Natively.', t: 5 }, { role: 'user', text: 'Actually use TalentScope.', t: 60 }, { role: 'user', text: 'Actually back to Natively.', t: 120 }, { role: 'interviewer', text: 'Why is that your best?', t: 180 }], latestQuestion: 'Why is that your best?', mode: 'looking-for-work', surface: 'manual' });
+    const r = resolveLiveFollowup({ turns: [{ role: 'interviewer', text: 'Best project?', t: 0 }, { role: 'user', text: 'Natively.', t: 5 }, { role: 'user', text: 'Actually use TalentScope.', t: 60 }, { role: 'user', text: 'Actually back to Natively.', t: 120 }, { role: 'interviewer', text: 'Why is that your best?', t: 180 }], latestQuestion: 'Why is that your best?', mode: 'technical-interview', surface: 'manual' });
     assert.equal(r.recalledEntity, 'Natively');
   });
   test('8. cross-mode coding boundary → NO Natively recall', () => {
@@ -97,12 +97,8 @@ describe('resolveLiveFollowup — the 12 live edge cases (Phase 3)', () => {
     assert.notEqual(r.recalledEntity, '250k');
     assert.ok(!String(r.recalledEntity || '').match(/250k|salary/i));
   });
-  test('10. meeting action-item recall → Mark', () => {
-    const r = resolveLiveFollowup({ turns: [{ role: 'interviewer', text: 'Action item assigned to Mark.', t: 3 * MIN }, { role: 'interviewer', text: 'Who owns that?', t: 60 * MIN }], latestQuestion: 'Who owns that?', mode: 'team-meet', surface: 'meeting' });
-    assert.equal(r.recalledEntity, 'Mark');
-  });
-  test('11. lecture topic recall → amortized analysis', () => {
-    const r = resolveLiveFollowup({ turns: [{ role: 'interviewer', text: "Today's topic is amortized analysis.", t: 0 }, { role: 'user', text: 'Can you explain that with an example?', t: 5 * MIN }], latestQuestion: 'Can you explain that with an example?', mode: 'lecture', surface: 'lecture' });
+  test('11. topic recall → amortized analysis', () => {
+    const r = resolveLiveFollowup({ turns: [{ role: 'interviewer', text: "Today's topic is amortized analysis.", t: 0 }, { role: 'user', text: 'Can you explain that with an example?', t: 5 * MIN }], latestQuestion: 'Can you explain that with an example?', mode: 'technical-interview', surface: 'interview' });
     assert.equal(r.recalledEntity, 'amortized analysis');
   });
   test('12. no-context bare "why?" → clarification (no identity leak)', () => {
@@ -189,7 +185,7 @@ describe('effectiveMemoryMode — coding/comp intent overrides ambient mode (cod
   });
   test('a profile question keeps the ambient mode', () => {
     assert.equal(effectiveMemoryMode('technical-interview', 'project_answer'), 'technical-interview');
-    assert.equal(effectiveMemoryMode('looking-for-work', 'skill_experience_answer'), 'looking-for-work');
+    assert.equal(effectiveMemoryMode('technical-interview', 'skill_experience_answer'), 'technical-interview');
   });
   test('REAL coding-in-interview: project NOT recalled (the production gate, not a synthetic coding mode)', () => {
     // Session is a technical-interview; a coding question must use the coding boundary
@@ -208,13 +204,13 @@ describe('effectiveMemoryMode — coding/comp intent overrides ambient mode (cod
 
 describe('mode/surface mapping', () => {
   test('toMemoryMode', () => {
+    // Only technical-interview exists now — toMemoryMode is unconditional.
     assert.equal(toMemoryMode('technical-interview'), 'technical-interview');
-    assert.equal(toMemoryMode('sales'), 'sales');
-    assert.equal(toMemoryMode(undefined), 'general');
+    assert.equal(toMemoryMode(undefined), 'technical-interview');
   });
   test('toSurface', () => {
-    assert.equal(toSurface('sales', false), 'sales');
-    assert.equal(toSurface('team-meet', false), 'meeting');
+    assert.equal(toSurface('technical-interview', false), 'interview');
+    assert.equal(toSurface('anything-else', false), 'manual');
     assert.equal(toSurface('technical-interview', true), 'what_to_answer');
   });
 });

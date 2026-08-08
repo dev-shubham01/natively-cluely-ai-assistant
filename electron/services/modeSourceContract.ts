@@ -46,19 +46,7 @@ export type ModeSourceAuthority =
  * `modeSourceContract.ts` has no ModesManager dependency (the contract is a
  * pure data type that must remain importable from lightweight contexts).
  */
-export type ContractTemplateType =
-  | 'general'
-  | 'looking-for-work'
-  | 'sales'
-  | 'recruiting'
-  | 'team-meet'
-  | 'lecture'
-  | 'technical-interview'
-  // Campaign-3 (fix/answer-policy-engine, 2026-07-19): the 8th built-in mode.
-  // "Seminar Mode" enforces the strictest answer policy — evidence required,
-  // off-document Qs answered general-labeled with a visible "not from your
-  // reference files" preamble (NEVER a refusal in this built-in mode).
-  | 'seminar';
+export type ContractTemplateType = 'technical-interview';
 
 export type ModeConflictPolicy =
   | 'reference_files_win'
@@ -229,10 +217,9 @@ const EVIDENCE_REQUIRED_FOR_AUTHORITY: Record<ModeSourceAuthority, boolean> = {
  * A brand-new mode with no reference files / prompt yet: safe, ambiguous-aware default.
  *
  * `templateType` is honored so the seed matches the renderer's per-mode default
- * table (general / sales / recruiting / team-meet / lecture → reference_files,
- * looking-for-work / technical-interview → profile + job_description). Without
- * template awareness the seed listed every switch and the renderer would have
- * to ignore it on every freshly-created mode.
+ * (technical-interview → profile + job_description). Without template
+ * awareness the seed listed every switch and the renderer would have to
+ * ignore it on every freshly-created mode.
  *
  * The deprecated 'transcript' switch is never seeded; it's always available
  * via ProviderDataScope during STT sessions, never as a user-settable switch.
@@ -240,8 +227,7 @@ const EVIDENCE_REQUIRED_FOR_AUTHORITY: Record<ModeSourceAuthority, boolean> = {
 export function defaultSourceContractForNewMode(
   templateType?: string,
 ): ModeSourceContract {
-  const isInterviewPrep = templateType === 'looking-for-work'
-    || templateType === 'technical-interview';
+  const isInterviewPrep = templateType === 'technical-interview';
   const allowedExplicitSwitches: ModeSourceSwitch[] = isInterviewPrep
     ? ['profile', 'job_description']
     : ['reference_files'];
@@ -281,16 +267,7 @@ export function defaultSourceContractForNewMode(
 
 /** Type-guard narrowing a string to a known ContractTemplateType. */
 function isContractTemplateType(s: string | undefined): s is ContractTemplateType {
-  return s === 'general'
-    || s === 'looking-for-work'
-    || s === 'sales'
-    || s === 'recruiting'
-    || s === 'team-meet'
-    || s === 'lecture'
-    || s === 'technical-interview'
-    // Campaign-3 (2026-07-19): add 'seminar' to the template-type whitelist
-    // so seededForTemplateType round-trips for the 8th mode.
-    || s === 'seminar';
+  return s === 'technical-interview';
 }
 
 /**

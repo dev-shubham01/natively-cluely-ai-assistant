@@ -83,8 +83,8 @@ describe('SPOKEN_ANSWER_CONTRACT — content (3-tier model)', () => {
 
 describe('SPOKEN_ANSWER_CONTRACT composes into the spoken modes', () => {
   const SPOKEN = [
-    'MODE_LOOKING_FOR_WORK_PROMPT', 'WHAT_TO_ANSWER_PROMPT', 'ANSWER_MODE_PROMPT',
-    'MODE_SALES_PROMPT', 'MODE_TECHNICAL_INTERVIEW_PROMPT',
+    'WHAT_TO_ANSWER_PROMPT', 'ANSWER_MODE_PROMPT',
+    'MODE_TECHNICAL_INTERVIEW_PROMPT',
     'GROQ_SYSTEM_PROMPT', 'GROQ_WHAT_TO_ANSWER_PROMPT',
     'CUSTOM_SYSTEM_PROMPT', 'CUSTOM_WHAT_TO_ANSWER_PROMPT',
   ];
@@ -94,7 +94,7 @@ describe('SPOKEN_ANSWER_CONTRACT composes into the spoken modes', () => {
     });
   }
 
-  const NON_SPOKEN = ['MODE_LECTURE_PROMPT', 'GROQ_RECAP_PROMPT', 'GROQ_SUMMARY_JSON_PROMPT'];
+  const NON_SPOKEN = ['GROQ_RECAP_PROMPT', 'GROQ_SUMMARY_JSON_PROMPT'];
   for (const name of NON_SPOKEN) {
     test(`${name} does NOT carry the length block`, () => {
       assert.ok(!prompts[name].includes('<spoken_answer_length>'), `${name} must not carry the spoken length contract`);
@@ -102,7 +102,7 @@ describe('SPOKEN_ANSWER_CONTRACT composes into the spoken modes', () => {
   }
 
   test('dedup invariant still holds (length block sits after the shared prefix)', () => {
-    assert.ok(prompts.MODE_LOOKING_FOR_WORK_PROMPT.startsWith(prompts.SHARED_MODE_PREFIX));
-    assert.equal((prompts.MODE_LOOKING_FOR_WORK_PROMPT.match(/<spoken_answer_length>/g) || []).length, 1);
+    assert.ok(prompts.MODE_TECHNICAL_INTERVIEW_PROMPT.startsWith(prompts.SHARED_MODE_PREFIX));
+    assert.equal((prompts.MODE_TECHNICAL_INTERVIEW_PROMPT.match(/<spoken_answer_length>/g) || []).length, 1);
   });
 });

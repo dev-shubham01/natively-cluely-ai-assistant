@@ -29,7 +29,6 @@ type FlagTier = 'core' | 'advanced' | 'dev';
 const FLAG_META: Record<string, { label: string; desc: string; group: string; tier: FlagTier }> = {
   // ── Core: on-device, default-ON, live-wired → governed by the master switch ──────────
   meetingSummaryV3: { label: 'Better meeting notes', desc: 'Pulls decisions, action items, open questions, and risks into clean notes after a meeting ends.', group: 'Meeting notes', tier: 'core' },
-  meetingModeAutoDetect: { label: 'Auto-detect meeting type', desc: 'Detects whether a meeting was a sales call, interview, standup, or lecture, and uses the best notes template.', group: 'Meeting notes', tier: 'core' },
   followUpDraftV2: { label: 'Smart follow-up drafts', desc: 'Writes a short, copy-ready follow-up message from the meeting’s decisions and action items.', group: 'Meeting notes', tier: 'core' },
   speakerLabelsV1: { label: 'Speaker labels', desc: 'Lets you rename speakers (e.g. “John from Client”) and uses those names in notes and action items.', group: 'Meeting notes', tier: 'core' },
   // ── Advanced: real opt-in tradeoffs (cost / scope / niche) → inside "Customize" ──────

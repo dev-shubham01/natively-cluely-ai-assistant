@@ -86,9 +86,7 @@ export interface DecideProfileInput {
   jdAvailable?: boolean;
 }
 
-const MODE_TEMPLATE_TYPES: ReadonlySet<string> = new Set([
-  'general', 'looking-for-work', 'sales', 'recruiting', 'team-meet', 'lecture', 'technical-interview',
-]);
+const MODE_TEMPLATE_TYPES: ReadonlySet<string> = new Set(['technical-interview']);
 
 /** Normalize the legacy string form into ActiveModeInfo (unknown ids → null). */
 function toActiveModeInfo(input: DecideProfileInput): ActiveModeInfo | null {

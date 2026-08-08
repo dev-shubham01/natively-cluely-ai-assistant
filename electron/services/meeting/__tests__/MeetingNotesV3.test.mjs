@@ -11,7 +11,6 @@ const { validateMeetingSummaryV3, normalizeLegacySummary, sanitizeFollowUpDraft 
 const { TranscriptNormalizer } = await load('TranscriptNormalizer.js');
 const { TranscriptChunker } = await load('TranscriptChunker.js');
 const { MeetingSummaryStrategySelector } = await load('MeetingSummaryStrategySelector.js');
-const { MeetingModeDetector } = await load('MeetingModeDetector.js');
 const { SpeakerLabelService } = await load('SpeakerLabelService.js');
 const { CrossMeetingRecall, priorFromDetailedSummary } = await load('CrossMeetingRecall.js');
 const { FollowUpDraftGenerator, followUpTypeForMode } = await load('FollowUpDraftGenerator.js');
@@ -101,34 +100,6 @@ test('strategy selector: long_context only when explicitly enabled + allowed + s
   // Too large for the safe cap → map_reduce even when enabled.
   const huge = { segments: [seg('a', 'x', 0)], totalTokensEstimate: 100000 };
   assert.equal(sel.select(huge, { enableLongContext: true, longContextAllowed: true }).strategy, 'map_reduce');
-});
-
-// ── Mode detection ───────────────────────────────────────────────────────────
-
-test('mode detector flags a sales call from transcript', () => {
-  const t = [seg('them', 'What is your pricing and budget? We need a pilot before procurement.', 0), seg('me', 'Here is the demo and the contract.', 1000)];
-  const r = new MeetingModeDetector().detect({ transcript: t });
-  assert.equal(r.templateType, 'sales');
-  assert.ok(r.confidence > 0);
-});
-
-test('mode detector flags a technical interview', () => {
-  const t = [seg('them', 'Implement an LRU cache. What is the time complexity, big O of get and put?', 0), seg('me', 'I will use a hash map and doubly linked list, O(1).', 1000)];
-  const r = new MeetingModeDetector().detect({ transcript: t });
-  assert.equal(r.templateType, 'technical-interview');
-});
-
-test('mode detector returns general with zero confidence on neutral chat', () => {
-  const t = [seg('a', 'hello how are you', 0), seg('b', 'good thanks', 1000)];
-  const r = new MeetingModeDetector().detect({ transcript: t });
-  assert.equal(r.templateType, 'general');
-  assert.equal(r.confidence, 0);
-});
-
-test('mode detector uses calendar title as a signal', () => {
-  const t = [seg('a', 'ok lets start', 0)];
-  const r = new MeetingModeDetector().detect({ transcript: t, calendarTitle: 'Weekly Team Standup' });
-  assert.equal(r.templateType, 'team-meet');
 });
 
 // ── Speaker labels ───────────────────────────────────────────────────────────

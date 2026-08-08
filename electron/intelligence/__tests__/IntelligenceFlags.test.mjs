@@ -57,7 +57,7 @@ const ENV_KEYS = [
 const ALL_FLAG_KEYS = [
   'trace', 'durableMemoryWindow', 'intelligenceOsEnabled', 'profileTreeV2', 'contextRouterV2',
   'liveTranscriptBrain', 'promptAssemblerV2', 'answerDiversityGuard', 'meetingMemoryV2',
-  'meetingSummaryV3', 'meetingModeAutoDetect', 'followUpDraftV2', 'speakerLabelsV1',
+  'meetingSummaryV3', 'followUpDraftV2', 'speakerLabelsV1',
   'meetingNotesStructuredOutput', 'meetingSummaryLlmPolish', 'speakerDiarizationV1',
   'globalSearchV2', 'inMeetingSearchV2', 'conversationMemoryV2', 'lectureIntelligenceV2', 'diagramIntelligence',
   'hindsightMemory', 'hindsightLiveRecall', 'hindsightPostMeetingRetain',
@@ -104,7 +104,6 @@ const ALL_FLAG_KEYS = [
 
 const DEFAULT_ON_KEYS = new Set([
   'meetingSummaryV3',
-  'meetingModeAutoDetect',
   'followUpDraftV2',
   'speakerLabelsV1',
   'meetingSummaryLlmPolish',
