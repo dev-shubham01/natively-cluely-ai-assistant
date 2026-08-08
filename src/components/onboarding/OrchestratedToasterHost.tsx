@@ -154,19 +154,7 @@ export const OrchestratedToasterHost: React.FC = () => {
       return null;
 
     case 'support':
-      return (
-        <SupportToaster
-          isOpen={true}
-          onDismiss={() => {
-            // Mark the donation toast as shown so DonationManager's
-            // lifetimeShows counter increments and the 21-day cooldown
-            // starts. Without this the support toaster re-fires on every
-            // cold launch past the cooldown threshold.
-            window.electronAPI?.markDonationToastShown?.().catch(() => {});
-            onDismiss('support')();
-          }}
-        />
-      );
+      return null;
 
     case 'ads':
       // The 5 ad toasters are driven by useAdCampaigns.ts which still runs in

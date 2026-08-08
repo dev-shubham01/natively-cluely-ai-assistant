@@ -1330,6 +1330,31 @@ export class DatabaseManager {
             this.db.pragma('user_version = 25');
         }
 
+        // Version 25 → 26: lock the permanently-active mode to technical-interview
+        // (personal single-purpose build). Earlier installs seed and activate
+        // 'general' unconditionally (v10→v11 above) — flip the active mode to
+        // technical-interview here so existing local databases pick it up on
+        // next launch without the user having to touch anything. Idempotent:
+        // safe to re-run if the technical-interview row already exists/is
+        // already active.
+        if (version < 26) {
+            console.log('[DatabaseManager] Applying migration v25 → v26: Lock active mode to technical-interview');
+            const defaultTechnicalInterviewModeId = 'mode_technical_interview_default';
+            this.db.prepare(`
+                INSERT OR IGNORE INTO modes (id, name, template_type, custom_context, is_active)
+                VALUES (?, ?, ?, ?, 0)
+            `).run(defaultTechnicalInterviewModeId, 'Technical Interview', 'technical-interview', '');
+            this.db.exec(`UPDATE modes SET is_active = 0`);
+            this.db.prepare(`
+                UPDATE modes SET is_active = 1
+                WHERE id = (
+                    SELECT id FROM modes WHERE template_type = 'technical-interview'
+                    ORDER BY created_at ASC LIMIT 1
+                )
+            `).run();
+            this.db.pragma('user_version = 26');
+        }
+
         console.log('[DatabaseManager] Migrations completed.');
     }
 

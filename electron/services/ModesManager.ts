@@ -391,12 +391,12 @@ export class ModesManager {
             .filter((row: any) => row.template_type !== '__reserved__')
             .map(rowToMode);
 
-        // Always enforce 'general' at the very top of the list.
+        // Always enforce 'technical-interview' at the very top of the list.
         // L1: id is the secondary sort key for stable ordering when two modes
         // share createdAt to the millisecond.
         modes.sort((a, b) => {
-            if (a.templateType === 'general') return -1;
-            if (b.templateType === 'general') return 1;
+            if (a.templateType === 'technical-interview') return -1;
+            if (b.templateType === 'technical-interview') return 1;
             const ta = new Date(a.createdAt).getTime();
             const tb = new Date(b.createdAt).getTime();
             if (ta !== tb) return ta - tb;
@@ -406,11 +406,11 @@ export class ModesManager {
         return modes;
     }
 
-    // Seed the un-deletable General mode once at app init. Idempotent.
+    // Seed the un-deletable Technical Interview mode once at app init. Idempotent.
     public ensureSeeded(): void {
         const modes = DatabaseManager.getInstance().getModes().map(rowToMode);
-        if (!modes.some(m => m.templateType === 'general')) {
-            this.createMode({ name: 'General', templateType: 'general' });
+        if (!modes.some(m => m.templateType === 'technical-interview')) {
+            this.createMode({ name: 'Technical Interview', templateType: 'technical-interview' });
         }
     }
 
@@ -542,6 +542,9 @@ export class ModesManager {
     }
 
     public createMode(params: { name: string; templateType: ModeTemplateType }): Mode {
+        if (params.templateType !== 'technical-interview') {
+            throw new Error(`[ModesManager] createMode: this build only supports 'technical-interview' mode (got '${params.templateType}')`);
+        }
         const id = `mode_${crypto.randomUUID()}`;
         const initialContract = defaultSourceContractForNewMode(params.templateType);
         DatabaseManager.getInstance().createMode({
@@ -796,6 +799,13 @@ export class ModesManager {
         if (id === PROFILE_OKF_RESERVED_MODE_ID) {
             console.warn('[ModesManager] setActiveMode: refusing to activate the reserved profile OKF mode');
             return;
+        }
+        if (id !== null) {
+            const target = this.getModes().find(m => m.id === id);
+            if (!target || target.templateType !== 'technical-interview') {
+                console.warn('[ModesManager] setActiveMode: refusing to activate a non-technical-interview mode', id);
+                return;
+            }
         }
         DatabaseManager.getInstance().setActiveMode(id);
         this.invalidateActiveModeCache();
