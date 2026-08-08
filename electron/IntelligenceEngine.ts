@@ -3196,13 +3196,12 @@ export class IntelligenceEngine extends EventEmitter {
                                 let wtaRepairSystemPrompt: string | undefined;
                                 try {
                                     const { appendCustomModeSystemPromptLayer } = require('./llm/documentGroundedPrompt');
-                                    const { isCustomMode } = require('./services/ModesManager');
                                     const _activeModeRow = mm.getActiveMode?.();
                                     wtaRepairSystemPrompt = appendCustomModeSystemPromptLayer({
                                         baseSystemPrompt: HARD_SYSTEM_PROMPT,
                                         modePromptSuffix: mm.getActiveModeSystemPromptSuffix?.(_activeModeRow?.id),
                                         pinnedInstructions: mm.getActiveModePinnedInstructions?.(answerPlan.answerType, _activeModeRow?.id),
-                                        isActiveCustomMode: isCustomMode(_activeModeRow),
+                                        isActiveCustomMode: false,
                                     });
                                 } catch { wtaRepairSystemPrompt = undefined; }
                                 let repaired = '';

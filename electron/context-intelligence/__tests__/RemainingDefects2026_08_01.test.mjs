@@ -29,15 +29,15 @@ const hasPrivate = (r) => r.claimTypes.some((c) => (CLAIM_AUTHORITY[c]?.authorit
 // ── Issue 1: no more unexplained empty plans ────────────────────────────────
 
 describe('issue 1: every document-backed question from the failing set now plans sources', () => {
+  // NOTE: this used to also carry recruiting/sales/lecture rows (scorecard
+  // weights, an FAQ retention/hallucinations pair, and a course-frequency
+  // pair) plus a team-meet-with-attachments REFERENCE_FILE case. Deleted, not
+  // adapted — each pinned a live-log regression to that mode's own reference-
+  // document vocabulary and source type (REFERENCE_FILE), which
+  // technical-interview (the only surviving mode) does not authorize.
   const cases = [
     ['technical-interview', 'How long did the incident last?'],
     ['technical-interview', 'Explain the source-precedence decision.'],
-    ['recruiting', 'What is the scorecard weight for distributed-systems reasoning?'],
-    ['recruiting', 'Give one tailored distributed-systems interview question.'],
-    ['sales', 'What is default retention?'],
-    ['sales', 'Can I promise zero hallucinations?'],
-    ['lecture', 'Compare low-level and high-level frequencies.'],
-    ['lecture', 'How does a heartbeat failure get detected?'],
   ];
   for (const [mode, q] of cases) {
     test(`${mode}: "${q}" retrieves with a private claim`, () => {
@@ -48,18 +48,10 @@ describe('issue 1: every document-backed question from the failing set now plans
     });
   }
 
-  test('team-meet with attachments: "Compare the target routing accuracy with the measured value" retrieves', () => {
-    const r = classify('Compare the target routing accuracy with the measured value.', 'team-meet',
-      { hasAttachedDocuments: true });
-    assert.equal(r.shouldRetrieve, true, r.reason);
-    assert.ok(r.requiredSourceTypes.includes('REFERENCE_FILE'), JSON.stringify(r.requiredSourceTypes));
-  });
-
   test('NON-REGRESSION: concept/coding questions keep the FAST path', () => {
     for (const [mode, q] of [
       ['technical-interview', 'What is a mutex?'],
-      ['team-meet', 'What is the goal of dependency injection?'],
-      ['general', 'What is idempotency in an HTTP API?'],
+      ['technical-interview', 'What is idempotency in an HTTP API?'],
       ['technical-interview', 'What is the difference between TCP and UDP?'],
     ]) {
       const r = classify(q, mode);
@@ -68,63 +60,34 @@ describe('issue 1: every document-backed question from the failing set now plans
   });
 
   test('assistant meta-question is never a profile claim', () => {
-    const r = classify('Why did you refuse?', 'lecture');
+    const r = classify('Why did you refuse?', 'technical-interview');
     assert.ok(!r.claimTypes.includes('USER_MOTIVATION'), JSON.stringify(r.claimTypes));
   });
 });
 
-// ── Issue 2: source-role selection ──────────────────────────────────────────
+// NOTE: an "issue 2: factual-time and provenance semantics" describe used to
+// live here (sales FAQ / REFERENCE_FILE, team-meet risk-register /
+// REFERENCE_FILE, team-meet bare-attribution / MEETING_TRANSCRIPT-only ×2).
+// Deleted, not adapted — technical-interview (the only surviving mode)
+// authorizes neither REFERENCE_FILE nor MEETING_TRANSCRIPT, so there is no
+// surviving mode to exercise any of these four cases.
 
-describe('issue 2: factual-time and provenance semantics', () => {
-  test('sales: "Are we SOC 2 certified?" claims the reference side too', () => {
-    const r = classify('Are we SOC 2 certified?', 'sales');
-    assert.ok(r.requiredSourceTypes.includes('REFERENCE_FILE'),
-      `security question must reach the FAQ: ${JSON.stringify(r.requiredSourceTypes)} (${r.reason})`);
-  });
-
-  test('team-meet: "Who is the proposed owner of source leakage?" claims the risk register side', () => {
-    const r = classify('Who is the proposed owner of source leakage?', 'team-meet');
-    assert.ok(r.requiredSourceTypes.includes('REFERENCE_FILE'), JSON.stringify(r.requiredSourceTypes));
-  });
-
-  test('NON-REGRESSION: bare attribution stays transcript-only in team-meet', () => {
-    const r = classify('Who owns the source-contract patch?', 'team-meet');
-    assert.deepEqual(r.requiredSourceTypes, ['MEETING_TRANSCRIPT'], r.reason);
-  });
-
-  test('NON-REGRESSION: "What did we decide?" stays transcript-only', () => {
-    const r = classify('What did we decide?', 'team-meet');
-    assert.deepEqual(r.requiredSourceTypes, ['MEETING_TRANSCRIPT'], r.reason);
-  });
-});
-
-// ── Issue 3: comparisons plan both sides ────────────────────────────────────
-
-describe('issue 3: candidate/JD comparisons are two-sided', () => {
-  for (const q of [
-    'Does Leena meet every minimum qualification?',
-    'Which preferred qualifications are missing?',
-  ]) {
-    test(`recruiting: "${q}" plans candidate AND JD`, () => {
-      const r = classify(q, 'recruiting');
-      assert.ok(r.requiredSourceTypes.includes('JOB_DESCRIPTION'), JSON.stringify(r.requiredSourceTypes));
-      assert.ok(r.requiredSourceTypes.includes('CANDIDATE_FILE'),
-        `candidate side missing: ${JSON.stringify(r.requiredSourceTypes)} (${r.reason})`);
-    });
-  }
-
-  test('NON-REGRESSION: a plain presence check stays single-sided', () => {
-    const r = classify('Has she used Kubernetes?', 'recruiting');
-    assert.ok(!r.claimTypes.includes('JOB_REQUIRED_SKILL'), JSON.stringify(r.claimTypes));
-  });
-});
+// NOTE: an "issue 3: candidate/JD comparisons are two-sided" describe used to
+// live here. Deleted, not adapted — it is inherently about the RECRUITING
+// mode's own perspective (evaluating a candidate against a JD, via
+// CANDIDATE_FILE), which technical-interview — the candidate's own side of
+// that conversation — does not authorize.
 
 // ── Issue 4: status precedence in candidate selection ───────────────────────
 
 describe('issue 4: current beats retired at selection time', () => {
+  // PROJECT_FILE (not REFERENCE_FILE) / technical-interview (not sales) —
+  // technical-interview, the only surviving mode, does not authorize
+  // REFERENCE_FILE. The mode and source-type vocabulary here are incidental
+  // fixtures for the status-precedence ranking mechanics under test.
   const mkPort = (chunks) => createLegacyRetrievalPort({
     registry: {
-      sourceTypes: new Map([['cur', 'REFERENCE_FILE'], ['old', 'REFERENCE_FILE']]),
+      sourceTypes: new Map([['cur', 'PROJECT_FILE'], ['old', 'PROJECT_FILE']]),
       activeVersions: new Map([['cur', 'v1'], ['old', 'v1']]),
       chunkVersions: new Map([['cur', 'v1'], ['old', 'v1']]),
       sourceScopes: new Map([['cur', { userId: 'u' }], ['old', { userId: 'u' }]]),
@@ -138,8 +101,8 @@ describe('issue 4: current beats retired at selection time', () => {
   ];
 
   const decisionFor = (q) => decide({
-    requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'sales',
-    scope: { userId: 'u', modeId: 'sales' }, sessionId: 's', manualQuestion: q,
+    requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'technical-interview',
+    scope: { userId: 'u', modeId: 'technical-interview' }, sessionId: 's', manualQuestion: q,
   });
 
   test('a higher-scoring retired chunk cannot outrank the current one', async () => {
@@ -178,7 +141,7 @@ describe('issue 5: retrieval narrowing', () => {
   });
 
   test('NON-REGRESSION: entity questions still reach the résumé pool', () => {
-    const r = classify('How many registered users does SignalNest have?', 'looking-for-work');
+    const r = classify('How many registered users does SignalNest have?', 'technical-interview');
     assert.ok(r.requiredSourceTypes.includes('RESUME'), JSON.stringify(r.requiredSourceTypes));
   });
 
@@ -274,44 +237,14 @@ describe('issue 7: qualified value heads', () => {
 // ── Issue 8: explicit decoy/secondary-entity lookup ─────────────────────────
 
 describe('issue 8: explicit secondary/decoy source lookup without contamination', () => {
-  test('"Identify the decoy candidate ID." plans the reference side too', () => {
-    // The decoy file is deliberately NOT typed CANDIDATE_FILE (isolation);
-    // planned CANDIDATE_FILE-only made it structurally unreachable.
-    const r = classify('Identify the decoy candidate ID.', 'recruiting');
-    assert.ok(r.requiredSourceTypes.includes('REFERENCE_FILE'),
-      `decoy file unreachable: ${JSON.stringify(r.requiredSourceTypes)} (${r.reason})`);
-    assert.ok(r.requiredSourceTypes.includes('CANDIDATE_FILE'), JSON.stringify(r.requiredSourceTypes));
-  });
-
-  test('NON-REGRESSION: plain candidate questions do not plan a decoy hunt', () => {
-    const r = classify("What is Leena's CGPA?", 'recruiting');
-    assert.ok(!r.questionTypes.includes('DOCUMENT_FACT') || !/decoy/.test(r.reason), r.reason);
-  });
-
-  const registry = {
-    sourceTypes: new Map([['cand', 'CANDIDATE_FILE'], ['decoy', 'REFERENCE_FILE']]),
-    activeVersions: new Map([['cand', 'v1'], ['decoy', 'v1']]),
-    chunkVersions: new Map([['cand', 'v1'], ['decoy', 'v1']]),
-    sourceScopes: new Map([['cand', { userId: 'u' }], ['decoy', { userId: 'u' }]]),
-  };
-  const chunks = [
-    { sourceId: 'cand', fileName: '01_candidate_resume.md', text: 'Candidate Resume - Leena Joseph. Candidate ID: CAND-LEENA-2026. CGPA: 8.91/10', chunkIndex: 0, score: 0.9 },
-    { sourceId: 'decoy', fileName: '06_unrelated_candidate_decoy.md', text: 'This file is a deliberate contamination probe. Decoy candidate ID: CAND-DECOY-0000.', chunkIndex: 0, score: 0.3 },
-  ];
-  const mkDecision = (q) => decide({
-    requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'recruiting',
-    scope: { userId: 'u', modeId: 'recruiting' }, sessionId: 's', manualQuestion: q,
-  });
-
-  test('end-to-end: the decoy file is retrieved and named-file targeting ranks it first', async () => {
-    const port = createLegacyRetrievalPort({ registry, retrieve: async () => chunks });
-    const d = mkDecision('Identify the decoy candidate ID.');
-    const { evidence } = await port.retrieve({ decision: d });
-    assert.ok(evidence.some((e) => e.sourceId === 'decoy'),
-      `decoy evidence missing: ${evidence.map((e) => e.sourceId).join(',')}`);
-    assert.equal(evidence[0].sourceId, 'decoy',
-      'the explicitly named file must outrank the higher-scoring primary candidate');
-  });
+  // NOTE: this used to also carry recruiting/CANDIDATE_FILE cases — a decoy
+  // plans-the-reference-side test, a plain-candidate NON-REGRESSION, an
+  // end-to-end decoy-retrieval test, and a composer secondary_source-section
+  // test. Deleted, not adapted — all four depend on CANDIDATE_FILE
+  // authorization for a recruiter-vs-candidate scenario that
+  // technical-interview (the candidate's own side) does not have. The
+  // isolation invariant below is mode-agnostic (calls evidenceSupportsClaim
+  // directly, no modeId) and survives untouched.
 
   test('isolation both ways: primary values cannot satisfy decoy-qualified requests and vice versa', () => {
     const q = 'Identify the decoy candidate ID.';
@@ -329,38 +262,26 @@ describe('issue 8: explicit secondary/decoy source lookup without contamination'
       'USER_EDUCATION', "What is Leena's CGPA?",
     ), false, "decoy facts must not merge into the active candidate");
   });
-
-  test('composer instructs source-identity separation for decoy requests only', () => {
-    const d = mkDecision('Identify the decoy candidate ID.');
-    const composed = composePrompt({ decision: d, policy: MODE_POLICIES.recruiting, evidence: [] });
-    assert.ok(composed.sections.includes('secondary_source'), composed.sections.join(','));
-    assert.match(composed.system, /secondary or decoy source/i);
-    const plain = composePrompt({
-      decision: mkDecision("What is Leena's CGPA?"),
-      policy: MODE_POLICIES.recruiting, evidence: [],
-    });
-    assert.ok(!plain.sections.includes('secondary_source'));
-  });
 });
 
-// ── Issue 9: lecture filename-role routing ──────────────────────────────────
+// ── Issue 9: filename-role routing ──────────────────────────────────────────
 
 describe('issue 9: glossary and formula routing', () => {
   const names = ['01_small_handout.md', '02_large_course_reader.pdf', '03_glossary.txt', '04_formula_sheet.md'];
 
   test('"Define communication shadow." grounds when a glossary is attached', () => {
-    const r = classify('Define communication shadow.', 'lecture', { attachedFileNames: names });
+    const r = classify('Define communication shadow.', 'technical-interview', { attachedFileNames: names });
     assert.equal(r.shouldRetrieve, true, r.reason);
     assert.ok(r.claimTypes.includes('DOCUMENT_FACT'), JSON.stringify(r.claimTypes));
   });
 
   test('threshold/frequency questions ground when a formula sheet is attached', () => {
-    const r = classify('How does a heartbeat failure get detected?', 'lecture', { attachedFileNames: names });
+    const r = classify('How does a heartbeat failure get detected?', 'technical-interview', { attachedFileNames: names });
     assert.equal(r.shouldRetrieve, true, r.reason);
   });
 
   test('without such files, definitions keep their general route', () => {
-    const r = classify('Define communication shadow.', 'team-meet');
+    const r = classify('Define communication shadow.', 'technical-interview');
     assert.equal(r.path, 'FAST', r.reason);
   });
 });
@@ -374,7 +295,7 @@ describe('issue 9: glossary and formula routing', () => {
 
 describe('audit: named-file targeting cannot re-invert status precedence', () => {
   const registry = {
-    sourceTypes: new Map([['cur', 'REFERENCE_FILE'], ['old', 'REFERENCE_FILE']]),
+    sourceTypes: new Map([['cur', 'PROJECT_FILE'], ['old', 'PROJECT_FILE']]),
     activeVersions: new Map([['cur', 'v1'], ['old', 'v1']]),
     chunkVersions: new Map([['cur', 'v1'], ['old', 'v1']]),
     sourceScopes: new Map([['cur', { userId: 'u' }], ['old', { userId: 'u' }]]),
@@ -386,9 +307,10 @@ describe('audit: named-file targeting cannot re-invert status precedence', () =>
     { sourceId: 'old', fileName: 'pricing-archive-2023.pdf', text: 'Team plan costs $299 per month.', chunkIndex: 0, score: 0.5, metadata: { documentStatus: 'archived' } },
     { sourceId: 'cur', fileName: 'Q3 Plan.pdf', text: 'Team plan costs $499 per month.', chunkIndex: 0, score: 0.9, metadata: { documentStatus: 'current' } },
   ];
+  // technical-interview (not sales) — mode is an incidental fixture here.
   const decisionFor = (q) => decide({
-    requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'sales',
-    scope: { userId: 'u', modeId: 'sales' }, sessionId: 's', manualQuestion: q,
+    requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'technical-interview',
+    scope: { userId: 'u', modeId: 'technical-interview' }, sessionId: 's', manualQuestion: q,
   });
 
   test('a single incidental filename token cannot resurrect a retired document', async () => {
@@ -420,15 +342,15 @@ describe('audit: behavioral interview questions are candidate questions', () => 
   });
 
   test('"Why did you say you left Google?" keeps its motivation claim', () => {
-    const r = classify('Why did you say you left Google?', 'looking-for-work');
+    const r = classify('Why did you say you left Google?', 'technical-interview');
     assert.ok(r.claimTypes.includes('USER_MOTIVATION'), JSON.stringify(r.claimTypes));
   });
 
   test('NON-REGRESSION: bare assistant meta stays meta', () => {
     for (const [mode, q] of [
-      ['lecture', 'Why did you refuse?'],
-      ['general', 'Why did you refuse to answer my question?'],
-      ['general', 'You answered that wrong.'],
+      ['technical-interview', 'Why did you refuse?'],
+      ['technical-interview', 'Why did you refuse to answer my question?'],
+      ['technical-interview', 'You answered that wrong.'],
     ]) {
       const r = classify(q, mode);
       assert.ok(!r.claimTypes.some((c) => c.startsWith('USER_')),

@@ -84,8 +84,8 @@ test('IntelligenceEngine: the WTA doc-grounded repair streamChat call passes a n
   );
   assert.match(
     src,
-    /isActiveCustomMode:\s*isCustomMode\(_activeModeRow\)/,
-    'the WTA call must invoke isCustomMode() to determine the active-custom-mode flag, consistent with the codebase pattern',
+    /isActiveCustomMode:\s*false/,
+    'a custom mode can never be active (createMode/updateMode only allow the technical-interview template), so this must be a literal false, not a call to a custom-mode predicate',
   );
 });
 

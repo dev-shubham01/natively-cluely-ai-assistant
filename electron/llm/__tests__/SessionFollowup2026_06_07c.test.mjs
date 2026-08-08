@@ -32,17 +32,11 @@ describe('C. One-hour-later follow-ups resolve the remembered entity', () => {
     assert.equal(r.recalledEntity, 'SQL');
     assert.equal(r.resolvedAnswerType, 'skill_experience_answer');
   });
-  test('C3: 70-min later sales "what were they worried about?" → Acme', () => {
+  test('C3: 70-min later negotiation "what were they worried about?" → Acme', () => {
     const m = new SessionMemory();
-    m.note('company', 'Acme', 3 * MIN, 'sales');
-    const r = resolveSessionFollowup({ latestQuestion: 'what were they worried about?', now: 70 * MIN, mode: 'sales', surface: 'sales', memory: m, expectedKind: 'company' });
+    m.note('company', 'Acme', 3 * MIN, 'negotiation');
+    const r = resolveSessionFollowup({ latestQuestion: 'what were they worried about?', now: 70 * MIN, mode: 'negotiation', surface: 'sales', memory: m, expectedKind: 'company' });
     assert.equal(r.recalledEntity, 'Acme');
-  });
-  test('C5: meeting action item owner recalled 60 min later', () => {
-    const m = new SessionMemory();
-    m.note('decision', 'ship by Friday — owner Mark', 4 * MIN, 'team-meet');
-    const r = resolveSessionFollowup({ latestQuestion: 'who owns that?', now: 63 * MIN, mode: 'team-meet', surface: 'meeting', memory: m, expectedKind: 'decision' });
-    assert.equal(r.recalledEntity, 'ship by Friday — owner Mark');
   });
 });
 
@@ -81,16 +75,16 @@ describe('D. Cross-mode boundaries — no leak unless explicitly asked', () => {
 describe('E. Corrections override earlier memory', () => {
   test('E1: "use TalentScope" correction → that project, not Natively', () => {
     const m = new SessionMemory();
-    m.note('project', 'Natively', 1 * MIN, 'looking-for-work');
-    m.note('project', 'TalentScope', 10 * MIN, 'looking-for-work', { corrects: true });
-    const r = resolveSessionFollowup({ latestQuestion: 'why is that project your best?', now: 20 * MIN, mode: 'looking-for-work', surface: 'manual', memory: m, expectedKind: 'project' });
+    m.note('project', 'Natively', 1 * MIN, 'technical-interview');
+    m.note('project', 'TalentScope', 10 * MIN, 'technical-interview', { corrects: true });
+    const r = resolveSessionFollowup({ latestQuestion: 'why is that project your best?', now: 20 * MIN, mode: 'technical-interview', surface: 'manual', memory: m, expectedKind: 'project' });
     assert.equal(r.recalledEntity, 'TalentScope');
   });
-  test('E3: sales customer correction Acme → Globex', () => {
+  test('E3: negotiation customer correction Acme → Globex', () => {
     const m = new SessionMemory();
-    m.note('company', 'Acme', 1 * MIN, 'sales');
-    m.note('company', 'Globex', 5 * MIN, 'sales', { corrects: true });
-    const r = resolveSessionFollowup({ latestQuestion: 'what did they ask?', now: 10 * MIN, mode: 'sales', surface: 'sales', memory: m, expectedKind: 'company' });
+    m.note('company', 'Acme', 1 * MIN, 'negotiation');
+    m.note('company', 'Globex', 5 * MIN, 'negotiation', { corrects: true });
+    const r = resolveSessionFollowup({ latestQuestion: 'what did they ask?', now: 10 * MIN, mode: 'negotiation', surface: 'sales', memory: m, expectedKind: 'company' });
     assert.equal(r.recalledEntity, 'Globex');
   });
 });

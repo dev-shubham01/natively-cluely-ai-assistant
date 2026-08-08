@@ -17,10 +17,9 @@ const {
   process.cwd(), 'dist-electron/electron/context-intelligence/policies/mode-policy-registry.js')).href);
 
 describe('registry completeness', () => {
-  test('contains exactly the EIGHT built-in modes — including seminar', () => {
-    assert.equal(MODE_IDS.length, 8);
-    assert.ok(MODE_IDS.includes('seminar'), 'seminar is the 8th built-in and was missing from six legacy lists');
-    assert.ok(MODE_IDS.includes('general'), 'general is the auto-seeded mode omitted from every hand-written list of six');
+  test('contains exactly the ONE built-in mode (personal build: technical-interview only)', () => {
+    assert.equal(MODE_IDS.length, 1);
+    assert.ok(MODE_IDS.includes('technical-interview'));
   });
 
   test('every mode id has a policy — no mode can exist without one', () => {
@@ -50,25 +49,11 @@ describe('fail-closed resolution (F8)', () => {
   });
 
   test('a known mode resolves to its policy', () => {
-    assert.equal(resolveModePolicy('seminar').name, 'Seminar');
     assert.equal(resolveModePolicy('technical-interview').groundingPolicy, 'SOURCE_FIRST');
   });
 });
 
 describe('source authorization per mode', () => {
-  test('looking-for-work ranks RESUME above JOB_DESCRIPTION', () => {
-    const p = MODE_POLICIES['looking-for-work'];
-    assert.ok(p.sourcePriorities.RESUME < p.sourcePriorities.JOB_DESCRIPTION,
-      'the JD may shape emphasis, never outrank the resume as a source of user fact');
-  });
-
-  test('recruiting uses CANDIDATE_FILE, never the user\'s own RESUME', () => {
-    const p = MODE_POLICIES.recruiting;
-    assert.ok(modeAllowsSource(p, 'CANDIDATE_FILE'));
-    assert.equal(modeAllowsSource(p, 'RESUME'), false,
-      'the Natively user\'s resume must not be confused with a candidate\'s');
-  });
-
   test('technical-interview authorizes coding samples and screen context', () => {
     const p = MODE_POLICIES['technical-interview'];
     assert.ok(modeAllowsSource(p, 'CODING_SAMPLE'));
@@ -85,33 +70,6 @@ describe('source authorization per mode', () => {
   });
 });
 
-describe('seminar — strict but never refusing', () => {
-  const seminar = MODE_POLICIES.seminar;
-
-  test('permits derivation from the document (explain, summarize, pseudocode, code)', () => {
-    const c = seminar.capabilityPolicy;
-    assert.ok(c.explainSourceContent && c.summarize && c.generatePseudocode && c.generateCode,
-      'strict grounding must not block valid transformations');
-  });
-
-  test('blocks unrelated recommendation and speculation', () => {
-    const c = seminar.capabilityPolicy;
-    assert.equal(c.makeRecommendations, false);
-    assert.equal(c.brainstorm, false);
-    assert.equal(c.hypotheticalExamples, false);
-  });
-
-  test('always discloses external suggestions and shows citations', () => {
-    assert.equal(seminar.capabilityPolicy.externalSuggestionDisclosure, 'ALWAYS');
-    assert.equal(seminar.citations, 'VISIBLE');
-  });
-
-  test('still permits general knowledge — labels rather than refuses', () => {
-    assert.equal(generalKnowledgeAllowed(seminar), true,
-      'over-refusal is explicitly forbidden; the contract is to answer general-labeled');
-  });
-});
-
 describe('claim evidence requirements', () => {
   test('EVERY mode requires evidence for personal, document, meeting and job claims', () => {
     for (const id of MODE_IDS) {
@@ -123,10 +81,4 @@ describe('claim evidence requirements', () => {
     }
   });
 
-  test('open-knowledge modes still require evidence for factual claims', () => {
-    const p = MODE_POLICIES['team-meet'];
-    assert.equal(p.groundingPolicy, 'OPEN_KNOWLEDGE');
-    assert.equal(p.meetingClaimsRequireEvidence, true,
-      'open knowledge governs FALLBACK, not whether meeting facts need evidence');
-  });
 });

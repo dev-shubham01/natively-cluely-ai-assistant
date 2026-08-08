@@ -27,33 +27,6 @@ const mode = (templateType, name = templateType) => ({
 // the pure fallthrough case. (Vague discourse, no profile attribute words.)
 const AMBIGUOUS_LIVE = 'so, hmm, what do you think about all of this then?';
 
-test('W1-1: ambiguous live turn in SALES mode routes to sales_answer', () => {
-    const plan = planAnswer({
-        question: AMBIGUOUS_LIVE,
-        source: 'what_to_answer',
-        speakerPerspective: 'interviewer',
-        activeMode: mode('sales'),
-    });
-    assert.equal(plan.answerType, 'sales_answer');
-    // The rewritten type carries its own leak rules: resume/jd/negotiation forbidden.
-    assert.ok(plan.forbiddenContextLayers.includes('resume'));
-    assert.ok(plan.forbiddenContextLayers.includes('jd'));
-    assert.ok(plan.forbiddenContextLayers.includes('negotiation'));
-    assert.equal(plan.profileContextPolicy, 'forbidden');
-});
-
-test('W1-2: ambiguous live turn in LECTURE mode routes to lecture_answer (reference files in, resume out)', () => {
-    const plan = planAnswer({
-        question: AMBIGUOUS_LIVE,
-        source: 'what_to_answer',
-        speakerPerspective: 'interviewer',
-        activeMode: mode('lecture'),
-    });
-    assert.equal(plan.answerType, 'lecture_answer');
-    assert.ok(plan.requiredContextLayers.includes('reference_files'));
-    assert.ok(plan.forbiddenContextLayers.includes('resume'));
-});
-
 test('W1-3: ambiguous live turn in TEAM-MEET / RECRUITING stays conversation-scoped', () => {
     for (const t of ['team-meet', 'recruiting']) {
         const plan = planAnswer({
@@ -137,14 +110,18 @@ test('W1-7: an EXPLICIT meeting-recap match is not rewritten by the sales prior 
 });
 
 // ── applyModeFallback unit contract ─────────────────────────────────────────
+// technical-interview is the only surviving mode and its profile is NEUTRAL
+// (see modeProfiles.ts) — a mode rewriting the fallthrough type is no longer
+// a reachable scenario, so only the passthrough invariants are testable here.
 test('W1-8: applyModeFallback only rewrites floor types and only when fellThrough', () => {
-    const sales = mode('sales');
-    assert.equal(applyModeFallback('unknown_answer', true, 'manual_input', sales), 'sales_answer');
-    assert.equal(applyModeFallback('general_meeting_answer', true, 'what_to_answer', sales), 'sales_answer');
+    const ti = mode('technical-interview');
+    // NEUTRAL profile → untouched even on a genuine fallthrough.
+    assert.equal(applyModeFallback('unknown_answer', true, 'manual_input', ti), 'unknown_answer');
+    assert.equal(applyModeFallback('general_meeting_answer', true, 'what_to_answer', ti), 'general_meeting_answer');
     // Not a fallthrough → untouched.
-    assert.equal(applyModeFallback('general_meeting_answer', false, 'what_to_answer', sales), 'general_meeting_answer');
+    assert.equal(applyModeFallback('general_meeting_answer', false, 'what_to_answer', ti), 'general_meeting_answer');
     // Non-floor type → untouched even when fellThrough is (incorrectly) true.
-    assert.equal(applyModeFallback('identity_answer', true, 'what_to_answer', sales), 'identity_answer');
+    assert.equal(applyModeFallback('identity_answer', true, 'what_to_answer', ti), 'identity_answer');
     // No mode → untouched.
     assert.equal(applyModeFallback('unknown_answer', true, 'manual_input', null), 'unknown_answer');
 });

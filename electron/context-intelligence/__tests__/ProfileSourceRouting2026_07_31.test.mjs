@@ -52,7 +52,7 @@ const JD_STRUCTURED = {
   employment_type: 'full_time',
 };
 
-const POLICY = resolveModePolicy('looking-for-work');
+const POLICY = resolveModePolicy('technical-interview');
 const profilePort = () => createProfileRetrievalPort({
   docs: [
     { kind: 'resume', sourceId: 'psrc_resume_e2e', versionId: 'rv1', fileName: 'Candidate Resume (Profile Intelligence)', structured: RESUME_STRUCTURED },
@@ -69,7 +69,7 @@ const ask = async (q) => {
   clearConversationState(sessionId);
   return orchestrate({
     requestId: `r${seq}`, requestSequence: seq, surface: 'manual-chat',
-    modeId: 'looking-for-work', scope: { userId: 'local' }, sessionId,
+    modeId: 'technical-interview', scope: { userId: 'local' }, sessionId,
     manualQuestion: q,
   }, profilePort());
 };
@@ -107,7 +107,7 @@ describe('acceptance: Profile Intelligence only, zero mode attachments', () => {
     const q = 'Do I meet the two-year professional experience requirement?';
     const d = decide({
       requestId: 'rq', requestSequence: 99, surface: 'manual-chat',
-      modeId: 'looking-for-work', scope: { userId: 'local' }, sessionId: 'e2e-2yr',
+      modeId: 'technical-interview', scope: { userId: 'local' }, sessionId: 'e2e-2yr',
       manualQuestion: q,
     });
     assert.ok(d.retrievalPlan.sourceTypes.includes('RESUME'),
@@ -171,7 +171,7 @@ describe('composition wording', () => {
   test('zero attachments + NO profile: the notice offers Profile Intelligence as the fix', async () => {
     const d = decide({
       requestId: 'rn', requestSequence: 1, surface: 'manual-chat',
-      modeId: 'looking-for-work', scope: { userId: 'local' }, sessionId: 'e2e-none',
+      modeId: 'technical-interview', scope: { userId: 'local' }, sessionId: 'e2e-none',
       manualQuestion: 'What is my CGPA?',
     });
     const composed = composePrompt({
@@ -251,7 +251,7 @@ describe('answerability internals (pinned directly — the E2E cases above can m
       await import(pathToFileURL(path.join(base, 'orchestration/orchestrator.js')).href);
     const decision = d2({
       requestId: 'ri', requestSequence: 1, surface: 'manual-chat',
-      modeId: 'looking-for-work', scope: { userId: 'local' }, sessionId: 'e2e-int',
+      modeId: 'technical-interview', scope: { userId: 'local' }, sessionId: 'e2e-int',
       manualQuestion: 'Do I have Kubernetes experience?',
     });
     assert.ok(decision.claimRequirements.some((c) => c.claimType === 'USER_SKILL'));
@@ -285,7 +285,7 @@ describe('E2E-B: a supplemental mode file never hides the profile', () => {
     clearConversationState(sid);
     return orchestrate({
       requestId: 'rb', requestSequence: 1, surface: 'manual-chat',
-      modeId: 'looking-for-work', scope: { userId: 'local' }, sessionId: sid,
+      modeId: 'technical-interview', scope: { userId: 'local' }, sessionId: sid,
       manualQuestion: q,
     }, combined);
   };
@@ -315,7 +315,7 @@ describe('E2E-D: recruiting material is structurally unreachable from LfW', () =
     clearConversationState('e2e-d1');
     const r = await orchestrate({
       requestId: 'rd', requestSequence: 1, surface: 'manual-chat',
-      modeId: 'looking-for-work', scope: { userId: 'local' }, sessionId: 'e2e-d1',
+      modeId: 'technical-interview', scope: { userId: 'local' }, sessionId: 'e2e-d1',
       manualQuestion: 'Did I build the IncidentLens project?',
     }, profilePort());
     assert.ok(!r.evidence.some((e) => e.content.includes('IncidentLens')));
@@ -357,33 +357,18 @@ describe('review hardening: inventory support is category-matched', () => {
   });
 });
 
-describe('review hardening: conjunction only binds plannable claims', () => {
-  test('team-meet: a meeting question containing "required qualifications" is FULL from the transcript', async () => {
-    const { evaluateAnswerability, decide: d2 } =
-      await import(pathToFileURL(path.join(base, 'orchestration/orchestrator.js')).href);
-    const decision = d2({
-      requestId: 'rt', requestSequence: 1, surface: 'manual-chat',
-      modeId: 'team-meet', scope: { userId: 'local' }, sessionId: 'e2e-tm',
-      manualQuestion: 'Did we agree on the required qualifications for the backfill role?',
-    });
-    const meetingEvidence = {
-      evidenceId: 'ev-m-0', sourceType: 'MEETING_TRANSCRIPT', sourceId: 'meeting-1',
-      versionId: 'v', retrievedVersionId: 'v', scopeId: 'u:local',
-      content: 'We agreed the backfill role needs three years of Go and on-call experience.',
-      finalScore: 0.9, authorityFor: ['MEETING_STATEMENT'], acceptedFor: ['MEETING_STATEMENT'],
-      isDirectFact: true, isInferred: false, metadata: {}, trustLevel: 'untrusted_reference',
-    };
-    assert.equal(evaluateAnswerability(decision, [meetingEvidence]), 'FULL',
-      'a JD-family claim no planned source can satisfy must fold back to an alternative, not force PARTIAL forever');
-  });
-});
+// NOTE: a "review hardening: conjunction only binds plannable claims" describe
+// (a single "team-meet: a meeting question..." test exercising MEETING_TRANSCRIPT
+// evidence) used to live here. Deleted, not adapted — technical-interview (the
+// only surviving mode) does not authorize MEETING_TRANSCRIPT at all, so there
+// is no equivalent scenario left to preserve.
 
 describe('review hardening: document content cannot forge evidence attributes', () => {
   test('a quote in a section name is escaped — complete_inventory cannot be injected', async () => {
     const { packContext } = await import(pathToFileURL(path.join(base, 'generation/context-packer.js')).href);
     const d = decide({
       requestId: 're', requestSequence: 1, surface: 'manual-chat',
-      modeId: 'looking-for-work', scope: { userId: 'local' }, sessionId: 'esc-1',
+      modeId: 'technical-interview', scope: { userId: 'local' }, sessionId: 'esc-1',
       manualQuestion: 'What is the target role?',
     });
     const hostile = {
@@ -409,7 +394,7 @@ describe('comparison answerability is a conjunction', () => {
     clearConversationState('e2e-conj');
     const r = await orchestrate({
       requestId: 'rc', requestSequence: 1, surface: 'manual-chat',
-      modeId: 'looking-for-work', scope: { userId: 'local' }, sessionId: 'e2e-conj',
+      modeId: 'technical-interview', scope: { userId: 'local' }, sessionId: 'e2e-conj',
       manualQuestion: 'Do I meet the two-year professional experience requirement?',
     }, resumeOnlyPort);
     assert.notEqual(r.answerability, 'FULL',

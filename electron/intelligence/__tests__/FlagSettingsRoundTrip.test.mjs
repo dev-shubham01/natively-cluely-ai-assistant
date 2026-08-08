@@ -59,7 +59,6 @@ const EXPECTED_KEYS = [
   'answerDiversityGuard',
   'meetingMemoryV2',
   'meetingSummaryV3',
-  'meetingModeAutoDetect',
   'followUpDraftV2',
   'speakerLabelsV1',
   'meetingNotesStructuredOutput',
@@ -137,7 +136,6 @@ const EXPECTED_KEYS = [
 // host (or another test) can't make an assertion pass/fail spuriously.
 const DEFAULT_ON_KEYS = new Set([
   'meetingSummaryV3',
-  'meetingModeAutoDetect',
   'followUpDraftV2',
   'speakerLabelsV1',
   'meetingSummaryLlmPolish',

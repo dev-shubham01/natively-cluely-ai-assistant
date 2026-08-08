@@ -48,7 +48,7 @@ describe('never throws into a live answer path', () => {
       surface: 'manual-chat', question: 'What is a mutex?', modeTemplateType: 'not-a-real-mode',
     });
     assert.ok(r, 'must not throw on an unknown templateType');
-    assert.equal(r.modeId, 'general', 'falls back to the seeded mode');
+    assert.equal(r.modeId, 'technical-interview', 'falls back to the seeded mode');
   });
 
   test('a throwing retrieval port degrades to no evidence, not an exception', async () => {

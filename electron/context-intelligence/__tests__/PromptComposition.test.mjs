@@ -143,18 +143,28 @@ describe('realtime instructions are presentation-only (§19.2)', () => {
 });
 
 describe('grounding policy shapes the fallback text', () => {
-  test('seminar labels external knowledge rather than refusing', () => {
+  // Both cases below construct their `policy`/`decision` override inline
+  // rather than through a registered mode — technical-interview (the only
+  // surviving mode) is SOURCE_FIRST with WHEN_SOURCE_SPECIFIC disclosure, and
+  // neither of these fallback-text branches is reachable through it. The
+  // fallback text is driven purely by these two fields, so overriding them
+  // directly preserves exactly what each case tests.
+  test('SOURCE_FIRST labels external knowledge as general knowledge when disclosure is ALWAYS', () => {
+    const policy = {
+      ...MODE_POLICIES['technical-interview'],
+      capabilityPolicy: { ...MODE_POLICIES['technical-interview'].capabilityPolicy, externalSuggestionDisclosure: 'ALWAYS' },
+    };
     const c = composePrompt({
-      decision: decision('What does the paper say?', 'seminar'),
-      policy: MODE_POLICIES.seminar, evidence: [],
+      decision: decision('What does the paper say?', 'technical-interview'),
+      policy, evidence: [],
     });
     assert.match(c.system, /labelled as general knowledge/i);
   });
 
-  test('open-knowledge modes still require evidence for factual claims', () => {
+  test('OPEN_KNOWLEDGE grounding still requires evidence for factual claims', () => {
     const c = composePrompt({
-      decision: decision('What did we decide?', 'team-meet'),
-      policy: MODE_POLICIES['team-meet'], evidence: [],
+      decision: { ...decision('What did we decide?', 'technical-interview'), groundingPolicy: 'OPEN_KNOWLEDGE' },
+      policy: MODE_POLICIES['technical-interview'], evidence: [],
     });
     assert.match(c.system, /still require evidence/i);
   });
@@ -179,7 +189,7 @@ describe('token estimation', () => {
 
 describe('no-evidence notice requires a private claim', () => {
   const followUpDecision = () => decide({
-    requestId: 'r-fu', requestSequence: 1, surface: 'manual-chat', modeId: 'general',
+    requestId: 'r-fu', requestSequence: 1, surface: 'manual-chat', modeId: 'technical-interview',
     scope: { userId: 'u1' }, sessionId: 's-fu',
     manualQuestion: 'give me an example (follow-up to: "what is a rest api")',
     isFollowUp: true,
@@ -193,7 +203,7 @@ describe('no-evidence notice requires a private claim', () => {
     assert.ok(!d.claimRequirements.some((c) => c.authority === 'PRIVATE_SOURCE_REQUIRED'),
       JSON.stringify(d.claimRequirements));
     const p = composePrompt({
-      decision: d, policy: MODE_POLICIES.general, evidence: [],
+      decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [],
       attachedSourceCount: 0, profileSourceCount: 0,
     });
     for (const phrase of ['NO reference material', 'no document has been added', 'does not cover this',
@@ -205,14 +215,14 @@ describe('no-evidence notice requires a private claim', () => {
 
   test('a document question with zero attachments KEEPS the notice (guard is not a blanket)', () => {
     const d = decide({
-      requestId: 'r-doc', requestSequence: 1, surface: 'manual-chat', modeId: 'lecture',
+      requestId: 'r-doc', requestSequence: 1, surface: 'manual-chat', modeId: 'technical-interview',
       scope: { userId: 'u1' }, sessionId: 's-doc',
-      manualQuestion: 'What does the handout say about quantum computing?',
+      manualQuestion: 'What does the design doc say about the caching layer?',
     });
     assert.ok(d.claimRequirements.some((c) => c.authority === 'PRIVATE_SOURCE_REQUIRED'),
       JSON.stringify(d.claimRequirements));
     const p = composePrompt({
-      decision: d, policy: MODE_POLICIES.lecture, evidence: [],
+      decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [],
       attachedSourceCount: 0, profileSourceCount: 0,
     });
     assert.ok(p.sections.includes('no_evidence'), p.sections.join(','));
@@ -251,22 +261,12 @@ describe('personaBase composition', () => {
 });
 
 describe('unsupported-in-mode notice names the remedy (2026-08-02)', () => {
-  test('a personal question in a profile-less mode points at profile-enabled modes', () => {
-    // general does not authorize RESUME/PROFILE_FACT — the mode-less chat case
-    // that produced a coaching template with bracket placeholders.
-    const d = decide({
-      requestId: 'r-intro', requestSequence: 1, surface: 'manual-chat', modeId: 'general',
-      scope: { userId: 'u1' }, sessionId: 's-intro',
-      manualQuestion: 'Can you tell me about yourself?',
-    });
-    assert.equal(d.retrievalPlan.shouldRetrieve, false, d.retrievalPlan.reason);
-    const p = composePrompt({
-      decision: d, policy: MODE_POLICIES.general, evidence: [],
-      attachedSourceCount: 0, profileSourceCount: 0,
-    });
-    assert.ok(p.user.includes('Profile Intelligence'), p.user);
-    assert.ok(p.user.includes('do not invent a template or example answer'), p.user);
-  });
+  // NOTE: a "personal question in a profile-less mode points at
+  // profile-enabled modes" case used to live here, using general (which
+  // authorized no RESUME/PROFILE_FACT at all) to prove the remedy text
+  // fires for the profile-less case. Deleted, not adapted — technical-
+  // interview (the only surviving mode) is profile-enabled by design, so
+  // there is no surviving mode left that is profile-less.
 
   test('remedy derives from claim sources, never question wording — meeting claims name the transcript', () => {
     const d = decide({

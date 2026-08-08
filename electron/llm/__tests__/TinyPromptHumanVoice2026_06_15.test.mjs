@@ -19,9 +19,7 @@ describe('tiny human-voice rule is in the SPOKEN tiny prompts', () => {
   const SPOKEN = [
     'TINY_ANSWER_PROMPT',
     'TINY_WHAT_TO_ANSWER_PROMPT',
-    'TINY_MODE_LOOKING_FOR_WORK_PROMPT',
     'TINY_MODE_TECHNICAL_INTERVIEW_PROMPT',
-    'TINY_MODE_SALES_PROMPT',
     'TINY_FOLLOWUP_PROMPT',
   ];
   for (const name of SPOKEN) {
@@ -44,8 +42,6 @@ describe('structural tiny prompts do NOT carry the spoken-voice ban', () => {
     'TINY_RECAP_PROMPT',
     'TINY_SUMMARY_JSON_PROMPT',
     'TINY_FOLLOWUP_EMAIL_PROMPT',
-    'TINY_MODE_LECTURE_PROMPT',
-    'TINY_MODE_RECRUITING_PROMPT',
   ];
   for (const name of STRUCTURAL) {
     test(`${name} has no human-voice block`, () => {
@@ -59,9 +55,7 @@ describe('structural tiny prompts do NOT carry the spoken-voice ban', () => {
 describe('conditional coding-format rule replaced the unconditional headings line', () => {
   const CODING_MODES = [
     'TINY_ANSWER_PROMPT',
-    'TINY_MODE_LOOKING_FOR_WORK_PROMPT',
     'TINY_MODE_TECHNICAL_INTERVIEW_PROMPT',
-    'TINY_MODE_GENERAL_PROMPT',
   ];
   for (const name of CODING_MODES) {
     test(`${name} states the code-only / complexity-only / dry-run-only / explain-only rule`, () => {
@@ -84,23 +78,16 @@ describe('protected invariants still hold after the tiny edits', () => {
   });
 
   test('TINY_CORE identity guard is intact in every first-person spoken prompt', () => {
-    for (const name of ['TINY_ANSWER_PROMPT', 'TINY_MODE_LOOKING_FOR_WORK_PROMPT', 'TINY_MODE_SALES_PROMPT', 'TINY_MODE_TECHNICAL_INTERVIEW_PROMPT']) {
+    for (const name of ['TINY_ANSWER_PROMPT', 'TINY_MODE_TECHNICAL_INTERVIEW_PROMPT']) {
       assert.ok(tiny[name].includes('IDENTITY GUARD'), `${name} lost the identity guard`);
     }
-  });
-
-  test('SALES confidential-pricing template is still the recency-anchored last rule', () => {
-    const p = tiny.TINY_MODE_SALES_PROMPT;
-    const idx = p.indexOf('CONFIDENTIAL-PRICING TEMPLATE');
-    assert.ok(idx > 0, 'confidential-pricing template must be present');
-    assert.ok(p.length - idx < 800, `pricing template must stay near the end (now ${p.length - idx} chars from end)`);
   });
 
   test('the human-voice rule fragment does not encode any profile fact (style-only)', () => {
     // Isolate the injected human-voice block (between its opening line and the next
     // blank line) so we are testing OUR addition, not TINY_CORE's legitimate creator
     // mention. The rule must be pure style with no profile/question content.
-    for (const name of ['TINY_ANSWER_PROMPT', 'TINY_MODE_LOOKING_FOR_WORK_PROMPT']) {
+    for (const name of ['TINY_ANSWER_PROMPT']) {
       const m = tiny[name].match(/Sound like a real person speaking[\s\S]*?plain speech\./);
       assert.ok(m, `${name} should contain the human-voice block`);
       const block = m[0];

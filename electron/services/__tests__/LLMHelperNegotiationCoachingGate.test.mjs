@@ -273,24 +273,6 @@ test('streamChat: handler is NOT invoked when active mode is technical-interview
   );
 });
 
-test('streamChat: handler is NOT invoked for team-meet or lecture either', async () => {
-  for (const templateType of ['team-meet', 'lecture']) {
-    const helper = buildHelper();
-    helper.setKnowledgeOrchestrator(buildOrchestratorStub());
-    const captured = [];
-    helper.setNegotiationCoachingHandler(payload => captured.push(payload));
-
-    installActiveMode(templateType);
-    await drainStream(helper.streamChat('any input?'));
-
-    assert.equal(
-      captured.length,
-      0,
-      `${templateType} must NOT trigger a salary-coaching card (issue #272)`,
-    );
-  }
-});
-
 test('streamChat: handler IS invoked for the remaining coaching-eligible modes', async () => {
   for (const templateType of ['sales', 'recruiting', 'general']) {
     const helper = buildHelper();
@@ -667,29 +649,6 @@ async function callChatWithSystem(helper, message) {
     return null;
   }
 }
-
-test('chatWithGemini: premium context block is SUPPRESSED at dispatch in team-meet (issue #272)', async () => {
-  const helper = buildHelper();
-  helper.setKnowledgeOrchestrator(buildInjectionOrchestratorStub());
-  const calls = attachDispatchSpy(helper);
-
-  installActiveMode('team-meet');
-  const result = await callChatWithSystem(helper, 'Project status?');
-
-  const dispatched = calls.find(c => c.via === 'executeCustomProvider');
-  assert.ok(dispatched, 'executeCustomProvider must be reached after fall-through');
-  assert.ok(
-    !dispatched.context.includes('PREMIUM_CONTEXT_SENTINEL'),
-    'team-meet must NOT inject premium context at dispatch (issue #272 sibling)',
-  );
-  assert.ok(
-    !dispatched.combinedMessage.includes('PREMIUM_PROMPT_SENTINEL'),
-    'team-meet must NOT inject premium system prompt into the combined message',
-  );
-  // Sanity: the spy actually returned something rather than the function
-  // erroring out before reaching dispatch.
-  assert.equal(result, 'spy-response', 'dispatch must have produced the spy response');
-});
 
 test('chatWithGemini: premium context block REACHES dispatch in recruiting (positive control)', async () => {
   const helper = buildHelper();

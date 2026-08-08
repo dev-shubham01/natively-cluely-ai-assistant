@@ -72,8 +72,8 @@ const mkPort = () => createProfileRetrievalPort({
     { kind: 'resume', sourceId: 'psrc_res', versionId: 'v1', fileName: 'Resume (PI)', structured: structuredResume, rawText: rawResumeText },
     { kind: 'jd', sourceId: 'psrc_jd', versionId: 'v1', fileName: 'JD (PI)', structured: structuredJd, rawText: rawJdText },
   ],
-  allowedSourceTypes: MODE_POLICIES['looking-for-work'].allowedSourceTypes,
-  profileSources: MODE_POLICIES['looking-for-work'].profileSources,
+  allowedSourceTypes: MODE_POLICIES['technical-interview'].allowedSourceTypes,
+  profileSources: MODE_POLICIES['technical-interview'].profileSources,
   userId: 'u1',
 });
 
@@ -81,8 +81,8 @@ const ask = async (q) => {
   const port = mkPort();
   assert.ok(port, 'port must construct');
   const decision = decide({
-    requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'looking-for-work',
-    scope: { userId: 'u1', modeId: 'looking-for-work' }, sessionId: 's',
+    requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'technical-interview',
+    scope: { userId: 'u1', modeId: 'technical-interview' }, sessionId: 's',
     manualQuestion: q, hasAttachedDocuments: true,
   });
   const { evidence } = await port.retrieve({ decision });

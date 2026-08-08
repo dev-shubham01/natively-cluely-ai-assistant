@@ -79,14 +79,6 @@ describe('W2: getActiveModePinnedInstructions', () => {
         assert.match(pinned, /\[truncated\]/);
     });
 
-    test('custom (user-built) modes surface their name', () => {
-        const mgr = installActiveMode(makeMode({
-            name: 'Hackathon Judge', templateType: 'general',
-            customContext: 'Score each pitch on novelty and feasibility.',
-        }));
-        const pinned = mgr.getActiveModePinnedInstructions();
-        assert.match(pinned, /^Mode: Hackathon Judge\n/);
-    });
 });
 
 describe('W2: PromptAssembler pinned block', () => {

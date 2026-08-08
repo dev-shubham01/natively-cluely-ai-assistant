@@ -154,7 +154,7 @@ test('defaultSourceContractForNewMode: per-template sourceAuthority + defaultOwn
     assert.equal(contract.memoryPolicy.allowPriorAssistantFacts, false,
       `templateType=${template ?? '(undefined)'} prior-assistant-facts must be sealed OFF for doc-grounded modes`);
   }
-  const interviewPrep = ['looking-for-work', 'technical-interview'];
+  const interviewPrep = ['technical-interview'];
   for (const template of interviewPrep) {
     const contract = defaultSourceContractForNewMode(template);
     assert.equal(
@@ -183,7 +183,6 @@ test('defaultSourceContractForNewMode: per-template allowedExplicitSwitches (ren
     { template: 'recruiting',        expect: ['reference_files'] },
     { template: 'team-meet',         expect: ['reference_files'] },
     { template: 'lecture',           expect: ['reference_files'] },
-    { template: 'looking-for-work',  expect: ['profile', 'job_description'] },
     { template: 'technical-interview', expect: ['profile', 'job_description'] },
   ];
   for (const { template, expect: expected } of cases) {

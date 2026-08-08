@@ -12,7 +12,6 @@ import { LongTermMemoryService } from '../../../dist-electron/electron/intellige
 
 const DEFAULT_ON_KEYS = new Set([
   'meetingSummaryV3',
-  'meetingModeAutoDetect',
   'followUpDraftV2',
   'speakerLabelsV1',
   'meetingSummaryLlmPolish',

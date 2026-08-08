@@ -52,8 +52,6 @@ describe('D2: definite value lookups ground instead of taking the FAST path', ()
     ['technical-interview', 'What is the dead-letter topic?'],
     ['technical-interview', 'What is the last-page canary?'],
     ['technical-interview', 'What is the worker batch size?'],
-    ['looking-for-work', 'What is the resume canary?'],
-    ['looking-for-work', 'What is the JD canary?'],
   ];
   for (const [mode, q] of cases) {
     test(`${mode}: "${q}" retrieves`, () => {
@@ -68,8 +66,7 @@ describe('D2: definite value lookups ground instead of taking the FAST path', ()
   test('NON-REGRESSION: concept questions keep the FAST path', () => {
     for (const [mode, q] of [
       ['technical-interview', 'What is a mutex?'],
-      ['team-meet', 'What is the goal of dependency injection?'],
-      ['general', 'What is idempotency in an HTTP API?'],
+      ['technical-interview', 'What is idempotency in an HTTP API?'],
       ['technical-interview', 'What is the time complexity of quicksort?'],
       ['technical-interview', 'What is the difference between TCP and UDP?'],
     ]) {
@@ -91,18 +88,11 @@ describe('D3: postmortem ownership questions are not misrouted to the meeting tr
     assert.ok(!r.claimTypes.includes('MEETING_STATEMENT'),
       `no meeting transcript exists in this mode: ${JSON.stringify(r.claimTypes)}`);
   });
-
-  test('NON-REGRESSION team-meet: "Who owns the source-contract patch?" stays transcript-only', () => {
-    const r = classify('Who owns the source-contract patch?', 'team-meet');
-    assert.deepEqual(r.requiredSourceTypes, ['MEETING_TRANSCRIPT'], r.reason);
-  });
 });
 
 describe('D5: document-deictic questions carry a document claim', () => {
   for (const [mode, q] of [
     ['technical-interview', 'What are the RTO and RPO in the dossier?'],
-    ['general', 'What are the RTO and RPO in the dossier?'],
-    ['looking-for-work', 'What is the canary written in this resume?'],
   ]) {
     test(`${mode}: "${q}" claims a document/private source`, () => {
       const r = classify(q, mode);
@@ -114,8 +104,8 @@ describe('D5: document-deictic questions carry a document claim', () => {
 
   test('zero evidence on a dossier question is not answerability FULL / silent general', async () => {
     const res = await orchestrate({
-      requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'general',
-      scope: { userId: 'u', modeId: 'general' }, sessionId: 'd5-s1',
+      requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'technical-interview',
+      scope: { userId: 'u', modeId: 'technical-interview' }, sessionId: 'd5-s1',
       manualQuestion: 'What are the RTO and RPO in the dossier?',
     }, { retrieve: async () => ({ evidence: [], attempts: [] }) });
     assert.notEqual(res.answerability, 'FULL');
@@ -124,12 +114,12 @@ describe('D5: document-deictic questions carry a document claim', () => {
 
   test('composer: unretrieved document fact must not be silently answered generally', async () => {
     const decision = decide({
-      requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'general',
-      scope: { userId: 'u', modeId: 'general' }, sessionId: 's',
+      requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'technical-interview',
+      scope: { userId: 'u', modeId: 'technical-interview' }, sessionId: 's',
       manualQuestion: 'What are the RTO and RPO in the dossier?',
     });
     const composed = composePrompt({
-      decision, policy: MODE_POLICIES.general, evidence: [],
+      decision, policy: MODE_POLICIES['technical-interview'], evidence: [],
       attachedSourceCount: 2, fallbackUsed: 'GENERAL_KNOWLEDGE',
     });
     assert.match(composed.user, /could not (be )?retrieve|not retrieved|do(es)? not cover|not covered/i,
@@ -215,13 +205,6 @@ describe('D7: sourceTypeForFile', () => {
       '# QueueForge Current Architecture Summary\n- API: FastAPI\n- Dead-letter topic: queueforge.jobs.dead', TI);
     assert.equal(t, 'PROJECT_FILE');
   });
-
-  test('NON-REGRESSION: a real résumé is still RESUME in looking-for-work', () => {
-    const t = sourceTypeForFile('resume.md',
-      '# Resume\n## Experience\nEngineer\n## Education\nB.Tech, CGPA 8.4\n## Skills\nPython',
-      MODE_POLICIES['looking-for-work'].allowedSourceTypes);
-    assert.equal(t, 'RESUME');
-  });
 });
 
 // ── D8 — provenance: status metadata stamped and rendered ───────────────────
@@ -262,7 +245,7 @@ describe('D8: document status provenance', () => {
 // ── D9 — typed referents ────────────────────────────────────────────────────
 
 describe('D9: follow-up referent typing', () => {
-  const scope = { userId: 'u1', modeId: 'recruiting', sessionId: 's9' };
+  const scope = { userId: 'u1', modeId: 'technical-interview', sessionId: 's9' };
 
   test('personal pronoun resolves to the active PERSON, not the latest tech noun', () => {
     let st = emptyState(scope);
@@ -300,8 +283,8 @@ describe('D9: follow-up referent typing', () => {
     const sessionId = `d9-drift-${Math.random().toString(36).slice(2)}`;
     const port = { retrieve: async () => ({ evidence: [], attempts: [] }) };
     const mk = (q, n) => orchestrate({
-      requestId: `p${n}`, requestSequence: n, surface: 'manual_chat', modeId: 'recruiting',
-      scope: { userId: 'u1', modeId: 'recruiting', sessionId }, sessionId,
+      requestId: `p${n}`, requestSequence: n, surface: 'manual_chat', modeId: 'technical-interview',
+      scope: { userId: 'u1', modeId: 'technical-interview', sessionId }, sessionId,
       manualQuestion: q,
     }, port);
     await mk("What is Leena's strongest signal?", 1);
@@ -316,58 +299,10 @@ describe('D9: follow-up referent typing', () => {
   });
 });
 
-// ── D10 — custom/general modes plan attached résumé/JD by document role ─────
-
-describe('D10: general mode with attached candidate résumé + JD', () => {
-  const resumeContent = '# Candidate Resume - Leena Joseph\n## Professional Experience\nBackend Engineer\n## Education\nB.Tech, CGPA 8.91\n## Skills\nGo, Python';
-  const jdContent = '# Software Engineer II\n## Minimum Qualifications\n2+ years of professional experience\n## Preferred Qualifications\ngRPC\n## Compensation\nINR 30-45 LPA';
-  const files = [
-    { id: 'f-res', fileName: 'candidate_resume.md', content: resumeContent },
-    { id: 'f-jd', fileName: 'job_description.md', content: jdContent },
-  ];
-
-  test('attachmentSourceTypeExtensions detects candidate/JD roles for general', () => {
-    const extra = attachmentSourceTypeExtensions('general', files);
-    assert.ok(extra.includes('CANDIDATE_FILE'), JSON.stringify(extra));
-    assert.ok(extra.includes('JOB_DESCRIPTION'), JSON.stringify(extra));
-  });
-
-  test('non-general modes get no extension (isolation preserved)', () => {
-    assert.deepEqual(attachmentSourceTypeExtensions('technical-interview', files), []);
-    assert.deepEqual(attachmentSourceTypeExtensions('recruiting', files), []);
-  });
-
-  for (const q of [
-    'Does the candidate meet the requirements?',
-    'What is the salary?',
-    'What is the interview process?',
-    'Which qualifications are missing?',
-  ]) {
-    test(`general+attachments: "${q}" plans sources and retrieves`, () => {
-      const extra = attachmentSourceTypeExtensions('general', files);
-      const d = decide({
-        requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'general',
-        scope: { userId: 'u', modeId: 'general' }, sessionId: 's',
-        manualQuestion: q, extraAllowedSourceTypes: extra,
-      });
-      assert.equal(d.retrievalPlan.shouldRetrieve, true);
-      assert.ok(d.retrievalPlan.sourceTypes.length > 0, JSON.stringify(d.retrievalPlan));
-    });
-  }
-
-  test('without extensions the résumé/JD stay unplannable (no global widening)', () => {
-    const d = decide({
-      requestId: 'p', requestSequence: 1, surface: 'manual_chat', modeId: 'general',
-      scope: { userId: 'u', modeId: 'general' }, sessionId: 's',
-      manualQuestion: 'What is the salary?',
-    });
-    assert.ok(!d.retrievalPlan.sourceTypes.includes('JOB_DESCRIPTION'));
-  });
-
-  test('port stamps extended types so evidence passes the planned-type filter', () => {
-    const extra = attachmentSourceTypeExtensions('general', files);
-    const allowed = [...MODE_POLICIES.general.allowedSourceTypes, ...extra];
-    assert.equal(sourceTypeForFile('candidate_resume.md', resumeContent, allowed), 'CANDIDATE_FILE');
-    assert.equal(sourceTypeForFile('job_description.md', jdContent, allowed), 'JOB_DESCRIPTION');
-  });
-});
+// NOTE: a "D10: general mode with attached candidate résumé + JD" describe
+// used to live here. Deleted, not adapted — attachmentSourceTypeExtensions
+// special-cases the literal 'general' mode id and returns [] for everything
+// else (confirmed by this file's own "non-general modes get no extension"
+// case), so this entire mechanism is unreachable now that 'general' can never
+// be the active mode. Not something this refactor changed in production code,
+// just a scenario with no surviving mode left to exercise it.

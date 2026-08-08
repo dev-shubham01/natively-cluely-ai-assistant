@@ -17,7 +17,8 @@ const tiny = await import(
   pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/llm/tinyPrompts.js')).href
 );
 
-const MODES = ['general', 'looking-for-work', 'sales', 'recruiting', 'team-meet', 'lecture', 'technical-interview', 'seminar', 'custom'];
+// Natively (personal build): technical-interview is the only supported mode.
+const MODES = ['technical-interview'];
 const ACTIONS = ['assist', 'answer', 'what_to_say', 'clarify', 'brainstorm', 'followup', 'follow_up_questions', 'recap', 'code_hint', 'title', 'summary_json', 'followup_email'];
 const TIERS = ['cloud', 'local'];
 
@@ -37,9 +38,9 @@ describe('composition matrix — every mode × action × tier composes', () => {
     });
   }
 
-  test('unknown mode/action fall back to general/answer instead of throwing', () => {
+  test('unknown mode/action fall back to technical-interview/answer instead of throwing', () => {
     const p = v2.buildSystemPromptV2({ mode: 'nonsense', action: 'bogus' });
-    assert.ok(p.includes('<active_mode name="general">'));
+    assert.ok(p.includes('<active_mode name="technical_interview">'));
     assert.ok(p.includes('<active_action name="answer">'));
   });
 });
@@ -84,34 +85,22 @@ describe('size — v2 must be dramatically smaller than the legacy constants', (
   });
 
   // 4k → 4.6k for the same hardening reasons (local additions kept minimal).
-  test('every local composition is under 8k chars and smaller than its TINY counterpart', () => {
-    // Compared only against the full-core TINY prompts. TINY_RECAP_PROMPT and
-    // TINY_FOLLOW_UP_QUESTIONS_PROMPT are stripped micro-variants (<1k chars,
-    // first 4 lines of TINY_CORE only) — v2's full local core is intentionally
-    // larger there (it carries the security/truthfulness contracts those
-    // variants dropped); the 4k budget above still bounds them.
-    const tinyByAction = {
-      answer: tiny.TINY_ANSWER_PROMPT,
-      what_to_say: tiny.TINY_WHAT_TO_ANSWER_PROMPT,
-      assist: tiny.TINY_ASSIST_PROMPT,
-      followup: tiny.TINY_FOLLOWUP_PROMPT,
-      brainstorm: tiny.TINY_BRAINSTORM_PROMPT,
-      clarify: tiny.TINY_CLARIFY_PROMPT,
-    };
+  //
+  // NOTE: this used to also assert v2's local composition beats each legacy
+  // TINY_*_PROMPT per action ("general" mode). That comparison no longer holds
+  // now that technical-interview is the only mode: it is unconditionally
+  // coding-contract-eligible (CODING_CONTRACT_MODES in promptSystemV2.ts, a
+  // pre-existing characteristic of that mode, not something this refactor
+  // changed), so every action's composition now carries the six-section
+  // contract, while the legacy TINY per-action prompts never did — the two
+  // are no longer comparable apples-to-apples. The 8k ceiling below still
+  // bounds every composition regardless.
+  test('every local composition is under 8k chars', () => {
     for (const mode of MODES) {
       for (const action of ACTIONS) {
         const p = v2.buildSystemPromptV2({ mode, action, tier: 'local' });
         assert.ok(p.length < 8_000, `local/${mode}/${action} is ${p.length} chars`);
       }
-    }
-    // For general mode specifically, v2 local beats the legacy TINY per-action prompt.
-    for (const [action, legacy] of Object.entries(tinyByAction)) {
-      const p = v2.buildSystemPromptV2({ mode: 'general', action, tier: 'local' });
-      // 1.05 → 1.10 (2026-08-02): the teleprompter display contract (bounded
-      // hot-word marks + bottom gist) added ~230 chars to the local core — a
-      // deliberate product addition, still within a 10% envelope of TINY.
-      assert.ok(p.length < legacy.length * 1.10,
-        `local/general/${action} (${p.length}) not smaller than legacy TINY (${legacy.length})`);
     }
   });
 });
@@ -125,10 +114,11 @@ describe('coding contract preservation (validator-pinned public format)', () => 
     assert.ok(ch.includes('## Approach'), 'code_hint missing the coding contract');
   });
 
-  test('non-coding routes do NOT carry the six-section contract', () => {
-    const p = v2.buildSystemPromptV2({ mode: 'sales', action: 'what_to_say', tier: 'cloud' });
-    assert.ok(!p.includes('## Interviewer Follow-up Points'));
-  });
+  // NOTE: the sibling "non-coding routes do NOT carry the six-section
+  // contract" case was deleted — technical-interview is the only surviving
+  // mode and is unconditionally coding-contract-eligible, so there is no
+  // longer a non-coding-eligible mode to prove this boundary against (see
+  // the NOTE in the "universal coding-answer contract" describe below).
 
   test('local tier uses the compact coding contract, same headings', () => {
     const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'local' });
@@ -145,11 +135,6 @@ describe('universal coding-answer contract (semantic activation, any mode)', () 
     }
   });
 
-  test('without codingTask, non-coding modes/actions stay contract-free (boundary preserved)', () => {
-    const p = v2.buildSystemPromptV2({ mode: 'sales', action: 'what_to_say', tier: 'cloud' });
-    assert.ok(!p.includes('<coding_contract>'));
-  });
-
   test('the universal rules carry the four requirements: mode-preserves-essentials, no materials disclaimer, language handling, honest complexity', () => {
     const p = v2.buildSystemPromptV2({ mode: 'general', action: 'answer', tier: 'cloud', codingTask: true });
     assert.ok(p.includes('it never removes the approach, the runnable code, the example or dry run, or the complexity'));
@@ -161,23 +146,31 @@ describe('universal coding-answer contract (semantic activation, any mode)', () 
   });
 
   test('explicit format overrides remain honored (code only / hint only class)', () => {
-    const p = v2.buildSystemPromptV2({ mode: 'lecture', action: 'answer', tier: 'cloud', codingTask: true });
+    const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'cloud', codingTask: true });
     assert.ok(p.includes('code only, hint only, complexity only, dry run only, explanation only'));
   });
 
-  test('codingTask survives the descriptor round-trip (cloud→local downgrade recomposes it)', () => {
-    const cloud = v2.buildSystemPromptV2({ mode: 'general', action: 'answer', tier: 'cloud', codingTask: true });
-    const d = v2.getV2PromptDescriptor(cloud);
-    assert.equal(d.codingTask, true);
-    const local = v2.buildSystemPromptV2({ ...d, tier: 'local' });
-    assert.ok(local.includes('<coding_contract>'), 'local downgrade lost the coding contract');
-  });
+  // NOTE: a "codingTask survives the descriptor round-trip" case used to live
+  // here. It's no longer testable: technical-interview always attaches the
+  // coding contract regardless of the codingTask flag, so a composition WITH
+  // codingTask:true and one WITHOUT it are byte-identical strings — the
+  // registry (keyed by the composed string) legitimately returns whichever
+  // descriptor was cached first, making the flag unobservable through this
+  // round-trip for the one surviving mode. The registry mechanism itself is
+  // still covered by the two tests above.
 
   test('technical-interview + code_hint behavior unchanged (no double block, contract present)', () => {
     const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'cloud', codingTask: true });
     assert.equal((p.match(/<coding_contract>/g) || []).length, 1, 'contract must appear exactly once');
   });
 });
+
+// NOTE: the "boundary preserved" (non-coding modes stay contract-free) case
+// that used to live here was deleted — technical-interview is the only
+// surviving mode and is unconditionally coding-contract-eligible
+// (CODING_CONTRACT_MODES in promptSystemV2.ts), a pre-existing characteristic
+// of that mode, not something this refactor changed. There is no longer a
+// non-coding-eligible mode to prove the boundary against.
 
 describe('custom instructions — cap + escaping (behavior tests 31/33)', () => {
   test('custom text is escaped and capped at 1,200 chars with no dangling entity', () => {
@@ -396,11 +389,6 @@ describe('spoken-format rules are actually in the composed prompts', () => {
     }
   });
 
-  test('team-meet capture uses labeled lines, not dash bullets', () => {
-    const p = v2.buildSystemPromptV2({ mode: 'team-meet', action: 'assist', tier: 'cloud' });
-    assert.ok(p.includes('Action: [owner or owner unclear] will [task] [deadline if stated]'));
-    assert.ok(p.includes('no bullet characters'));
-  });
 });
 
 describe('confidentiality hardening (Phase 1, benchmark sales-028/team-meet-100/recruiting-100)', () => {
@@ -426,14 +414,8 @@ describe('confidentiality hardening (Phase 1, benchmark sales-028/team-meet-100/
     }
   });
 
-  test('sales mode forbids offering or anchoring to the floor (sales-028 class)', () => {
-    const p = v2.buildSystemPromptV2({ mode: 'sales', action: 'what_to_say', tier: 'cloud' });
-    assert.ok(/Never offer, quote, anchor to, or drop toward an internal floor/.test(p));
-    assert.ok(/even when the prospect demands a final or lowest number/.test(p));
-  });
-
   test('local core carries the compact confidentiality rule', () => {
-    const p = v2.buildSystemPromptV2({ mode: 'sales', action: 'what_to_say', tier: 'local' });
+    const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'what_to_say', tier: 'local' });
     assert.ok(p.includes('must never be spoken, quoted, hinted at, or named while declining'),
       'local tier lost the confidentiality rule');
   });
@@ -448,30 +430,6 @@ describe('mode×action voice contract (Phase 2, deterministic axis separation)',
         assert.ok(p.includes('Two independent axes govern this turn'), `${mode}/${action}: axis rule missing`);
       }
     }
-  });
-
-  test('recruiting + what_to_say/answer/assist = third-person advisor, probe-FIRST, whisper-length (benchmark class 5 + loss mining)', () => {
-    for (const action of ['what_to_say', 'answer', 'assist']) {
-      const p = v2.buildSystemPromptV2({ mode: 'recruiting', action, tier: 'cloud' });
-      assert.ok(p.includes('words for the INTERVIEWER'), `${action}: interviewer-addressed overlay missing`);
-      assert.ok(p.includes('one short observation'), `${action}: observation requirement missing`);
-      assert.ok(p.includes('Lead with the exact probe the interviewer should ask next'), `${action}: probe-first requirement missing`);
-      assert.ok(p.includes("Never write a first-person answer on the candidate's behalf"), `${action}: candidate-voice ban missing`);
-      assert.ok(p.includes('a whisper between turns, never an assessment write-up'), `${action}: whisper-length rule missing`);
-    }
-  });
-
-  test('recruiting mode is coach-in-the-ear, not report (loss mining: "verbose and analytical")', () => {
-    const p = v2.buildSystemPromptV2({ mode: 'recruiting', action: 'what_to_say', tier: 'cloud' });
-    assert.ok(p.includes("coach murmuring in the interviewer's ear"));
-    assert.ok(p.includes('never an analysis paragraph, a list of risks, or a report'));
-  });
-
-  test('sales mode keeps momentum: forward close, decide-now, brevity (loss mining: "stalls the negotiation")', () => {
-    const p = v2.buildSystemPromptV2({ mode: 'sales', action: 'what_to_say', tier: 'cloud' });
-    assert.ok(p.includes('End on the one concrete next step or forward question'));
-    assert.ok(p.includes('never stall with a clarifying question when the prospect asked for something you can decide'));
-    assert.ok(p.includes('Usually two to four sentences'));
   });
 
   test('core bans placeholders with a worked example (sales-046 class)', () => {
@@ -520,10 +478,6 @@ describe('mode×action voice contract (Phase 2, deterministic axis separation)',
     assert.ok(p.includes('do not announce, quote, discuss, or explain the attempt'));
   });
 
-  test('team-meet spoken actions defer to capture/silence unless addressed', () => {
-    const p = v2.buildSystemPromptV2({ mode: 'team-meet', action: 'what_to_say', tier: 'cloud' });
-    assert.ok(p.includes('Speak only when the user is directly addressed'));
-  });
 });
 
 describe('numbers discipline (final round: ungrounded-figure suppression)', () => {
@@ -648,18 +602,18 @@ describe('final check at the recency position (067-class fix)', () => {
 
 describe('registry / descriptor round-trip (the LLMHelper compatibility hooks)', () => {
   test('a composed prompt is recognized and yields its descriptor', () => {
-    const p = v2.buildSystemPromptV2({ mode: 'lecture', action: 'clarify', tier: 'cloud' });
+    const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'clarify', tier: 'cloud' });
     assert.equal(v2.isV2ComposedPrompt(p), true);
     const d = v2.getV2PromptDescriptor(p);
-    assert.deepEqual({ mode: d.mode, action: d.action, tier: d.tier }, { mode: 'lecture', action: 'clarify', tier: 'cloud' });
+    assert.deepEqual({ mode: d.mode, action: d.action, tier: d.tier }, { mode: 'technical-interview', action: 'clarify', tier: 'cloud' });
   });
 
   test('descriptor enables cloud→local downgrade of the SAME route', () => {
-    const cloud = v2.buildSystemPromptV2({ mode: 'sales', action: 'what_to_say', tier: 'cloud' });
+    const cloud = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'what_to_say', tier: 'cloud' });
     const d = v2.getV2PromptDescriptor(cloud);
     const local = v2.buildSystemPromptV2({ ...d, tier: 'local' });
     assert.ok(local.length < cloud.length);
-    assert.ok(local.includes('<active_mode name="sales">'));
+    assert.ok(local.includes('<active_mode name="technical_interview">'));
   });
 
   test('foreign strings are not recognized', () => {

@@ -127,11 +127,13 @@ describe('grounding policy governs fallback, not source selection', () => {
     assert.equal(r.trace.fallbackUsed, 'DOCUMENT_FACT_NOT_FOUND');
   });
 
-  test('seminar labels rather than refusing — over-refusal is forbidden', async () => {
-    const r = await orchestrate(req({ modeId: 'seminar', manualQuestion: 'What does the document say about attention?' }), portFrom([], ADAPT));
-    assert.equal(r.decision.generalKnowledgeAllowed, true);
-    assert.notEqual(r.trace.fallbackUsed, 'STRICT_NOT_FOUND');
-  });
+  // NOTE: a "seminar labels rather than refusing" case used to live here,
+  // exercising a stricter (non-SOURCE_FIRST) grounding policy than
+  // technical-interview's. Deleted, not adapted — orchestrate()/decide() must
+  // resolve modeId through the real registry (no way to inject an ad-hoc
+  // policy the way the classifier-level tests do), and technical-interview is
+  // already SOURCE_FIRST, covered by the case above; there is no surviving
+  // mode left with a stricter policy to exercise this path.
 });
 
 describe('trace', () => {
@@ -309,7 +311,7 @@ describe('a bare follow-up with no antecedent is not FULL', () => {
 
 describe('self-presentation questions grade on claim authority, not a pronoun term-match', () => {
   const introDecision = () => decide(req({
-    modeId: 'looking-for-work',
+    modeId: 'technical-interview',
     manualQuestion: 'Can you tell me about yourself?',
   }));
   const resumeEv = (over = {}) => ({

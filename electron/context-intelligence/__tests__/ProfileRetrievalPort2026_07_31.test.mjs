@@ -69,7 +69,7 @@ const JD_DOC = {
   fileName: 'Target Job Description (Profile Intelligence)', structured: JD_STRUCTURED,
 };
 
-const LFW = resolveModePolicy('looking-for-work');
+const LFW = resolveModePolicy('technical-interview');
 const lfwPort = (docs = [RESUME_DOC, JD_DOC], over = {}) => createProfileRetrievalPort({
   docs, allowedSourceTypes: LFW.allowedSourceTypes, profileSources: LFW.profileSources,
   userId: 'local', ...over,
@@ -77,7 +77,7 @@ const lfwPort = (docs = [RESUME_DOC, JD_DOC], over = {}) => createProfileRetriev
 
 const lfwDecision = (q) => decide({
   requestId: 'r1', requestSequence: 1, surface: 'manual-chat',
-  modeId: 'looking-for-work', scope: { userId: 'local' }, sessionId: 'pt-s1',
+  modeId: 'technical-interview', scope: { userId: 'local' }, sessionId: 'pt-s1',
   manualQuestion: q,
 });
 
@@ -93,15 +93,11 @@ describe('registration and authorization', () => {
     assert.equal(resume.scopeId, 'u:local');
   });
 
-  test('a mode with an EMPTY profileSources opt-in gets NO port at all (recruiting)', () => {
-    const rec = resolveModePolicy('recruiting');
-    assert.deepEqual(rec.profileSources, [], 'recruiting must never hydrate the user profile');
-    const p = createProfileRetrievalPort({
-      docs: [RESUME_DOC, JD_DOC], allowedSourceTypes: rec.allowedSourceTypes,
-      profileSources: rec.profileSources, userId: 'local',
-    });
-    assert.equal(p, null);
-  });
+  // NOTE: a "a mode with an EMPTY profileSources opt-in gets NO port at all
+  // (recruiting)" case used to live here. Deleted — recruiting is gone, and
+  // technical-interview (the only surviving mode) has a non-empty
+  // profileSources, so there is no surviving mode left to demonstrate the
+  // empty-opt-in case with.
 
   test('profileSources is a subset of allowedSourceTypes in EVERY mode', async () => {
     const { MODE_POLICIES } = await import(pathToFileURL(path.join(base, 'policies/mode-policy-registry.js')).href);
@@ -113,15 +109,10 @@ describe('registration and authorization', () => {
     }
   });
 
-  test('only looking-for-work and technical-interview opt in; all others stay attachment-only', async () => {
+  test('technical-interview opts in to profile hydration (the only surviving mode)', async () => {
     const { MODE_POLICIES } = await import(pathToFileURL(path.join(base, 'policies/mode-policy-registry.js')).href);
-    assert.deepEqual([...MODE_POLICIES['looking-for-work'].profileSources].sort(),
-      ['JOB_DESCRIPTION', 'PROFILE_FACT', 'RESUME']);
     assert.deepEqual([...MODE_POLICIES['technical-interview'].profileSources].sort(),
       ['JOB_DESCRIPTION', 'RESUME']);
-    for (const id of ['general', 'sales', 'recruiting', 'team-meet', 'lecture', 'seminar']) {
-      assert.deepEqual(MODE_POLICIES[id].profileSources, [], `${id} must not hydrate the profile`);
-    }
   });
 
   test('a doc without identity fails closed rather than guessing', () => {
@@ -326,21 +317,11 @@ describe('identity & contact lookups (2026-08-02)', () => {
   };
   const contactPort = () => lfwPort([{ ...RESUME_DOC, structured: CONTACT_RESUME }]);
 
-  test('"what is my name" retrieves the identity section (was ZERO evidence)', async () => {
-    // Pin the LIVE path, not just the port. The production log's turn planned
-    // ["RESUME","PROFILE_FACT"]; if the real planner ever stopped emitting
-    // RESUME here, the identity chunk would be dropped by PLANNED_TYPE_FILTER
-    // downstream and this test would still pass on a turn the user never runs.
-    const decision = lfwDecision('what is my name');
-    assert.deepEqual([...decision.retrievalPlan.sourceTypes], ['RESUME', 'PROFILE_FACT'],
-      'the plan this fix depends on must match the one the production log recorded');
-
-    const r = await contactPort().retrieve({ decision });
-    const id = r.evidence.find((e) => e.section === 'Identity & summary');
-    assert.ok(id, 'the identity section must be retrievable by the question that asks for it');
-    assert.equal(id.sourceType, 'RESUME', 'must survive the planned-type filter, not merely be retrieved');
-    assert.match(id.content, /Name: Evin John/);
-  });
+  // NOTE: a "'what is my name' retrieves the identity section" case used to
+  // live here, pinning looking-for-work's richer ["RESUME","PROFILE_FACT"]
+  // plan. Deleted — looking-for-work is gone, and the LFW helper above now
+  // resolves to technical-interview's policy, which the next test already
+  // covers correctly (RESUME-only plan, no PROFILE_FACT).
 
   test('Technical Interview (plans RESUME only) resolves it too — the second mode reported', async () => {
     const ti = resolveModePolicy('technical-interview');
@@ -438,27 +419,13 @@ describe('derived profile facts (PROFILE_FACT, 2026-08-02)', () => {
   };
   const factPort = () => lfwPort([FACT_DOC]);
 
-  test('"what is my expected salary" resolves (was DOCUMENT_FACT_NOT_FOUND)', async () => {
-    const decision = lfwDecision('what is my expected salary');
-    assert.ok(decision.retrievalPlan.sourceTypes.includes('PROFILE_FACT'),
-      'the planner asks for PROFILE_FACT — that is why the empty pool was a defect');
-    const r = await factPort().retrieve({ decision });
-    const fact = r.evidence.find((e) => e.sourceType === 'PROFILE_FACT');
-    assert.ok(fact, 'the computed estimate must be reachable');
-    assert.match(fact.content, /350,000/);
-    assert.equal(fact.provenance, 'PROFILE_FACT');
-  });
-
-  test('the estimate carries its own "derived, not on the résumé" qualification', async () => {
-    const r = await factPort().retrieve({ decision: lfwDecision('what is my expected salary') });
-    const fact = r.evidence.find((e) => e.sourceType === 'PROFILE_FACT');
-    // The retrieved CHUNK is what the model sees, so the qualification has to
-    // travel with the number rather than live in a prompt rule that may not be
-    // restated. Without it the model reports an estimate as a résumé line item.
-    assert.match(fact.content, /DERIVED ESTIMATE/);
-    assert.match(fact.content, /NOT stated\s+anywhere on the résumé|NOT stated anywhere on the résumé/);
-    assert.match(fact.content, /NOT an offer/);
-  });
+  // NOTE: two cases used to live here ("what is my expected salary" resolves,
+  // and the estimate's "derived, not on the résumé" qualification), both via
+  // the LFW helper. Deleted — looking-for-work is gone, LFW now resolves to
+  // technical-interview, and technical-interview deliberately does not opt
+  // into PROFILE_FACT (see the "gets no fact source" test below), so
+  // factPort()/lfwPort() calls in this describe now return null by design —
+  // there is no surviving mode that successfully admits a PROFILE_FACT.
 
   test('a derived fact never licenses an absence claim', () => {
     const sections = renderProfileSections('fact', SALARY);
@@ -480,26 +447,8 @@ describe('derived profile facts (PROFILE_FACT, 2026-08-02)', () => {
     assert.equal(port, null, 'fail closed: an unauthorized type is never registered');
   });
 
-  test('the fact is POLICY-ADMITTED only — never lexically discovered (review find)', async () => {
-    // The disclaimer sentence inside the fact chunk ("calculated from the
-    // résumé — role, location, skills and years of experience…") is a BM25
-    // keyword magnet: before policyOnly scoring it ranked #2 on "tell me about
-    // my experience" and "what are my skills" in a real-DB probe, wasting an
-    // evidence slot and injecting salary noise into non-salary answers.
-    const port = lfwPort([RESUME_DOC, JD_DOC, FACT_DOC]);
-    for (const q of [
-      'tell me about my experience', 'what are my skills',
-      'do I meet the job requirements', 'tell me about my projects',
-    ]) {
-      const r = await port.retrieve({ decision: lfwDecision(q) });
-      assert.ok(!r.evidence.some((e) => e.sourceType === 'PROFILE_FACT'),
-        `"${q}" is not a compensation question — the derived salary fact must not consume an evidence slot`);
-    }
-    // …and the question it exists for still resolves it.
-    const salary = await port.retrieve({ decision: lfwDecision('what is my expected salary') });
-    assert.ok(salary.evidence.some((e) => e.sourceType === 'PROFILE_FACT'),
-      'policy admission must still fire on a genuine compensation question');
-  });
+  // NOTE: a "the fact is POLICY-ADMITTED only" case used to live here — same
+  // reason as above, deleted rather than adapted.
 
   test('a malformed or absent estimate yields no source, never a throw', () => {
     for (const bad of [{}, { salary_estimate: null }, { salary_estimate: { min: 1 } }, { salary_estimate: { min: 'x', max: 'y' } }]) {

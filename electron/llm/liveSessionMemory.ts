@@ -46,17 +46,11 @@ export interface LiveResolveInput {
   now?: number;
 }
 
-/** Map a ModesManager mode id → SessionMemory MemoryMode. */
-export function toMemoryMode(modeId: string | undefined): MemoryMode {
-  switch (modeId) {
-    case 'technical-interview': return 'technical-interview';
-    case 'looking-for-work': return 'looking-for-work';
-    case 'recruiting': return 'recruiting';
-    case 'sales': return 'sales';
-    case 'lecture': return 'lecture';
-    case 'team-meet': return 'team-meet';
-    case 'general': default: return 'general';
-  }
+/** Map a ModesManager mode id → SessionMemory MemoryMode. Only technical-interview
+ *  is ever a real mode id now; kept as a function (not a constant) so callers don't
+ *  need to change and effectiveMemoryMode's override logic stays in one place. */
+export function toMemoryMode(_modeId: string | undefined): MemoryMode {
+  return 'technical-interview';
 }
 
 // Answer types whose context policy demands the RESTRICTIVE coding/negotiation memory
@@ -84,13 +78,7 @@ export function effectiveMemoryMode(modeId: string | undefined, answerType: Answ
 /** Map a ModesManager mode id → the follow-up clarification surface. */
 export function toSurface(modeId: string | undefined, isWhatToAnswer: boolean): FollowUpSurface {
   if (isWhatToAnswer) return 'what_to_answer';
-  switch (modeId) {
-    case 'sales': return 'sales';
-    case 'lecture': return 'lecture';
-    case 'team-meet': return 'meeting';
-    case 'technical-interview': case 'looking-for-work': case 'recruiting': return 'interview';
-    default: return 'manual';
-  }
+  return modeId === 'technical-interview' ? 'interview' : 'manual';
 }
 
 /**

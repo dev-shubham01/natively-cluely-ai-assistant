@@ -47,7 +47,6 @@ export type IntelligenceFlagKey =
   | 'answerDiversityGuard'         // Phase 5 — wire AnswerDiversityGuard into delivery
   | 'meetingMemoryV2'              // Phase 10
   | 'meetingSummaryV3'             // Chunked/schema-v3 post-meeting notes
-  | 'meetingModeAutoDetect'        // Meeting Notes V3 — detect mode from transcript/calendar
   | 'followUpDraftV2'              // Meeting Notes V3 — LLM-based follow-up draft generator
   | 'speakerLabelsV1'             // Meeting Notes V3 — editable speaker labels
   | 'meetingNotesStructuredOutput' // Meeting Notes V3 — provider-native JSON where available
@@ -414,7 +413,6 @@ const FLAGS: Record<IntelligenceFlagKey, FlagSpec> = {
   // single-pass summary path. All paths keep a deterministic fallback and honor the
   // post_call_summary data scope.
   meetingSummaryV3: { env: 'NATIVELY_MEETING_SUMMARY_V3', setting: 'meetingSummaryV3Enabled', default: true },
-  meetingModeAutoDetect: { env: 'NATIVELY_MEETING_MODE_AUTODETECT', setting: 'meetingModeAutoDetectEnabled', default: true },
   followUpDraftV2: { env: 'NATIVELY_FOLLOWUP_DRAFT_V2', setting: 'followUpDraftV2Enabled', default: true },
   speakerLabelsV1: { env: 'NATIVELY_SPEAKER_LABELS_V1', setting: 'speakerLabelsV1Enabled', default: true },
   // Provider-native JSON mode is not implemented (the validate→repair→fallback ladder makes

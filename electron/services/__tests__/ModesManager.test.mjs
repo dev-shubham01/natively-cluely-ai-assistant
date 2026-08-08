@@ -13,15 +13,9 @@ const promptsMod = await import(pathToFileURL(promptsPath).href);
 
 const { ModesManager, MODE_TEMPLATES, TEMPLATE_NOTE_SECTIONS } = modesMod;
 
+// Natively (personal build): technical-interview is the only supported mode.
 const EXPECTED_MODE_TYPES = [
-  'general',
-  'sales',
-  'recruiting',
-  'team-meet',
-  'looking-for-work',
   'technical-interview',
-  'lecture',
-  'seminar',
 ];
 
 const BASE_TIME = '2026-05-14T00:00:00.000Z';
@@ -147,13 +141,7 @@ test('every production mode has seeded note sections for meeting summaries', () 
 
 test('all mode prompts start with a shared prefix so duplicate-token stripping works', () => {
   const promptByMode = {
-    general: promptsMod.MODE_GENERAL_PROMPT,
-    sales: promptsMod.MODE_SALES_PROMPT,
-    recruiting: promptsMod.MODE_RECRUITING_PROMPT,
-    'team-meet': promptsMod.MODE_TEAM_MEET_PROMPT,
-    'looking-for-work': promptsMod.MODE_LOOKING_FOR_WORK_PROMPT,
     'technical-interview': promptsMod.MODE_TECHNICAL_INTERVIEW_PROMPT,
-    lecture: promptsMod.MODE_LECTURE_PROMPT,
   };
 
   for (const [modeType, prompt] of Object.entries(promptByMode)) {
@@ -165,13 +153,13 @@ test('all mode prompts start with a shared prefix so duplicate-token stripping w
 });
 
 test('active mode prompt suffix strips shared prompt prelude exactly once', () => {
-  installDb(makeDb({ modes: [modeRow({ id: 'sales-mode', template_type: 'sales', is_active: 1 })] }));
+  installDb(makeDb({ modes: [modeRow({ id: 'ti-mode', template_type: 'technical-interview', is_active: 1 })] }));
 
   const suffix = ModesManager.getInstance().getActiveModeSystemPromptSuffix();
 
   assert.ok(suffix.includes('<mode_definition>'));
-  assert.ok(suffix.includes('deal'));
-  assert.ok(suffix.includes('objection'));
+  assert.ok(suffix.includes('coding'));
+  assert.ok(suffix.includes('algorithm'));
   assert.ok(!suffix.startsWith(promptsMod.SHARED_MODE_PREFIX));
   assert.ok(!suffix.startsWith(promptsMod.SHARED_MODE_PREFIX_SHORT));
   assert.equal((suffix.match(/<core_identity>/g) ?? []).length, 0);
@@ -429,10 +417,8 @@ test('reference context skips empty files and truncates large files with complet
 });
 
 test('isPremiumKnowledgeInterceptAllowed gates the whole premium intercept by active mode (issue #272)', () => {
-  // No active mode — default to allowed so we never regress modes that
-  // legitimately use the intercept (looking-for-work, sales, recruiting,
-  // general). The source-available side cannot inspect the premium tracker, so
-  // we fail open when nothing is selected.
+  // No active mode — default to allowed so the gate fails open when nothing is
+  // selected (the source-available side cannot inspect the premium tracker).
   installDb(makeDb());
   assert.equal(
     ModesManager.getInstance().isPremiumKnowledgeInterceptAllowed(),
@@ -440,34 +426,15 @@ test('isPremiumKnowledgeInterceptAllowed gates the whole premium intercept by ac
     'with no active mode the gate must default open',
   );
 
-  const INTERCEPT_ALLOWED = new Set(['general', 'sales', 'recruiting', 'looking-for-work']);
-  const INTERCEPT_BLOCKED = new Set(['technical-interview', 'team-meet', 'lecture', 'seminar']);
-
-  // Every production mode must land on one side of the gate — guards against
-  // a future template silently inheriting the wrong default.
-  assert.deepEqual(
-    new Set([...INTERCEPT_ALLOWED, ...INTERCEPT_BLOCKED]),
-    new Set(EXPECTED_MODE_TYPES),
-    'every production mode must be classified explicitly',
+  // technical-interview is the only production mode, and the only one blocked —
+  // premium-flavored interjections would overwrite the user's expected answer
+  // with off-topic content (issue #272).
+  installDb(makeDb({ modes: [modeRow({ id: 'ti-mode', template_type: 'technical-interview', is_active: 1 })] }));
+  assert.equal(
+    ModesManager.getInstance().isPremiumKnowledgeInterceptAllowed(),
+    false,
+    'technical-interview must NOT allow the premium intercept (issue #272)',
   );
-
-  for (const templateType of INTERCEPT_ALLOWED) {
-    installDb(makeDb({ modes: [modeRow({ id: `${templateType}-mode`, template_type: templateType, is_active: 1 })] }));
-    assert.equal(
-      ModesManager.getInstance().isPremiumKnowledgeInterceptAllowed(),
-      true,
-      `${templateType} should allow the premium knowledge intercept`,
-    );
-  }
-
-  for (const templateType of INTERCEPT_BLOCKED) {
-    installDb(makeDb({ modes: [modeRow({ id: `${templateType}-mode`, template_type: templateType, is_active: 1 })] }));
-    assert.equal(
-      ModesManager.getInstance().isPremiumKnowledgeInterceptAllowed(),
-      false,
-      `${templateType} must NOT allow the premium intercept — would overwrite the user's expected answer with off-topic content (issue #272)`,
-    );
-  }
 });
 
 test('isPremiumKnowledgeInterceptAllowed honors templateType on user-created custom modes (issue #272)', () => {

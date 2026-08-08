@@ -80,7 +80,7 @@ export interface ResolvedAnswerPolicy {
  * sources, and no toggle may widen that.
  */
 export function resolveAnswerPolicy(input: ResolveAnswerPolicyInput): ResolvedAnswerPolicy {
-  const modeId: ModeId = isModeId(input.modeId) ? input.modeId : 'general';
+  const modeId: ModeId = isModeId(input.modeId) ? input.modeId : 'technical-interview';
   const mode = resolveModePolicy(modeId);
   const modeIsStrictByDefault = mode.groundingPolicy === 'STRICT_SOURCE_ONLY';
 
@@ -121,7 +121,7 @@ export function resolveAnswerPolicy(input: ResolveAnswerPolicyInput): ResolvedAn
  * reference files is a control that can only make things worse.
  */
 export function shouldOfferAnswerPolicyControl(modeId: string): boolean {
-  const id: ModeId = isModeId(modeId) ? modeId : 'general';
+  const id: ModeId = isModeId(modeId) ? modeId : 'technical-interview';
   return resolveModePolicy(id).allowedSourceTypes.includes('REFERENCE_FILE');
 }
 

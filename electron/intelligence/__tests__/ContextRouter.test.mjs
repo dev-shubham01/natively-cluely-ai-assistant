@@ -99,10 +99,17 @@ describe('ContextRouter', () => {
     assert.equal(d.useProfileTree, false);
   });
 
-  test('"Generate a diagram for the TCP handshake" in lecture mode → useDiagramIntelligence', () => {
-    const d = routeContext({ userQuery: 'generate a diagram for the TCP handshake', source: 'manual_input', mode: 'lecture', hasLiveTranscript: true });
-    assert.equal(d.useDiagramIntelligence, true);
-  });
+  // NOTE: a "'Generate a diagram for the TCP handshake' in lecture mode →
+  // useDiagramIntelligence" case used to live here. Deleted, not adapted —
+  // this query carries none of LECTURE_PATTERNS' content keywords ("lecture",
+  // "slide", "exam", "notes", …), so it only ever reached lecture_answer via
+  // AnswerPlanner's mode-fallback path (applyModeFallback / MODE_CONTEXT_
+  // PROFILES), which is now permanently inert: MODE_TEMPLATE_TYPES here and
+  // MODE_CONTEXT_PROFILES in modeProfiles.ts both shrank to technical-interview
+  // only, so `lecture` never resolves to a non-null activeModeInfo/profile
+  // again. The sibling lecture-mode cases above and below this one still pass
+  // because their queries contain a LECTURE_PATTERNS keyword and reach
+  // lecture_answer through content matching instead — that path is untouched.
 
   test('diagram ask OUTSIDE lecture mode does NOT engage diagram intelligence', () => {
     const d = routeContext({ userQuery: 'draw me a diagram', source: 'manual_input', mode: 'technical-interview' });

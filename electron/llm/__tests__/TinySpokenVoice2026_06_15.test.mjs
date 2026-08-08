@@ -12,8 +12,8 @@ const LENGTH_MARK = /Output the EXACT words the user can say aloud/i;
 
 describe('tiny spoken-length rule is in the spoken tiny prompts', () => {
   const SPOKEN = [
-    'TINY_ANSWER_PROMPT', 'TINY_WHAT_TO_ANSWER_PROMPT', 'TINY_MODE_LOOKING_FOR_WORK_PROMPT',
-    'TINY_MODE_TECHNICAL_INTERVIEW_PROMPT', 'TINY_MODE_SALES_PROMPT', 'TINY_FOLLOWUP_PROMPT',
+    'TINY_ANSWER_PROMPT', 'TINY_WHAT_TO_ANSWER_PROMPT',
+    'TINY_MODE_TECHNICAL_INTERVIEW_PROMPT', 'TINY_FOLLOWUP_PROMPT',
   ];
   for (const name of SPOKEN) {
     test(`${name} carries the length rule`, () => {
@@ -40,7 +40,7 @@ describe('tiny spoken-length rule is in the spoken tiny prompts', () => {
 });
 
 describe('structural tiny prompts do NOT carry the spoken length rule', () => {
-  for (const name of ['TINY_RECAP_PROMPT', 'TINY_SUMMARY_JSON_PROMPT', 'TINY_MODE_LECTURE_PROMPT']) {
+  for (const name of ['TINY_RECAP_PROMPT', 'TINY_SUMMARY_JSON_PROMPT']) {
     test(`${name} has no spoken length rule`, () => {
       assert.doesNotMatch(tiny[name], LENGTH_MARK);
     });
@@ -49,15 +49,9 @@ describe('structural tiny prompts do NOT carry the spoken length rule', () => {
 
 describe('protected invariants still hold', () => {
   test('identity guard intact in first-person spoken prompts', () => {
-    for (const name of ['TINY_ANSWER_PROMPT', 'TINY_MODE_LOOKING_FOR_WORK_PROMPT', 'TINY_MODE_SALES_PROMPT']) {
+    for (const name of ['TINY_ANSWER_PROMPT', 'TINY_MODE_TECHNICAL_INTERVIEW_PROMPT']) {
       assert.ok(tiny[name].includes('IDENTITY GUARD'), `${name} lost the identity guard`);
     }
-  });
-  test('SALES confidential-pricing template stays near the end', () => {
-    const p = tiny.TINY_MODE_SALES_PROMPT;
-    const idx = p.indexOf('CONFIDENTIAL-PRICING TEMPLATE');
-    assert.ok(idx > 0);
-    assert.ok(p.length - idx < 900, `pricing template drifted: ${p.length - idx} chars from end`);
   });
   test('conditional coding format rule still present', () => {
     assert.match(tiny.TINY_ANSWER_PROMPT, /If the user says code only/i);

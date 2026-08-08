@@ -68,13 +68,13 @@ describe('open-knowledge questions take the FAST path in every mode', () => {
   }
 
   test('troubleshooting carries a general claim, not USER_EMPLOYMENT', () => {
-    const r = classify('My laptop becomes very hot and the fans run loudly whenever I open Chrome. What should I check first?', 'looking-for-work');
+    const r = classify('My laptop becomes very hot and the fans run loudly whenever I open Chrome. What should I check first?', 'technical-interview');
     assert.ok(!r.claimTypes.includes('USER_EMPLOYMENT'), 'device ownership is not work history');
     assert.ok(r.claimTypes.includes('GENERAL_TECHNICAL'), 'must remain answerable (FULL), not AMBIGUOUS/NONE');
   });
 
   test('arithmetic carries a general claim, not USER_PROJECT/DOCUMENT_FACT', () => {
-    const r = classify('A product costs 2,400 rupees after a 20% discount. What was the original price?', 'looking-for-work');
+    const r = classify('A product costs 2,400 rupees after a 20% discount. What was the original price?', 'technical-interview');
     assert.ok(!r.claimTypes.includes('USER_PROJECT'));
     assert.ok(!r.claimTypes.includes('DOCUMENT_FACT'));
     assert.ok(r.claimTypes.includes('GENERAL_TECHNICAL'));
@@ -85,47 +85,47 @@ describe('open-knowledge questions take the FAST path in every mode', () => {
 
 describe('grounded questions are unchanged by the open-knowledge fixes', () => {
   test('personal history still requires the résumé', () => {
-    const r = classify('Tell me about my experience at Aetherlab.', 'looking-for-work');
+    const r = classify('Tell me about my experience at Aetherlab.', 'technical-interview');
     assert.equal(r.shouldRetrieve, true);
     assert.ok(r.requiredSourceTypes.includes('RESUME'));
   });
 
   test('résumé-deictic skill check still grounds', () => {
-    const r = classify('Does my resume show Kubernetes experience?', 'looking-for-work');
+    const r = classify('Does my resume show Kubernetes experience?', 'technical-interview');
     assert.equal(r.shouldRetrieve, true);
     assert.ok(r.requiredSourceTypes.includes('RESUME'));
   });
 
   test('named-entity value lookup still grounds', () => {
-    const r = classify('What is the discount floor for Acme?', 'sales');
+    const r = classify('What is the discount floor for Acme?', 'technical-interview');
     assert.equal(r.shouldRetrieve, true, r.reason);
   });
 
   test('instance-specific metric still grounds', () => {
-    const r = classify('What is the peak transaction volume of the payments API?', 'seminar');
+    const r = classify('What is the peak transaction volume of the payments API?', 'technical-interview');
     assert.equal(r.shouldRetrieve, true, r.reason);
   });
 
   test('document-deictic price question is a document claim, never math', () => {
-    const r = classify('What exact price is listed in the sales document?', 'sales');
+    const r = classify('What exact price is listed in the sales document?', 'technical-interview');
     assert.ok(r.claimTypes.includes('DOCUMENT_FACT'), `claims=${r.claimTypes}`);
     assert.equal(r.shouldRetrieve, true);
   });
 
   test('"why does the <definite instance>" keeps its grounded route in a document mode', () => {
-    const r = classify('Why does the deploy fail every night?', 'seminar');
+    const r = classify('Why does the deploy fail every night?', 'technical-interview');
     assert.equal(r.shouldRetrieve, true, r.reason);
   });
 
   test('permission/offer questions with percentages are NOT arithmetic', () => {
     // "can I offer a 20% discount" asks what the material authorizes — not a
     // computation. It must not take the math fast path.
-    const r = classify('Can I offer a 20% discount to close the deal?', 'sales');
+    const r = classify('Can I offer a 20% discount to close the deal?', 'technical-interview');
     assert.notEqual(r.path, 'FAST', r.reason);
   });
 
   test('strict source-only still verifies everything, including concepts', () => {
-    const strict = { ...MODE_POLICIES.seminar, groundingPolicy: 'STRICT_SOURCE_ONLY' };
+    const strict = { ...MODE_POLICIES['technical-interview'], groundingPolicy: 'STRICT_SOURCE_ONLY' };
     const r = classifyTurn({
       resolvedQuestion: 'Explain why the sky appears blue to a 12-year-old.',
       policy: strict, isFollowUp: false,
@@ -216,7 +216,7 @@ describe('live-log regressions: claimless open-knowledge turns are not AMBIGUOUS
 
   for (const q of LOGGED) {
     test(`"${q}" takes the fast path in general mode`, () => {
-      const r = classify(q, 'general');
+      const r = classify(q, 'technical-interview');
       assert.ok(!r.questionTypes.includes('AMBIGUOUS'),
         `still AMBIGUOUS: ${JSON.stringify(r.questionTypes)} (${r.reason})`);
       assert.equal(r.path, 'FAST', `${r.reason} (types=${r.questionTypes})`);
@@ -226,11 +226,12 @@ describe('live-log regressions: claimless open-knowledge turns are not AMBIGUOUS
   }
 
   test('the last resort never overrides a turn some source can actually evidence', () => {
-    // team-meet plans the transcript + brief for these; the general-knowledge
-    // last resort must run strictly AFTER every other claim branch.
-    const meeting = classify('What caused the checkout latency regression?', 'team-meet');
-    assert.ok(meeting.requiredSourceTypes.includes('MEETING_TRANSCRIPT'),
-      JSON.stringify(meeting.requiredSourceTypes));
+    // NOTE: this used to also check that team-meet plans MEETING_TRANSCRIPT
+    // for a "what caused the regression" question — deleted, not adapted;
+    // technical-interview (the only surviving mode) does not authorize
+    // MEETING_TRANSCRIPT, so there is no surviving mode to exercise that half.
+    // The general-knowledge last resort must still run strictly AFTER every
+    // other claim branch, which the personal-history case below still covers.
     const personal = classify('What did I ship at my last job?', 'technical-interview');
     assert.ok(!personal.claimTypes.includes('GENERAL_TECHNICAL'),
       JSON.stringify(personal.claimTypes));
@@ -238,7 +239,7 @@ describe('live-log regressions: claimless open-knowledge turns are not AMBIGUOUS
 
   test('a short anaphoric turn keeps the conservative route', () => {
     for (const q of ['Thoughts on that?', 'How does it compare?', 'Is this the same?']) {
-      const r = classify(q, 'general');
+      const r = classify(q, 'technical-interview');
       assert.notEqual(r.path, 'FAST', `${q} → ${r.reason}`);
     }
   });
@@ -289,7 +290,7 @@ describe('live-log regressions: relational nominals inherit their complement', (
 
   test('relational nominals classify as FOLLOW_UP, not as fresh questions', () => {
     for (const q of ['examples', 'pros and cons', 'the difference', 'thoughts']) {
-      const r = classify(q, 'general');
+      const r = classify(q, 'technical-interview');
       assert.ok(r.questionTypes.includes('FOLLOW_UP'),
         `${q} → ${JSON.stringify(r.questionTypes)}`);
       assert.notEqual(r.path, 'FAST');
@@ -318,7 +319,7 @@ describe('self-presentation reflexives are personal claims', () => {
 
   for (const q of SELF_PRESENTATION) {
     test(`"${q}" claims the user's history and never takes the fast path`, () => {
-      const r = classify(q, 'looking-for-work');
+      const r = classify(q, 'technical-interview');
       assert.ok(r.questionTypes.includes('PERSONAL_EXPERIENCE'), JSON.stringify(r.questionTypes));
       assert.ok(r.claimTypes.includes('USER_EMPLOYMENT'), JSON.stringify(r.claimTypes));
       assert.notEqual(r.path, 'FAST', r.reason);
@@ -328,7 +329,7 @@ describe('self-presentation reflexives are personal claims', () => {
   }
 
   test('emphatic reflexive about own work is also personal (correct, not collateral)', () => {
-    const r = classify('did you deploy it yourself', 'looking-for-work');
+    const r = classify('did you deploy it yourself', 'technical-interview');
     assert.ok(r.claimTypes.includes('USER_EMPLOYMENT'), JSON.stringify(r.claimTypes));
   });
 });

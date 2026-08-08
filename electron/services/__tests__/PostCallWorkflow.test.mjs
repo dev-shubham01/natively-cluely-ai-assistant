@@ -52,39 +52,24 @@ test('buildFollowUpDraft includes overview and structured next steps', () => {
   assert.match(draft, /- Me: send the proposal by Friday/);
 });
 
-test('generateCoachingInsights flags sales objection with no captured objection section', () => {
+test('generateCoachingInsights flags uncertainty language (the only surviving coaching rule)', () => {
   const insights = generateCoachingInsights([
-    { speaker: 'interviewer', text: 'The pricing is too expensive compared with our current vendor.', timestamp: 1 },
-    { speaker: 'user', text: 'I can follow up later.', timestamp: 2 },
-  ], 'sales', { sections: [{ title: 'Objections', bullets: [] }] });
+    { speaker: 'user', text: 'I am not sure about the exact complexity here.', timestamp: 1 },
+  ], 'technical-interview');
 
-  assert.ok(insights.some(insight => insight.type === 'missed_objection'));
-  assert.ok(insights.some(insight => insight.evidence?.includes('pricing is too expensive')));
-});
-
-test('generateCoachingInsights uses mode-specific coaching rules', () => {
-  const recruiting = generateCoachingInsights([
-    { speaker: 'interviewer', text: 'Tell me about your backend work.', timestamp: 1 },
-  ], 'recruiting');
-  const team = generateCoachingInsights([
-    { speaker: 'interviewer', text: 'We agreed to change the launch plan.', timestamp: 1 },
-  ], 'team-meet');
-
-  assert.ok(recruiting.some(insight => insight.type === 'missing_logistics'));
-  assert.ok(team.some(insight => insight.type === 'missing_ownership'));
+  assert.ok(insights.some(insight => insight.type === 'uncertainty_pattern'));
 });
 
 test('buildPostCallEnhancements returns schema v2 payload', () => {
   const result = buildPostCallEnhancements({
-    modeTemplateType: 'lecture',
+    modeTemplateType: 'technical-interview',
     transcript: [{ speaker: 'interviewer', text: 'Read chapter 4 before Friday.', timestamp: 10 }],
-    summaryData: { overview: 'Lecture covered graph traversal.', actionItems: [] },
+    summaryData: { overview: 'Covered graph traversal.', actionItems: [] },
   });
 
   assert.equal(result.schemaVersion, 2);
   assert.ok(Array.isArray(result.actionItemsStructured));
-  assert.ok(result.followUpDraft.includes('Lecture covered graph traversal'));
-  assert.ok(result.coachingInsights.some(insight => insight.type === 'study_follow_up'));
+  assert.ok(result.followUpDraft.includes('Covered graph traversal'));
 });
 
 test('post-call schema remains JSON-safe and excludes raw transcript fields', () => {

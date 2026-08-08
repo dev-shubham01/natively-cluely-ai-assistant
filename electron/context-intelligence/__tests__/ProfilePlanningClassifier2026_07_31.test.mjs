@@ -17,7 +17,7 @@ const base = path.resolve(process.cwd(), 'dist-electron/electron/context-intelli
 const { classifyTurn } = await import(pathToFileURL(path.join(base, 'question/turn-classifier.js')).href);
 const { resolveModePolicy } = await import(pathToFileURL(path.join(base, 'policies/mode-policy-registry.js')).href);
 
-const LFW = resolveModePolicy('looking-for-work');
+const LFW = resolveModePolicy('technical-interview');
 const cls = (q, policy = LFW) => classifyTurn({ resolvedQuestion: q, policy, isFollowUp: false });
 
 describe('first-person self-reference is personal', () => {
@@ -73,20 +73,13 @@ describe('review hardening: first-person technical self-talk stays impersonal', 
 });
 
 describe('review hardening: JOB_RE widening stays narrow', () => {
-  const GENERAL = resolveModePolicy('general');
   test('"what fields are required in this form" is not a JD claim', () => {
-    const c = cls('what fields are required in this form?', GENERAL);
+    const c = cls('what fields are required in this form?');
     assert.ok(!c.claimTypes.includes('JOB_REQUIRED_SKILL'));
   });
   test('"average salary for data scientists" is not a JD claim', () => {
-    const c = cls('what is the average salary for data scientists?', GENERAL);
+    const c = cls('what is the average salary for data scientists?');
     assert.ok(!c.claimTypes.includes('JOB_REQUIRED_SKILL'));
-  });
-  test('recruiting presence-check does NOT force a JD conjunction (no profile JD there)', () => {
-    const c = cls('do you know if the candidate has java experience?', resolveModePolicy('recruiting'));
-    assert.ok(!c.claimTypes.includes('JOB_REQUIRED_SKILL'),
-      'a JD is merely possible in recruiting — forcing the comparison made plain candidate questions structurally PARTIAL');
-    assert.ok(c.claimTypes.includes('USER_SKILL'));
   });
 });
 
@@ -100,12 +93,11 @@ describe('motivation questions are grounded turns, not FAST', () => {
 });
 
 describe('presence-check comparison respects mode authorization', () => {
-  test('the JD side is only added where the mode allows a JD at all', () => {
-    const seminar = resolveModePolicy('seminar');
-    const c = cls('Do I have Kubernetes experience?', seminar);
-    assert.ok(!c.requiredSourceTypes.includes('JOB_DESCRIPTION'),
-      'seminar authorizes no JD — the comparison cannot widen authorization');
-  });
+  // NOTE: a "the JD side is only added where the mode allows a JD at all" case
+  // used to live here, using seminar (which authorized no JD) to prove the
+  // comparison can't widen authorization. Deleted — technical-interview (the
+  // only surviving mode) does authorize JOB_DESCRIPTION, so there is no
+  // surviving mode left that demonstrates the negative case.
 
   test('the salary question plans the JD', () => {
     const c = cls('What is the base salary?');

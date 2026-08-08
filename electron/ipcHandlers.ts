@@ -4596,7 +4596,7 @@ export function initializeIpcHandlers(appState: AppState): void {
                       baseSystemPrompt: _regenBase,
                       modePromptSuffix: _regenBaseIsV2 ? undefined : _mm.getActiveModeSystemPromptSuffix?.(manualActiveMode?.id ?? undefined),
                       pinnedInstructions: _mm.getActiveModePinnedInstructions?.(answerPlan.answerType, manualActiveMode?.id ?? undefined),
-                      isActiveCustomMode: manualActiveMode?.isCustom === true || _mm.isCustomMode?.(manualActiveMode),
+                      isActiveCustomMode: manualActiveMode?.isCustom === true,
                     });
                   } catch { regenSystemPrompt = undefined; }
                   await raceStreamWithDeadline({
@@ -10902,74 +10902,6 @@ export function initializeIpcHandlers(appState: AppState): void {
       return { success: false, error: e.message };
     }
   });
-
-  // AI-generated custom mode from a free-text brief. Turns a user description
-  // ("Senior Backend Eng interview — concise expert answers with tradeoffs")
-  // into a persisted custom mode via the real LLM (MiniMax through the backend),
-  // then saves it through the existing createMode + updateMode(customContext)
-  // path. If persist:false, returns the generated draft WITHOUT saving (used by
-  // the E2E harness to validate the generator in isolation).
-  safeHandle(
-    'modes:generate-from-brief',
-    async (
-      _,
-      params: {
-        brief: string;
-        requiresGrounding?: boolean;
-        templateHint?: string;
-        key?: string;
-        persist?: boolean;
-      },
-    ) => {
-      try {
-        if (!isProOrTrialActive()) return { success: false, error: 'pro_required' };
-        if (!params?.brief || typeof params.brief !== 'string' || params.brief.trim().length < 8) {
-          return { success: false, error: 'brief_too_short' };
-        }
-        if (params.brief.length > 2000) {
-          return { success: false, error: 'brief_too_long' };
-        }
-        const { generateMode } = require('./services/ModeGenerator');
-        const llmHelper = appState.processingHelper?.getLLMHelper?.();
-        if (!llmHelper) return { success: false, error: 'llm_unavailable' };
-
-        // Injected LLM entry: raw system-prompt override, no active-mode injection,
-        // no knowledge-mode intercept — a clean generation call that routes through
-        // the backend cascade (MiniMax when NATIVELY_FORCE_PRIMARY_GEN=minimax).
-        const complete = async (system: string, user: string): Promise<string> => {
-          return await llmHelper.chat(user, undefined, undefined, system, true /* skipModeInjection */);
-        };
-
-        const brief = {
-          key: params.key || `brief_${Date.now()}`,
-          brief: params.brief.trim(),
-          requiresGrounding: params.requiresGrounding === true,
-          templateHint: params.templateHint as any,
-        };
-        const { draft, attempts, issues } = await generateMode(brief, complete);
-
-        if (params.persist === false) {
-          return { success: true, draft, attempts, issues, persisted: false };
-        }
-
-        const { ModesManager } = require('./services/ModesManager');
-        const mgr = ModesManager.getInstance();
-        const created = mgr.createMode({ name: draft.name, templateType: draft.templateType });
-        mgr.updateMode(created.id, { customContext: draft.customContext });
-        return {
-          success: true,
-          mode: { ...created, customContext: draft.customContext },
-          draft,
-          attempts,
-          issues,
-          persisted: true,
-        };
-      } catch (e: any) {
-        console.error('[IPC] modes:generate-from-brief error:', e);
-        return { success: false, error: e.message };
-      }
-    },
-  );
 
   safeHandle(
     'modes:update',
