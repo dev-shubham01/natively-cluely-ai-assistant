@@ -95,7 +95,7 @@ export const STAGES = [
       requiresMeetingInactive: true,
     },
     requiresStages: ['quiet_window'],
-    skipWhen: (s) => !s.donationShouldShow || s.isPremium,
+    skipWhen: () => true,
     customPredicate: (ctx) => ctx.turnCount >= 10 || ctx.startupCount >= 10,
     cooldownMs: () => 14 * 24 * 60 * 60 * 1000,
   },

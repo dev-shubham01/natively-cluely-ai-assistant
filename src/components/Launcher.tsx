@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useT } from '../i18n';
-import { RefreshCw, Ghost, UserSearch, DownloadCloud, CheckCircle, AlertCircle, Code, ShieldCheck, Zap, Settings } from 'lucide-react';
+import { RefreshCw, Ghost, UserSearch, DownloadCloud, CheckCircle, AlertCircle, Code, Zap, Settings } from 'lucide-react';
 import icon from "./icon.png";
 import TopSearchPill from './TopSearchPill';
 import GlobalChatOverlay from './GlobalChatOverlay';
@@ -24,7 +24,7 @@ interface LauncherProps {
     ollamaPullMessage?: string;
 }
 
-const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onOpenProfile, onOpenModes, onPageChange, ollamaPullStatus = 'idle', ollamaPullPercent = 0, ollamaPullMessage = '' }) => {
+const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onOpenProfile, onOpenModes: _onOpenModes, onPageChange, ollamaPullStatus = 'idle', ollamaPullPercent = 0, ollamaPullMessage = '' }) => {
     const t = useT();
     const [isDetectable, setIsDetectable] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -175,18 +175,6 @@ const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onO
                         <UserSearch size={18} />
                     </button>
                     <button
-                        onClick={() => onOpenModes?.()}
-                        title={t("Interview Modes")}
-                        className={`p-2 text-text-secondary hover:text-text-primary transition-all duration-300 ${isLight ? 'hover:drop-shadow-[0_0_6px_rgba(0,0,0,0.25)]' : 'hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]'}`}
-                    >
-                        <svg width={18} height={18} viewBox="0 0 14 14" fill="none">
-                            <rect x="1" y="1" width="5.5" height="5.5" rx="1.5" fill="currentColor" opacity="0.9"/>
-                            <rect x="7.5" y="1" width="5.5" height="5.5" rx="1.5" fill="currentColor" opacity="0.9"/>
-                            <rect x="1" y="7.5" width="5.5" height="5.5" rx="1.5" fill="currentColor" opacity="0.9"/>
-                            <rect x="7.5" y="7.5" width="5.5" height="5.5" rx="1.5" fill="currentColor" opacity="0.35"/>
-                        </svg>
-                    </button>
-                    <button
                         onClick={() => onOpenSettings()}
                         className={`p-2 text-text-secondary hover:text-text-primary`}
                     >
@@ -296,7 +284,7 @@ const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onO
                             <div className="max-w-4xl mx-auto space-y-6">
                                 <h3 className="text-[14px] font-semibold text-text-primary uppercase tracking-wider">{t('Interview Modes Ready')}</h3>
                                 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className={`p-5 rounded-2xl border transition-all ${isLight ? 'bg-white border-slate-200/80 shadow-sm' : 'bg-[#18181B] border-white/10'}`}>
                                         <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3">
                                             <Code size={20} />
@@ -314,16 +302,6 @@ const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onO
                                         <h4 className="text-base font-semibold text-text-primary mb-1">{t('System Architecture')}</h4>
                                         <p className="text-xs text-text-secondary leading-relaxed">
                                             {t('High-level & low-level architecture, scalability, trade-offs, and microservices guidance.')}
-                                        </p>
-                                    </div>
-
-                                    <div className={`p-5 rounded-2xl border transition-all ${isLight ? 'bg-white border-slate-200/80 shadow-sm' : 'bg-[#18181B] border-white/10'}`}>
-                                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-3">
-                                            <ShieldCheck size={20} />
-                                        </div>
-                                        <h4 className="text-base font-semibold text-text-primary mb-1">{t('Behavioral & STAR')}</h4>
-                                        <p className="text-xs text-text-secondary leading-relaxed">
-                                            {t('Grounded answers customized to your resume, achievements, leadership, and STAR stories.')}
                                         </p>
                                     </div>
                                 </div>

@@ -136,7 +136,7 @@ export const STAGES: StageConfig[] = [
       requiresMeetingInactive: true,
     },
     requiresStages: ['quiet_window'],
-    skipWhen: (s) => !s.donationShouldShow || s.isPremium,
+    skipWhen: () => true,
     customPredicate: (ctx: Ctx) =>
       // Trigger after enough engagement: 10 turns OR 10 successful startups
       ctx.turnCount >= 10 || ctx.startupCount >= 10,
