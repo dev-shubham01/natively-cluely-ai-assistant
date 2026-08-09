@@ -2498,6 +2498,20 @@ export class IntelligenceEngine extends EventEmitter {
                         // though the answer was said out loud a minute ago.
                         conversationSummary: _ctx.conversationWindow(90),
                         retrieval: _ctx.port as any,
+                        // Mirrors ipcHandlers.ts's manual-chat personaBase wiring:
+                        // V3's own composition is governance-only and never carried
+                        // an identity/voice contract, so without this the live
+                        // answer read like a default AI assistant rather than the
+                        // candidate's own voice. Reuses V2's persona text as-is.
+                        personaBase: ({ codingTask }: { codingTask: boolean }) => {
+                            const { resolveV2SystemPrompt, v2TierForPromptTier } = require('./llm/promptSystemV2');
+                            return resolveV2SystemPrompt({
+                                action: 'what_to_say',
+                                tier: v2TierForPromptTier(this.llmHelper.getPromptTier()),
+                                activeMode: snapshotModeInfo,
+                                codingTask,
+                            });
+                        },
                     });
                     if (_v3) {
                         wtaTrace.lifecycle('planned', {
