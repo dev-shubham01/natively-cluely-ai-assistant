@@ -111,15 +111,15 @@ export {
   LIVE_INTER_TOKEN_STALL_MS, BENCHMARK_PER_QUESTION_HARD_TIMEOUT_MS,
 } from "./liveDeadlines";
 export type { FollowUpContext, ResolvedFollowUp, FollowUpSurface } from "./FollowUpResolver";
-export { renderCodingAnswerMarkdown, repairCodingAnswer, repairCodingMarkdown, validateAnswerStructure, validateCodingMarkdown, buildCodingScaffold, detectAndExtractScaffoldMisfire, hasUnrecoveredScaffoldContamination } from "./AnswerValidator";
-export type { AnswerValidationResult, CodingAnswer } from "./AnswerValidator";
+export { validateAnswerStructure, validateCodingMarkdown, detectAndExtractScaffoldMisfire, hasUnrecoveredScaffoldContamination } from "./AnswerValidator";
+export type { AnswerValidationResult } from "./AnswerValidator";
 export { validateProfileOutput, buildProfileRepairInstruction, stripProfileTokensFromCoding, sanitizeCandidateAnswer, CANDIDATE_VOICE_ANSWER_TYPES, detectAssistantVoiceMisfire, ASSISTANT_VOICE_ANSWER_TYPES } from "./ProfileOutputValidator";
 export type { ProfileValidationResult, ProfileViolation, ProfileViolationCode, ProfileValidationInput, CandidateSanitizeResult, AssistantVoiceSanitizeResult } from "./ProfileOutputValidator";
 export { validateProfileEvidence } from "./profileEvidenceValidator";
 export type { EvidenceValidationResult, EvidenceViolation, EvidenceViolationCode, EvidenceValidationInput } from "./profileEvidenceValidator";
 export { decideProfileIntelligence } from "./ProfileIntelligenceRouter";
 export type { ProfileIntelligenceDecision, ProfileContextType, AnswerPerspective, DecideProfileInput } from "./ProfileIntelligenceRouter";
-export { CODING_CONTRACT, CODING_CONTRACT_TINY, CODING_SECTIONS, CODING_SECTION_HEADINGS, CODING_VERIFICATION_INSTRUCTION, VERIFICATION_SPEC_RE, stripVerificationSpec, StreamingSpecStripper } from "./codingContract";
+export { CODING_CONTRACT, CODING_CONTRACT_TINY, CODING_OPENING_HEADING, CODING_CLOSING_SECTIONS, CODING_APPROACH_HEADING_RE, CODING_VERIFICATION_INSTRUCTION, VERIFICATION_SPEC_RE, stripVerificationSpec, StreamingSpecStripper } from "./codingContract";
 export { verifyCodingAnswer } from "./codeVerification/verifyCodingAnswer";
 export type { VerifyCodingOptions, CorrectionFn } from "./codeVerification/verifyCodingAnswer";
 export type { Verdict, VerificationOutcome, VerifyLanguage, TestCase, RunResult, VerificationSpec } from "./codeVerification/types";

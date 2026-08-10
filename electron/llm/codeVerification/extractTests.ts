@@ -54,9 +54,20 @@ export const inferLanguageFromText = (text: string): VerifyLanguage | null => {
   return null;
 };
 
-/** Extract the FIRST fenced code block (language tag + body + raw block). */
+/**
+ * Extract the LAST fenced code block (language tag + body + raw block).
+ *
+ * A discovery-narrative DSA answer can legitimately contain multiple code
+ * blocks (one per approach discussed) — the last one is always the final,
+ * most-optimized approach, which is the one verification must target. With
+ * exactly one code block (every other answer shape today), first and last
+ * are the same block, so this is a no-op change for those callers.
+ */
 export const extractCodeBlock = (answer: string): ExtractedCode => {
-  const match = answer.match(/```([a-zA-Z0-9+#.\-]*)\s*\n([\s\S]+?)```/);
+  const re = /```([a-zA-Z0-9+#.\-]*)\s*\n([\s\S]+?)```/g;
+  let match: RegExpExecArray | null = null;
+  let current: RegExpExecArray | null;
+  while ((current = re.exec(answer)) !== null) match = current;
   if (!match) return { code: '', language: null, declaredTag: '', block: null };
   return {
     code: (match[2] || '').trim(),

@@ -27,7 +27,12 @@ export class AnswerLLM {
     async generate(question: string, context?: string, answerPlan?: AnswerPlan, systemPromptOverride?: string): Promise<string> {
         try {
             const promptOverride = systemPromptOverride
-                ?? resolveV2SystemPrompt({ action: 'answer', tier: v2TierForPromptTier(this.llmHelper.getPromptTier()), codingTask: !!(answerPlan && isCodingAnswerType(answerPlan.answerType)) })
+                ?? resolveV2SystemPrompt({
+                    action: 'answer',
+                    tier: v2TierForPromptTier(this.llmHelper.getPromptTier()),
+                    codingTask: !!(answerPlan && isCodingAnswerType(answerPlan.answerType)),
+                    dsaTask: answerPlan?.answerType === 'dsa_question_answer',
+                })
                 ?? (this.llmHelper.getPromptTier() === 'tiny' ? TINY_ANSWER_PROMPT : UNIVERSAL_ANSWER_PROMPT);
             const answerContract = answerPlan ? `\n\n${formatAnswerPlanForPrompt(answerPlan, isCodeVerificationEnabled())}` : '';
             const fittedContext = context ? this.llmHelper.fitContextForCurrentModel(`${context}${answerContract}`) : answerContract.trim() || context;

@@ -2734,6 +2734,10 @@ try {
             // Universal coding contract: attach when the routed answer type is
             // coding-shaped, regardless of the active mode (2026-08-02).
             codingTask: (() => { try { const { isCodingAnswerType } = require('./llm/AnswerPlanner'); return !!(routeOptions?.answerType && isCodingAnswerType(routeOptions.answerType)); } catch { return false; } })(),
+            // Narrows to the DSA discovery-narrative shape specifically — a
+            // general implementation turn (coding_question_answer) gets
+            // CODING_CONTRACT_IMPL instead (see BuildSystemPromptV2Input).
+            dsaTask: routeOptions?.answerType === 'dsa_question_answer',
           }) ?? systemPromptOverride;
     }
     v2BasePromptActive = isV2ComposedPrompt(systemPromptOverride);
@@ -5135,6 +5139,10 @@ let isMultimodal = !!(imagePaths?.length);
             // Universal coding contract: attach when the routed answer type is
             // coding-shaped, regardless of the active mode (2026-08-02).
             codingTask: (() => { try { const { isCodingAnswerType } = require('./llm/AnswerPlanner'); return !!(routeOptions?.answerType && isCodingAnswerType(routeOptions.answerType)); } catch { return false; } })(),
+            // Narrows to the DSA discovery-narrative shape specifically — a
+            // general implementation turn (coding_question_answer) gets
+            // CODING_CONTRACT_IMPL instead (see BuildSystemPromptV2Input).
+            dsaTask: routeOptions?.answerType === 'dsa_question_answer',
           }) ?? systemPromptOverride;
         }
         callerPassedV2Prompt = isV2ComposedPrompt(systemPromptOverride);

@@ -71,10 +71,11 @@ describe('conditional coding-format rule replaced the unconditional headings lin
 });
 
 describe('protected invariants still hold after the tiny edits', () => {
-  test('CODING_CONTRACT_TINY constant still names every section heading', () => {
-    for (const h of ['## Approach', '## Code', '## Complexity', '## Interviewer Follow-up Points']) {
-      assert.ok(CODING_CONTRACT_TINY.includes(h), `tiny contract missing ${h}`);
+  test('CODING_CONTRACT_TINY constant still names every fixed section heading', () => {
+    for (const h of ['## Understanding the Problem', '## Complexity', '## Interviewer Follow-up Points']) {
+      assert.ok(CODING_CONTRACT_TINY.includes(`"${h}"`), `tiny contract missing ${h}`);
     }
+    assert.match(CODING_CONTRACT_TINY, /Approach N/, 'tiny contract missing the numbered-approach pattern');
   });
 
   test('TINY_CORE identity guard is intact in every first-person spoken prompt', () => {

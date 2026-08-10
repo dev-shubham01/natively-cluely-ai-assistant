@@ -186,7 +186,7 @@ describe('turn-composer production wiring (buildTurnContentV2)', () => {
 
 describe('universal coding contract — semantic wiring (codingTask from routed answer type)', () => {
   test('manual chat passes isCodingChat; phone chat derives from its plan', () => {
-    assert.match(ipcSrc, /resolveManualChatBasePrompt\(llmHelper, \{ codingTask: isCodingChat \}\)/,
+    assert.match(ipcSrc, /resolveManualChatBasePrompt\(llmHelper, \{\s*codingTask: isCodingChat,/,
       'manual chat must thread the semantic coding classification');
     assert.match(ipcSrc, /codingTask: !!\(phoneRouteOptions\?\.answerType && isCodingAnswerType/,
       'phone chat must derive codingTask from its own answer plan');
@@ -200,6 +200,34 @@ describe('universal coding contract — semantic wiring (codingTask from routed 
   test('WTA and AnswerLLM thread codingTask from the answer plan', () => {
     assert.match(read('../WhatToAnswerLLM.ts'), /codingTask: isCodingAnswerType\(answerPlan\?\.answerType as AnswerType\)/);
     assert.match(read('../AnswerLLM.ts'), /codingTask: !!\(answerPlan && isCodingAnswerType\(answerPlan\.answerType\)\)/);
+  });
+
+  // 2026-08-09 mode-gate fix: codingTask alone no longer distinguishes DSA
+  // from general implementation (both isCodingAnswerType true). dsaTask must
+  // be threaded alongside codingTask at every call site that CAN precisely
+  // classify, or the fix silently regresses to "assume DSA" everywhere.
+  describe('dsaTask narrowing wiring (DSA vs general implementation)', () => {
+    test('manual chat and phone chat both thread dsaTask', () => {
+      assert.match(ipcSrc, /dsaTask: isCodingChat && answerPlan\.answerType !== 'coding_question_answer'/,
+        'manual chat must thread the DSA-specific narrowing');
+      assert.match(ipcSrc, /dsaTask: phoneRouteOptions\?\.answerType === 'dsa_question_answer'/,
+        'phone chat must derive dsaTask from its own answer plan');
+    });
+
+    test('LLMHelper threads dsaTask from routeOptions on BOTH entry points', () => {
+      const hits = (llmHelperSrc.match(/dsaTask: routeOptions\?\.answerType === 'dsa_question_answer'/g) || []).length;
+      assert.equal(hits, 2, `expected both _streamChatInner and chatWithGemini to thread dsaTask (got ${hits})`);
+    });
+
+    test('WTA and AnswerLLM thread dsaTask from the answer plan', () => {
+      assert.match(read('../WhatToAnswerLLM.ts'), /dsaTask: answerPlan\?\.answerType === 'dsa_question_answer'/);
+      assert.match(read('../AnswerLLM.ts'), /dsaTask: answerPlan\?\.answerType === 'dsa_question_answer'/);
+    });
+
+    test('V3 personaBase callbacks (WTA + manual chat) do NOT thread dsaTask — intentional: their classifier cannot yet distinguish, so they default to the DSA shape', () => {
+      assert.doesNotMatch(engineSrc.match(/personaBase: \(\{ codingTask \}[\s\S]{0,400}/)?.[0] || '', /dsaTask/);
+      assert.doesNotMatch(ipcSrc.match(/personaBase: \(\{ codingTask \}[\s\S]{0,400}/)?.[0] || '', /dsaTask/);
+    });
   });
 });
 

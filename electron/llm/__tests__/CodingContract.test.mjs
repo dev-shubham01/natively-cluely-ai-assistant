@@ -1,13 +1,16 @@
 // electron/llm/__tests__/CodingContract.test.mjs
 //
-// Release-blocking coding-structure coverage (Phase 14/15). Proves the single
-// canonical coding contract holds end-to-end across:
-//   - codingContract: the shared section source of truth,
-//   - AnswerValidator: validate / repair / render / scaffold,
-//   - AnswerPlanner: routing + scaffold flag + forbidden-layer isolation,
-// for the full required problem list (odd/even, two-sum, reverse linked list,
-// binary search, valid parentheses, longest substring, palindrome, prime,
-// factorial, fibonacci, system design, debugging).
+// Release-blocking coding-structure coverage. Proves the discovery-narrative
+// coding contract holds end-to-end across:
+//   - codingContract: the shared shape source of truth,
+//   - AnswerValidator: validate (no deterministic repair for this shape),
+//   - AnswerPlanner: routing + scaffold flag + forbidden-layer isolation.
+//
+// Shape: one fixed opening heading, a VARIABLE number of numbered
+// "## Approach N: <name>" sections (each with its own code), then two fixed
+// closing headings. There is no repairCodingMarkdown/renderCodingAnswerMarkdown/
+// buildCodingScaffold any more — see AnswerValidator.ts's validateCodingMarkdown
+// doc comment for why a variable-shape answer isn't deterministically repaired.
 
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
@@ -17,35 +20,12 @@ import {
   shouldScaffold,
   validateCodingMarkdown,
   validateAnswerStructure,
-  repairCodingMarkdown,
-  renderCodingAnswerMarkdown,
-  buildCodingScaffold,
   CODING_CONTRACT,
   CODING_CONTRACT_TINY,
-  CODING_SECTIONS,
-  CODING_SECTION_HEADINGS,
+  CODING_OPENING_HEADING,
+  CODING_CLOSING_SECTIONS,
+  CODING_APPROACH_HEADING_RE,
 } from '../../../dist-electron/electron/llm/index.js';
-
-const REQUIRED_HEADINGS = [
-  '## Approach',
-  '## Technique / Data Structure / Algorithm Used',
-  '## Code',
-  '## Dry Run',
-  '## Complexity',
-  '## Interviewer Follow-up Points',
-];
-
-function assertContract(md, label) {
-  for (const h of REQUIRED_HEADINGS) {
-    assert.ok(md.includes(h), `${label}: missing heading "${h}"`);
-  }
-  const positions = REQUIRED_HEADINGS.map((h) => md.indexOf(h));
-  for (let i = 1; i < positions.length; i++) {
-    assert.ok(positions[i - 1] < positions[i], `${label}: "${REQUIRED_HEADINGS[i - 1]}" must precede "${REQUIRED_HEADINGS[i]}"`);
-  }
-  assert.ok(!/^\s*```/.test(md), `${label}: must not start with a code fence`);
-  assert.ok(/^##\s+Approach/m.test(md), `${label}: Approach must be a heading`);
-}
 
 const planFor = (question, source = 'what_to_answer') => planAnswer({
   question,
@@ -53,349 +33,260 @@ const planFor = (question, source = 'what_to_answer') => planAnswer({
   speakerPerspective: source === 'what_to_answer' ? 'interviewer' : 'user',
 });
 
+// A single-approach well-formed answer — the common case ("many problems
+// need just ONE approach because the first natural idea IS already optimal").
+const SINGLE_APPROACH_ANSWER = `## Understanding the Problem
+
+We need to check whether a number is even or odd and return the result.
+
+## Approach 1: Modulo
+
+The most direct idea is to check the remainder when dividing by 2.
+
+\`\`\`python
+def is_even(n):
+    return n % 2 == 0
+\`\`\`
+
+## Complexity
+
+Time Complexity: O(1) because it's a single operation.
+Space Complexity: O(1) because no extra storage is used.
+
+## Interviewer Follow-up Points
+
+- Negative numbers
+- Non-integer input`;
+
+// A two-approach well-formed answer — brute force, then an optimization.
+const TWO_APPROACH_ANSWER = `## Understanding the Problem
+
+We need to find two numbers in an array that sum to a target value.
+
+## Approach 1: Brute Force
+
+The first idea is to check every pair directly.
+
+\`\`\`python
+def two_sum(nums, target):
+    for i in range(len(nums)):
+        for j in range(i + 1, len(nums)):
+            if nums[i] + nums[j] == target:
+                return [i, j]
+\`\`\`
+
+This is O(n^2), which is too slow for large inputs.
+
+## Approach 2: Hash Map
+
+I'm repeatedly searching for the complement, so I can store what I've already seen.
+
+\`\`\`python
+def two_sum(nums, target):
+    seen = {}
+    for i, n in enumerate(nums):
+        if target - n in seen:
+            return [seen[target - n], i]
+        seen[n] = i
+\`\`\`
+
+## Complexity
+
+Time Complexity: O(n) because each element is visited once.
+Space Complexity: O(n) because of the hash map.
+
+## Interviewer Follow-up Points
+
+- Duplicate values
+- No valid pair exists`;
+
 // ── 1. Single source of truth ───────────────────────────────────────────────
 describe('canonical coding contract', () => {
-  test('CODING_SECTIONS has exactly the six required sections', () => {
-    assert.deepEqual([...CODING_SECTIONS], [
-      'Approach', 'Technique / Data Structure / Algorithm Used', 'Code',
-      'Dry Run', 'Complexity', 'Interviewer Follow-up Points',
-    ]);
+  test('CODING_OPENING_HEADING and CODING_CLOSING_SECTIONS are the fixed anchors', () => {
+    assert.equal(CODING_OPENING_HEADING, 'Understanding the Problem');
+    assert.deepEqual([...CODING_CLOSING_SECTIONS], ['Complexity', 'Interviewer Follow-up Points']);
   });
-  test('CODING_SECTION_HEADINGS are the ## form', () => {
-    assert.deepEqual([...CODING_SECTION_HEADINGS], REQUIRED_HEADINGS);
+  test('CODING_APPROACH_HEADING_RE matches a numbered approach heading and captures the number', () => {
+    assert.match('## Approach 1: Brute Force', CODING_APPROACH_HEADING_RE);
+    assert.match('## Approach 2', CODING_APPROACH_HEADING_RE);
+    assert.doesNotMatch('## Approach', CODING_APPROACH_HEADING_RE); // must be numbered
+    const m = '## Approach 3: Two Pointers'.match(CODING_APPROACH_HEADING_RE);
+    assert.equal(m?.[1], '3');
   });
-  test('CODING_CONTRACT contains every ## heading verbatim', () => {
-    for (const h of REQUIRED_HEADINGS) assert.ok(CODING_CONTRACT.includes(h), `contract missing ${h}`);
-  });
-  test('CODING_CONTRACT forbids starting with code', () => {
-    assert.match(CODING_CONTRACT, /Do NOT start the answer with code/i);
-  });
-  test('tiny contract names every section and the ## form', () => {
-    for (const s of CODING_SECTIONS) assert.ok(CODING_CONTRACT_TINY.includes(`## ${s}`), `tiny contract missing ## ${s}`);
-  });
-});
-
-// ── 2. Scaffold ──────────────────────────────────────────────────────────────
-describe('buildCodingScaffold', () => {
-  test('scaffold itself satisfies the heading contract and order', () => {
-    assertContract(buildCodingScaffold(), 'scaffold');
-  });
-  test('scaffold does not start with code and has placeholder prose', () => {
-    const s = buildCodingScaffold();
-    assert.ok(!/^\s*```/.test(s));
-    assert.match(s, /Working on the approach/i);
-  });
-});
-
-// ── 3. renderCodingAnswerMarkdown ────────────────────────────────────────────
-describe('renderCodingAnswerMarkdown', () => {
-  test('renders a full CodingAnswer object into the contract', () => {
-    const md = renderCodingAnswerMarkdown({
-      approach: 'Use modulo.',
-      technique: 'Modulo operator.',
-      language: 'python',
-      code: 'def f(n):\n    return n % 2 == 0',
-      dryRun: 'f(4) -> True',
-      complexity: 'Time: O(1). Space: O(1).',
-      interviewerFollowUpPoints: ['Negative numbers', 'Return vs print'],
-    });
-    assertContract(md, 'render');
-    assert.match(md, /```python/);
-  });
-  test('defaults language to python and supplies a follow-up when none given', () => {
-    const md = renderCodingAnswerMarkdown({
-      approach: 'x', technique: 'y', language: '', code: 'print(1)', dryRun: 'z',
-      complexity: 'Time: O(1). Space: O(1).', interviewerFollowUpPoints: [],
-    });
-    assert.match(md, /```python/);
-    assert.match(md, /## Interviewer Follow-up Points/);
-  });
-});
-
-// ── 4. The required problem list — repair must always produce the contract ───
-const REQUIRED_PROBLEMS = [
-  'what is the code for odd even',
-  'odd even in python',
-  'write code to check if a number is odd or even',
-  'can you solve two sum',
-  'two sum problem',
-  'reverse a linked list',
-  'reverse linked list in java',
-  'binary search',
-  'implement binary search',
-  'valid parentheses',
-  'check valid parentheses',
-  'longest substring without repeating characters',
-  'check if a string is a palindrome',
-  'palindrome check',
-  'prime number check',
-  'is this a prime number',
-  'factorial of a number',
-  'compute factorial',
-  'fibonacci sequence',
-  'nth fibonacci number',
-  'fizzbuzz',
-  'merge two sorted arrays',
-  'find the maximum subarray sum',
-  'detect a cycle in a linked list',
-  'level order traversal of a binary tree',
-];
-
-describe('repairCodingMarkdown re-sections every required problem under the six headings', () => {
-  for (const q of REQUIRED_PROBLEMS) {
-    test(`repair("${q}") → full six-section contract`, () => {
-      // Simulate the worst case: model returned code-first content with no headings.
-      const raw = '```python\ndef solve(n):\n    return n\n```\nThat is the answer.';
-      const repaired = repairCodingMarkdown(raw, q);
-      assertContract(repaired, `repair:${q}`);
-    });
-    test(`repair("${q}") has all six sections in order and a code block`, () => {
-      const repaired = repairCodingMarkdown('here is code\n```js\nx=1\n```', q);
-      const v = validateCodingMarkdown(repaired);
-      // Repaired output must have all sections in order. (It may still report
-      // ok=false because, by design, repair does NOT fabricate a Big-O when the
-      // model gave none — it emits an O(?) "fill this in" placeholder instead.)
-      assert.equal(v.missingSections.length, 0, `repair:${q} missing ${v.missingSections.join(',')}`);
-    });
-  }
-});
-
-// ── 5. repair NEVER fabricates algorithmic content (anti-hardcode contract) ──
-describe('repair re-sections without fabricating', () => {
-  test('odd/even repair does NOT inject a hardcoded check_odd_even template', () => {
-    // The model returned its OWN (different) code; repair must preserve it and
-    // must NOT substitute a canned odd/even solution.
-    const raw = '```python\nprint("odd" if n & 1 else "even")\n```';
-    const md = repairCodingMarkdown(raw, 'what is the code for odd even');
-    assertContract(md, 'oddeven');
-    assert.match(md, /n & 1/, "must preserve the model's own code, not a canned template");
-    assert.doesNotMatch(md, /check_odd_even/, 'no hardcoded check_odd_even template');
-  });
-  test("repair preserves the model's own complexity instead of overwriting with O(n)", () => {
-    const raw = '```python\ndef f(x):\n  return x*x\n```\nTime Complexity: O(1). Space Complexity: O(1).';
-    const md = repairCodingMarkdown(raw, 'square a number');
-    assertContract(md, 'preserve-complexity');
-    assert.match(md, /O\(1\)/, "must keep the model's O(1), not fabricate O(n)");
-    assert.doesNotMatch(md, /O\(n\)/, 'must not inject a generic O(n)');
-  });
-  test('repair emits a neutral O(?) placeholder (not a fabricated bound) when complexity is absent', () => {
-    const md = repairCodingMarkdown('```python\nx=1\n```', 'some problem');
-    assertContract(md, 'no-complexity');
-    assert.match(md, /O\(\?\)/, 'absent complexity → visible O(?) placeholder, never a fabricated value');
-  });
-  test('repair preserves a multi-term complexity O(n log n) verbatim (no collapse to O(n))', () => {
-    const raw = '```python\nnums.sort()\n```\nTime Complexity: O(n log n). Space Complexity: O(n).';
-    const md = repairCodingMarkdown(raw, 'sort an array');
-    assertContract(md, 'nlogn');
-    assert.match(md, /O\(n log n\)/, 'the log n term must survive');
-    // Must not have lost the log n (i.e., a bare "Time ... O(n) because" with no log).
-    assert.doesNotMatch(md, /Time Complexity:\s*O\(n\)\s*[.\n]/i, 'must not collapse O(n log n) to O(n)');
-  });
-  test('repair preserves O(V + E) (plus sign inside parens survives)', () => {
-    const raw = '```python\nbfs(graph)\n```\nTime: O(V + E). Space: O(V).';
-    const md = repairCodingMarkdown(raw, 'graph traversal');
-    assertContract(md, 'graph');
-    assert.match(md, /O\(V \+ E\)/, 'V + E must survive');
-  });
-  test('repair keeps approach prose when complexity is on the SAME sentence (no dangling connective)', () => {
-    // The classic combined sentence — repair must lift the complexity CLAUSE
-    // into Complexity and KEEP a clean "We scan the array once" in Approach,
-    // with NO stranded connector ("which is and"). Regression for the re-review.
-    const cases = [
-      ['```python\nfor x in nums: ...\n```\nWe scan the array once, which is O(n) time and O(1) space.', /scan the array once/i],
-      ['```python\nbfs(g)\n```\nBFS over the graph runs in O(V + E) time and O(V) space.', /BFS over the graph/i],
-      ['```python\nnums.sort()\n```\nSort then sweep, giving O(n log n) time and O(n) space.', /Sort then sweep/i],
-      ['```python\nseen={}\n```\nUse a hash map. Track complements as we go. This runs in O(n) time and O(n) space.', /Track complements as we go/i],
-    ];
-    for (const [raw, approachRe] of cases) {
-      const md = repairCodingMarkdown(raw, 'scan');
-      assertContract(md, 'combined');
-      const approachBlock = md.split('## Technique')[0];
-      const complexityBlock = md.split('## Complexity')[1]?.split('## Interviewer')[0] ?? '';
-      assert.match(approachBlock, approachRe, 'approach prose must survive');
-      // No dangling connector left in the approach ("which is and", "runs in and", "giving and").
-      assert.doesNotMatch(approachBlock, /\b(which is|runs? in|running in|giving|yielding)\s+(and|,)?\s*[.\n]/i,
-        'no stranded connector in approach');
-      assert.doesNotMatch(approachBlock, /\b(which is|runs in|giving)\s+and\b/i, 'no "<connector> and" debris');
-      assert.doesNotMatch(approachBlock, /\.\s*\./, 'no doubled period in approach');
-      // The lifted Complexity must NOT carry a connector/subject prefix
-      // ("This runs in O(n)…") — it should read as a clean bound.
-      assert.doesNotMatch(complexityBlock, /\b(this|it|that)\s+(is\s+)?runs?\s+in\b/i, 'no subject+connector prefix in complexity');
-      assert.match(complexityBlock, /O\(/, 'complexity bound preserved');
+  test('CODING_CONTRACT contains the fixed anchors and an approach-numbering rule', () => {
+    assert.ok(CODING_CONTRACT.includes(`## ${CODING_OPENING_HEADING}`), 'missing opening heading');
+    assert.match(CODING_CONTRACT, /##\s+Approach\s+1/, 'missing a numbered approach example');
+    for (const s of CODING_CLOSING_SECTIONS) {
+      assert.ok(CODING_CONTRACT.includes(`## ${s}`), `contract missing ## ${s}`);
     }
   });
-  // ── PRODUCTION BUG (2026-06-02): repair destroyed a GOOD model answer ──────
-  // A real answer used mislabeled headings + LaTeX complexity ($O(N)$). The old
-  // repair (a) leaked internal instruction placeholders ("_Name the core data
-  // structure used._"), (b) corrupted "$O(N)$" into "$$" (frontend KaTeX soup),
-  // and (c) fired at all because hasComplexity didn't recognize LaTeX/bare O().
-  describe('regression: repair must not leak placeholders, corrupt LaTeX, or lose sections', () => {
-    const GOOD_ANSWER_WITH_LATEX_AND_NONCANONICAL_HEADINGS = `## Approach
-
-Iterate from 1 to 10000 with step 2 to generate odd numbers directly.
-
-Iteration with Step / List Comprehension. Dry run with limit 10: range(1,11,2) yields 1, 3, 5, 7, 9.
-
-## Code
-\`\`\`python
-def get_odd_numbers(limit):
-    return [num for num in range(1, limit + 1, 2)]
-\`\`\`
-
-## Complexity
-Time Complexity: $O(N)$, where $N$ is the limit. The loop runs $N/2$ times.
-Space Complexity: $O(N/2)$ to store the list.
-
-## Interviewer Follow-up Points
-- Use a generator for memory.`;
-
-    test('NEVER renders an internal instruction placeholder to the user', () => {
-      const md = repairCodingMarkdown(GOOD_ANSWER_WITH_LATEX_AND_NONCANONICAL_HEADINGS, 'odd numbers');
-      // These exact italic self-instructions must NEVER reach the user.
-      assert.doesNotMatch(md, /_Name the core data structure or algorithm used\._/i, 'technique placeholder leaked');
-      assert.doesNotMatch(md, /_Walk through one sample input out loud/i, 'dry-run placeholder leaked');
-      assert.doesNotMatch(md, /_State the core idea in one or two interview-speakable sentences\._/i, 'approach placeholder leaked');
-    });
-
-    test('NEVER corrupts LaTeX math into empty $$ (frontend KaTeX must not explode)', () => {
-      const md = repairCodingMarkdown(GOOD_ANSWER_WITH_LATEX_AND_NONCANONICAL_HEADINGS, 'odd numbers');
-      assert.doesNotMatch(md, /\$\$/, 'empty $$ would break rehype-katex');
-      // The real complexity must survive in some readable form.
-      assert.match(md, /O\(N\)/, 'complexity O(N) preserved');
-    });
-
-    test('preserves the model code verbatim', () => {
-      const md = repairCodingMarkdown(GOOD_ANSWER_WITH_LATEX_AND_NONCANONICAL_HEADINGS, 'odd numbers');
-      assert.match(md, /range\(1, limit \+ 1, 2\)/, 'model code preserved');
-    });
-
-    test('a fully-valid answer with LaTeX complexity is NOT flagged invalid (no needless repair)', () => {
-      // hasComplexity must recognize $O(N)$ / bare O(N) so validate does not
-      // reject a correct answer and trigger destructive repair.
-      const valid = `## Approach
-
-Iterate with step 2.
-
-## Technique / Data Structure / Algorithm Used
-
-Range with a step; list comprehension.
-
-## Code
-\`\`\`python
-def f(n):
-    return list(range(1, n + 1, 2))
-\`\`\`
-
-## Dry Run
-
-For n=10: range(1,11,2) → 1,3,5,7,9.
-
-## Complexity
-
-Time Complexity: $O(N)$ because the loop runs N/2 times.
-Space Complexity: $O(N)$ for the output list.
-
-## Interviewer Follow-up Points
-
-- Use a generator to reduce memory.`;
-      const v = validateCodingMarkdown(valid);
-      assert.equal(v.hasComplexity, true, 'LaTeX $O(N)$ must count as complexity');
-      assert.equal(v.ok, true, `valid LaTeX answer must pass; missing=${v.missingSections} hasComplexity=${v.hasComplexity}`);
-    });
-
-    test('hasComplexity recognizes LaTeX and backtick and bare forms', () => {
-      // Spot-check the validator predicate via validateCodingMarkdown.ok proxies.
-      const forms = [
-        'Time Complexity: $O(n)$. Space Complexity: $O(1)$.',
-        'Time Complexity: `O(n)`. Space Complexity: `O(1)`.',
-        'Time Complexity: O(n). Space Complexity: O(1).',
-        'Time: \\(O(n)\\). Space: \\(O(1)\\).',
-      ];
-      for (const c of forms) {
-        const md = `## Approach\n\na\n\n## Technique / Data Structure / Algorithm Used\n\nt\n\n## Code\n\n\`\`\`python\nx=1\n\`\`\`\n\n## Dry Run\n\nd\n\n## Complexity\n\n${c}\n\n## Interviewer Follow-up Points\n\n- f`;
-        const v = validateCodingMarkdown(md);
-        assert.equal(v.hasComplexity, true, `complexity form not recognized: ${c}`);
-      }
-    });
+  test('CODING_CONTRACT forbids starting with code and describes a discovery narrative', () => {
+    assert.match(CODING_CONTRACT, /Do NOT start .*code/i);
+    assert.match(CODING_CONTRACT, /discovery narrative/i);
   });
-
-  test('repair handles a prose-only answer (no code block) with the MISSING_CODE marker', () => {
-    const raw = 'Use a hash map to track complements. Time Complexity: O(n). Space Complexity: O(n).';
-    const md = repairCodingMarkdown(raw, 'two sum');
-    assertContract(md, 'prose-only');
-    assert.match(md, /did not return code|Regenerate/, 'missing-code marker present');
-    assert.match(md, /O\(n\)/, 'prose complexity preserved even with no code block');
+  test('CODING_CONTRACT instructs only adding another approach when a real limitation justifies it', () => {
+    assert.match(CODING_CONTRACT, /genuinely need just|no worse approach exists/i);
   });
-  test('repair handles a SQL answer (sql fence preserved)', () => {
-    const raw = '```sql\nSELECT id FROM users WHERE active = true;\n```';
-    const md = repairCodingMarkdown(raw, 'active users', 'sql');
-    assertContract(md, 'sql');
-    assert.match(md, /```sql/, 'sql language tag preserved');
+  // Live regression (Two Sum): the model skipped straight to "Approach 1: Hash
+  // Map" and only mentioned brute force as a follow-up-points afterthought —
+  // the exact "already knew the answer" pattern this contract exists to
+  // prevent, on the most textbook case for it. Root cause: the original
+  // "skip if unnatural" escape valve let the model treat a well-known optimal
+  // solution as license to skip the discovery narrative entirely.
+  test('CODING_CONTRACT says familiarity with the optimal solution is never a reason to skip Approach 1', () => {
+    assert.match(CODING_CONTRACT, /familiarity with the optimal solution is NEVER a reason to skip/i);
   });
-  test('repair honors requested language (java)', () => {
-    const md = repairCodingMarkdown('```java\nint x=1;\n```', 'odd even in java', 'java');
-    assert.match(md, /```java/);
+  test('CODING_CONTRACT forbids folding a real brute-force narrative into follow-up points instead of its own Approach', () => {
+    assert.match(CODING_CONTRACT, /never fold a real .*brute force.* narrative into follow-up points/i);
   });
-  test('repair does NOT leak resume/JD/negotiation context', () => {
-    const md = repairCodingMarkdown('```python\nx=1\n```', 'odd even');
-    assert.doesNotMatch(md, /\b(resume|job description|salary|compensation|negotiation)\b/i);
+  // Live regression (2026-08-xx, detailed follow-up spec): the model recognized
+  // the hash-map pattern and announced it by name instead of reasoning toward
+  // it from an observation about repeated/wasted work. Closed with an explicit
+  // banned-phrase list — the same "closed vocabulary" technique already used
+  // successfully for human_voice's corporate-filler/AI-tell bans.
+  test('CODING_CONTRACT bans announcing a memorized-sounding answer by name', () => {
+    for (const phrase of ['the optimal approach is', 'the ideal solution is', 'we can simply use', 'obviously', 'clearly']) {
+      assert.ok(CODING_CONTRACT.toLowerCase().includes(phrase), `missing banned phrase: ${phrase}`);
+    }
+    assert.match(CODING_CONTRACT, /NEVER the technique's name/i);
+  });
+  test('CODING_CONTRACT frames the reasoning chain: why it works, then the specific repeated/wasted work', () => {
+    assert.match(CODING_CONTRACT, /briefly explain why it works/i);
+    assert.match(CODING_CONTRACT, /identify the SPECIFIC repeated or wasted work/i);
+  });
+  // Live regression (Two Sum, 3Sum, Merge K Lists, 2026-08-xx): real answers
+  // kept editorializing about the required complexity class inside
+  // "Understanding the Problem" ("input size up to 3000, which means an
+  // O(n^3) approach will be too slow") even after a first, abstract-only fix
+  // attempt. Closed with an explicit WRONG/RIGHT example this time — the same
+  // technique that already works reliably for em-dash/semicolon bans below.
+  test('CODING_CONTRACT forbids drawing a complexity/approach conclusion inside Understanding the Problem, with a worked example', () => {
+    assert.match(CODING_CONTRACT, /plain facts ONLY/);
+    assert.match(CODING_CONTRACT, /No Big-O, no "too slow"/i);
+    assert.match(CODING_CONTRACT, /WRONG: "\.\.\.input size up to 3000, so an O\(n\^3\) approach will be too slow\."/);
+  });
+  // Live regression (3Sum, Merge K Lists): Approach 2 kept opening with the
+  // technique's name ("If I sort the array first, I can use two pointers...",
+  // "I can pair up the lists and merge them in rounds, similar to merge
+  // sort.") even after the first abstract-only fix. Closed with a worked
+  // example pulled directly from the actual failure.
+  test('CODING_CONTRACT forbids Approach 2 from opening with the technique name, with a worked example', () => {
+    assert.match(CODING_CONTRACT, /WRONG: "If I sort the array first, I can use two pointers/);
+    assert.match(CODING_CONTRACT, /RIGHT: "I keep re-scanning for the same value/);
+  });
+  // Live regression (3Sum, then recurring on Next Permutation): Approach 1
+  // (brute force) was described in prose only, with no code block at all —
+  // a real structural violation the validator would catch (missing "Approach
+  // code block"), but the model needs a harder instruction to stop producing
+  // it in the first place. The Next Permutation recurrence specifically
+  // rationalized "generate all permutations, sort them" as too simple to
+  // need real code — the instruction now names that exact trap.
+  test('CODING_CONTRACT forbids describing an approach without its own code, with no exceptions', () => {
+    assert.match(CODING_CONTRACT, /ends with its OWN complete, runnable code/i);
+    assert.match(CODING_CONTRACT, /generate all permutations/i);
+    assert.match(CODING_CONTRACT, /is a format failure, not an acceptable shortcut/i);
+    assert.match(CODING_CONTRACT_TINY, /generate all permutations/i);
+  });
+  test('CODING_CONTRACT and its tiny variant both reject the LeetCode-editorial framing', () => {
+    assert.match(CODING_CONTRACT, /not a LeetCode editorial/i);
+    assert.match(CODING_CONTRACT_TINY, /not a LeetCode editorial/i);
+  });
+  test('tiny contract names the opening heading, approach pattern, and both closing sections', () => {
+    assert.ok(CODING_CONTRACT_TINY.includes(`"## ${CODING_OPENING_HEADING}"`));
+    assert.match(CODING_CONTRACT_TINY, /Approach N/);
+    for (const s of CODING_CLOSING_SECTIONS) {
+      assert.ok(CODING_CONTRACT_TINY.includes(`"## ${s}"`), `tiny contract missing ## ${s}`);
+    }
   });
 });
 
-// ── 6. validateCodingMarkdown rejects bad structure ──────────────────────────
+// ── 2. validateCodingMarkdown accepts well-formed discovery-narrative answers ─
+describe('validateCodingMarkdown accepts well-formed answers', () => {
+  test('a single-approach answer (already optimal, no second approach needed) passes', () => {
+    const v = validateCodingMarkdown(SINGLE_APPROACH_ANSWER);
+    assert.equal(v.ok, true, `should pass; missing=${v.missingSections}`);
+    assert.deepEqual(v.missingSections, []);
+    assert.equal(v.hasCodeBlock, true);
+    assert.equal(v.hasComplexity, true);
+  });
+  test('a two-approach answer (brute force then optimized) passes', () => {
+    const v = validateCodingMarkdown(TWO_APPROACH_ANSWER);
+    assert.equal(v.ok, true, `should pass; missing=${v.missingSections}`);
+    assert.deepEqual(v.missingSections, []);
+  });
+  test('validateCodingMarkdown never repairs — repaired is always undefined', () => {
+    assert.equal(validateCodingMarkdown(SINGLE_APPROACH_ANSWER).repaired, undefined);
+    assert.equal(validateCodingMarkdown('garbage, not even close').repaired, undefined);
+  });
+});
+
+// ── 3. validateCodingMarkdown rejects malformed answers (log-only, no repair) ─
 describe('validateCodingMarkdown rejects malformed answers', () => {
   test('code-first answer is invalid', () => {
-    const v = validateCodingMarkdown('```python\nprint(1)\n```\n## Approach\nx');
+    const v = validateCodingMarkdown('```python\nprint(1)\n```\n## Understanding the Problem\nx');
     assert.equal(v.ok, false, 'code-first must fail');
+    assert.equal(v.repaired, undefined);
   });
-  test('missing sections is invalid and yields a repaired version', () => {
-    const v = validateCodingMarkdown('## Approach\njust an approach');
+  test('missing the opening heading is invalid', () => {
+    const noOpening = TWO_APPROACH_ANSWER.replace('## Understanding the Problem', '## Problem Overview');
+    const v = validateCodingMarkdown(noOpening);
     assert.equal(v.ok, false);
-    assert.ok(v.missingSections.length > 0);
-    assert.ok(v.repaired, 'should provide a repaired answer');
-    assertContract(v.repaired, 'validate-repaired');
+    assert.ok(v.missingSections.includes(CODING_OPENING_HEADING));
+    assert.equal(v.repaired, undefined);
   });
-  test('wrong heading order is invalid', () => {
+  test('no Approach heading at all is invalid', () => {
+    const v = validateCodingMarkdown(`## ${CODING_OPENING_HEADING}\n\nSome prose.\n\n## Complexity\n\nTime: O(1). Space: O(1).\n\n## Interviewer Follow-up Points\n\n- none`);
+    assert.equal(v.ok, false);
+    assert.ok(v.missingSections.includes('Approach'));
+  });
+  test('an approach heading with no code block is invalid', () => {
+    const noCode = SINGLE_APPROACH_ANSWER.replace(/```python\n[\s\S]*?```/, '');
+    const v = validateCodingMarkdown(noCode);
+    assert.equal(v.ok, false);
+    assert.ok(v.missingSections.includes('Approach code block'));
+  });
+  test('skipped approach numbering (1, then 3) is invalid', () => {
+    const skipped = TWO_APPROACH_ANSWER.replace('## Approach 2: Hash Map', '## Approach 3: Hash Map');
+    const v = validateCodingMarkdown(skipped);
+    assert.equal(v.ok, false, 'non-consecutive approach numbers must fail');
+  });
+  test('closing sections before the last approach is invalid (wrong order)', () => {
     const md = [
-      '## Code', '```py\nx=1\n```',
-      '## Approach', 'a',
-      '## Technique / Data Structure / Algorithm Used', 't',
-      '## Dry Run', 'd',
+      `## ${CODING_OPENING_HEADING}`, 'p',
       '## Complexity', 'Time: O(1). Space: O(1).',
+      '## Approach 1: Direct', 'a\n```python\nx=1\n```',
       '## Interviewer Follow-up Points', '- f',
     ].join('\n\n');
     const v = validateCodingMarkdown(md);
-    assert.equal(v.ok, false, 'out-of-order headings must fail');
+    assert.equal(v.ok, false, 'Complexity before the last Approach must fail');
   });
-  test('a well-formed answer passes', () => {
-    const md = renderCodingAnswerMarkdown({
-      approach: 'a', technique: 't', language: 'python', code: 'print(1)',
-      dryRun: 'd', complexity: 'Time Complexity: O(1) because constant. Space Complexity: O(1) because constant.',
-      interviewerFollowUpPoints: ['edge cases'],
-    });
-    const v = validateCodingMarkdown(md);
-    assert.equal(v.ok, true, `well-formed should pass; missing=${v.missingSections}`);
+  test('a genuinely malformed answer is invalid and yields NO repair (deliberate scope decision)', () => {
+    const v = validateCodingMarkdown('just prose, no sections at all');
+    assert.equal(v.ok, false);
+    assert.ok(v.missingSections.length > 0);
+    assert.equal(v.repaired, undefined, 'no deterministic repair for the variable-shape answer type');
   });
 });
 
-// ── 7. validateAnswerStructure is a no-op for non-coding types ───────────────
+// ── 4. validateAnswerStructure gating ────────────────────────────────────────
 describe('validateAnswerStructure gating', () => {
   test('non-coding answer types are not forced into the coding contract', () => {
     const v = validateAnswerStructure('identity_answer', 'My name is Alex.');
     assert.equal(v.ok, true);
     assert.deepEqual(v.missingSections, []);
   });
-  test('dsa answer type enforces the contract', () => {
-    // Six-section enforcement moved to dsa_question_answer. coding_question_answer
-    // (general implementation) only requires a code block; prose-only is rejected
-    // but not template-repaired.
+  test('dsa answer type validates the discovery-narrative contract, with no repair', () => {
     const v = validateAnswerStructure('dsa_question_answer', 'just prose, no sections');
     assert.equal(v.ok, false);
-    assert.ok(v.repaired);
+    assert.equal(v.repaired, undefined);
+  });
+  test('dsa answer type accepts a well-formed discovery-narrative answer', () => {
+    const v = validateAnswerStructure('dsa_question_answer', TWO_APPROACH_ANSWER);
+    assert.equal(v.ok, true, `should pass; missing=${v.missingSections}`);
   });
 });
 
-// ── 8. Planner routes coding problems correctly + scaffold flag ──────────────
+// ── 5. Planner routes coding problems correctly + scaffold flag ─────────────
 describe('planAnswer coding routing + scaffold + isolation', () => {
   const codingQs = [
     'what is the code for odd even',
@@ -442,7 +333,7 @@ describe('planAnswer coding routing + scaffold + isolation', () => {
   });
 });
 
-// ── 9. CONTEXT-ISOLATION-CODING regression (release-blocking) ────────────────
+// ── 6. CONTEXT-ISOLATION-CODING regression (release-blocking) ───────────────
 describe('CONTEXT-ISOLATION-CODING', () => {
   test('coding plans never require resume/jd/negotiation layers', () => {
     for (const q of ['write code for odd even', 'two sum', 'binary search']) {

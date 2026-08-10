@@ -2880,6 +2880,18 @@ export class IntelligenceEngine extends EventEmitter {
                 fullAnswer = structureValidation.repaired;
                 trace.mark('validation_failed', { missingSections: structureValidation.missingSections.length });
                 trace.mark('repair_used', { answerType: answerPlan.answerType });
+            } else if (!structureValidation.ok) {
+                // dsa_question_answer's discovery-narrative shape has no deterministic
+                // repair (see AnswerValidator.ts's validateCodingMarkdown doc comment) —
+                // repaired is always undefined for it, so this branch is log-only: the
+                // streamed answer ships as-is, but the format miss is now observable.
+                console.warn('[IntelligenceEngine] Coding answer failed structure validation (log-only, no rewrite)', {
+                    answerType: answerPlan.answerType,
+                    missingSections: structureValidation.missingSections,
+                    hasCodeBlock: structureValidation.hasCodeBlock,
+                    hasComplexity: structureValidation.hasComplexity,
+                });
+                trace.mark('validation_failed', { missingSections: structureValidation.missingSections.length });
             } else {
                 trace.mark('validation_completed', { ok: structureValidation.ok });
             }
@@ -4830,6 +4842,16 @@ export class IntelligenceEngine extends EventEmitter {
                     hasComplexity: structureValidation.hasComplexity,
                 });
                 answer = structureValidation.repaired;
+            } else if (!structureValidation.ok) {
+                // dsa_question_answer's discovery-narrative shape has no deterministic
+                // repair — see AnswerValidator.ts's validateCodingMarkdown doc comment.
+                // Log-only: the generated answer ships as-is.
+                console.warn('[IntelligenceEngine] Manual coding answer failed structure validation (log-only, no rewrite)', {
+                    answerType: answerPlan.answerType,
+                    missingSections: structureValidation.missingSections,
+                    hasCodeBlock: structureValidation.hasCodeBlock,
+                    hasComplexity: structureValidation.hasComplexity,
+                });
             }
 
             if (answer) {
