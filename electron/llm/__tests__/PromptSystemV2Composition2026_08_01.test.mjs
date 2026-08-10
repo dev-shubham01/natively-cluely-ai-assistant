@@ -71,15 +71,23 @@ describe('cacheable prefix — stable core first', () => {
 });
 
 describe('size — v2 must be dramatically smaller than the legacy constants', () => {
-  // Budget raised 10k → 12k → 14k across the gated hardening + loss-mining rounds (confidentiality
-  // block, voice contract, silence gate, format examples — each fixing a
-  // measured benchmark failure). Still ≤ half the smallest mode-injected
-  // legacy prompt (23–45k on the WTA routes).
-  test('every cloud composition is under 16.5k chars (legacy mode-injected routes were 23–45k)', () => {
+  // Budget raised 10k → 12k → 14k → 16.5k → 18.5k → 19k across the gated
+  // hardening + loss-mining rounds (confidentiality block, voice contract,
+  // silence gate, format examples, personalized identity/human_voice, the
+  // discovery-narrative coding contract replacing the old fixed six headings
+  // — each a deliberate, measured content addition, not accidental bloat).
+  // The 19k step specifically: two rounds of abstract-only instructions
+  // (Understanding-the-Problem hinting at the approach, Approach 2 naming its
+  // technique before the observation) proved insufficient against real live
+  // testing — concrete WRONG/RIGHT examples closed the gap, matching the
+  // pattern that already works for em-dash/semicolon bans elsewhere in this
+  // file, but examples cost more chars than prose they replace. Still well
+  // under half the smallest mode-injected legacy prompt (23–45k on WTA routes).
+  test('every cloud composition is under 19k chars (legacy mode-injected routes were 23–45k)', () => {
     for (const mode of MODES) {
       for (const action of ACTIONS) {
         const p = v2.buildSystemPromptV2({ mode, action, tier: 'cloud' });
-        assert.ok(p.length < 16_500, `cloud/${mode}/${action} is ${p.length} chars`);
+        assert.ok(p.length < 19_000, `cloud/${mode}/${action} is ${p.length} chars`);
       }
     }
   });
@@ -87,14 +95,15 @@ describe('size — v2 must be dramatically smaller than the legacy constants', (
   // 4k → 4.6k for the same hardening reasons (local additions kept minimal).
   //
   // NOTE: this used to also assert v2's local composition beats each legacy
-  // TINY_*_PROMPT per action ("general" mode). That comparison no longer holds
-  // now that technical-interview is the only mode: it is unconditionally
-  // coding-contract-eligible (CODING_CONTRACT_MODES in promptSystemV2.ts, a
-  // pre-existing characteristic of that mode, not something this refactor
-  // changed), so every action's composition now carries the six-section
-  // contract, while the legacy TINY per-action prompts never did — the two
-  // are no longer comparable apples-to-apples. The 8k ceiling below still
-  // bounds every composition regardless.
+  // TINY_*_PROMPT per action ("general" mode). That comparison doesn't
+  // reliably hold now that technical-interview is the only mode: some
+  // actions (code_hint) or calls with codingTask set carry the coding
+  // contract, while the legacy TINY per-action prompts never did — not
+  // apples-to-apples for those. The 8k ceiling below still bounds every
+  // composition regardless. (Prior to the 2026-08-09 mode-gate fix this was
+  // true of EVERY action, since technical-interview was unconditionally
+  // coding-contract-eligible via a CODING_CONTRACT_MODES set that could never
+  // turn off — see "mode-gate bug fix" below.)
   test('every local composition is under 8k chars', () => {
     for (const mode of MODES) {
       for (const action of ACTIONS) {
@@ -106,23 +115,78 @@ describe('size — v2 must be dramatically smaller than the legacy constants', (
 });
 
 describe('coding contract preservation (validator-pinned public format)', () => {
-  test('technical-interview and code_hint routes carry the six-section contract', () => {
-    const ti = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'cloud' });
-    assert.ok(ti.includes('## Approach') && ti.includes('## Dry Run') && ti.includes('## Interviewer Follow-up Points'),
+  test('a dsa turn on technical-interview and code_hint routes carries the discovery-narrative contract', () => {
+    const ti = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'cloud', codingTask: true, dsaTask: true });
+    assert.ok(ti.includes('## Understanding the Problem') && ti.includes('## Approach') && ti.includes('## Interviewer Follow-up Points'),
       'technical-interview missing the validator-pinned coding contract');
     const ch = v2.buildSystemPromptV2({ mode: 'general', action: 'code_hint', tier: 'cloud' });
     assert.ok(ch.includes('## Approach'), 'code_hint missing the coding contract');
   });
 
-  // NOTE: the sibling "non-coding routes do NOT carry the six-section
-  // contract" case was deleted — technical-interview is the only surviving
-  // mode and is unconditionally coding-contract-eligible, so there is no
-  // longer a non-coding-eligible mode to prove this boundary against (see
-  // the NOTE in the "universal coding-answer contract" describe below).
-
   test('local tier uses the compact coding contract, same headings', () => {
-    const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'local' });
+    const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'local', codingTask: true, dsaTask: true });
     assert.ok(p.includes('## Approach'), 'local coding contract missing headings');
+  });
+
+  // Regression coverage for the 2026-08-09 mode-gate fix: codingContractBlock
+  // used to key off a CODING_CONTRACT_MODES set containing 'technical-
+  // interview' — the app's only mode — so the check could never turn off,
+  // and EVERY turn (system design, debugging, conceptual) got the DSA
+  // headings regardless of codingTask. The gate is now action/codingTask
+  // only; a mode can no longer force it on.
+  describe('mode-gate bug fix — the contract is NOT unconditional on technical-interview', () => {
+    test('technical-interview with no codingTask carries no coding contract at all', () => {
+      const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'cloud' });
+      assert.ok(!p.includes('<coding_contract>'), 'non-coding turn must not carry the coding contract');
+      assert.ok(!p.includes('## Understanding the Problem'), 'non-coding turn must not carry the DSA headings');
+    });
+
+    test('technical-interview with codingTask explicitly false carries no coding contract', () => {
+      const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'cloud', codingTask: false });
+      assert.ok(!p.includes('<coding_contract>'));
+    });
+
+    test('a system-design turn (codingTask false) never sees the DSA headings even on the coding-capable mode', () => {
+      // system_design_answer is NOT coding-shaped per AnswerPlanner's
+      // isCodingAnswerType — its caller passes codingTask: false (or omits
+      // it). Simulated here directly against the composer, matching how
+      // WhatToAnswerLLM/AnswerLLM/LLMHelper actually call it.
+      const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'what_to_say', tier: 'cloud', codingTask: false });
+      assert.ok(!p.includes('## Approach'), 'system-design-shaped turn must not get numbered DSA approaches');
+    });
+  });
+
+  // Regression coverage for the dsaTask narrowing added alongside the
+  // mode-gate fix: a coding-flavored turn positively known NOT to be DSA
+  // (coding_question_answer, e.g. "write a debounce function") must get the
+  // code-first CODING_CONTRACT_IMPL, never the DSA discovery-narrative shape.
+  describe('dsaTask narrowing — general implementation turns get CODING_CONTRACT_IMPL, not the DSA headings', () => {
+    test('codingTask true + dsaTask false selects the implementation contract', () => {
+      const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'cloud', codingTask: true, dsaTask: false });
+      assert.ok(p.includes('IMPLEMENTATION RESPONSE CONTRACT'), 'expected the implementation contract');
+      assert.ok(!p.includes('## Understanding the Problem'), 'must not carry the DSA opening heading');
+      assert.ok(!/^##\s+Approach\s+\d/im.test(p), 'must not carry numbered DSA approach headings');
+    });
+
+    test('codingTask true + dsaTask unset defaults to the DSA shape (preserves callers that cannot yet distinguish)', () => {
+      const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'cloud', codingTask: true });
+      assert.ok(p.includes('## Understanding the Problem'), 'unset dsaTask must default to the DSA discovery-narrative shape');
+    });
+
+    test('the implementation contract still carries the universal coding rules wrapper', () => {
+      const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'cloud', codingTask: true, dsaTask: false });
+      assert.ok(p.includes('Universal coding rules, in every mode'));
+      assert.ok(p.includes('Never open with a materials disclaimer'));
+    });
+
+    test('dsaTask survives a cloud-to-local downgrade recompose (registry round-trip)', () => {
+      const cloud = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'cloud', codingTask: true, dsaTask: false });
+      const desc = v2.getV2PromptDescriptor(cloud);
+      assert.ok(desc, 'expected a registered descriptor');
+      assert.equal(desc.dsaTask, false, 'descriptor must carry the explicit dsaTask: false through');
+      const recomposed = v2.buildSystemPromptV2({ ...desc, tier: 'local' });
+      assert.ok(recomposed.includes('IMPLEMENTATION RESPONSE CONTRACT'), 'recompose must keep the implementation contract, not fall back to DSA');
+    });
   });
 });
 
@@ -137,7 +201,7 @@ describe('universal coding-answer contract (semantic activation, any mode)', () 
 
   test('the universal rules carry the four requirements: mode-preserves-essentials, no materials disclaimer, language handling, honest complexity', () => {
     const p = v2.buildSystemPromptV2({ mode: 'general', action: 'answer', tier: 'cloud', codingTask: true });
-    assert.ok(p.includes('it never removes the approach, the runnable code, the example or dry run, or the complexity'));
+    assert.ok(p.includes('it never removes the reasoning toward the approach, the runnable code, or the complexity'));
     assert.ok(p.includes('Never open with a materials disclaimer'));
     assert.ok(p.includes('never consult résumé, job-description, or profile sources for it'));
     assert.ok(p.includes('never silently switch languages'));
@@ -150,27 +214,21 @@ describe('universal coding-answer contract (semantic activation, any mode)', () 
     assert.ok(p.includes('code only, hint only, complexity only, dry run only, explanation only'));
   });
 
-  // NOTE: a "codingTask survives the descriptor round-trip" case used to live
-  // here. It's no longer testable: technical-interview always attaches the
-  // coding contract regardless of the codingTask flag, so a composition WITH
-  // codingTask:true and one WITHOUT it are byte-identical strings — the
-  // registry (keyed by the composed string) legitimately returns whichever
-  // descriptor was cached first, making the flag unobservable through this
-  // round-trip for the one surviving mode. The registry mechanism itself is
-  // still covered by the two tests above.
+  // A "codingTask survives the descriptor round-trip" case used to be
+  // untestable here: prior to the 2026-08-09 mode-gate fix, technical-
+  // interview always attached the coding contract regardless of the
+  // codingTask flag, so compositions WITH and WITHOUT it were byte-identical
+  // and the registry's cache-by-string lookup made the flag unobservable.
+  // Now that the gate is codingTask/action-only, the round-trip IS
+  // observable and is covered by the "mode-gate bug fix" and "dsaTask
+  // narrowing" describe blocks above (registry round-trip specifically:
+  // "dsaTask survives a cloud-to-local downgrade recompose").
 
   test('technical-interview + code_hint behavior unchanged (no double block, contract present)', () => {
     const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'answer', tier: 'cloud', codingTask: true });
     assert.equal((p.match(/<coding_contract>/g) || []).length, 1, 'contract must appear exactly once');
   });
 });
-
-// NOTE: the "boundary preserved" (non-coding modes stay contract-free) case
-// that used to live here was deleted — technical-interview is the only
-// surviving mode and is unconditionally coding-contract-eligible
-// (CODING_CONTRACT_MODES in promptSystemV2.ts), a pre-existing characteristic
-// of that mode, not something this refactor changed. There is no longer a
-// non-coding-eligible mode to prove the boundary against.
 
 describe('custom instructions — cap + escaping (behavior tests 31/33)', () => {
   test('custom text is escaped and capped at 1,200 chars with no dangling entity', () => {
@@ -527,9 +585,18 @@ describe('silence gate (action-scoped: monitoring may be silent, invoked actions
 
 describe('coding-contract applicability boundary (run-4: 91/92 heading violations from technical-interview)', () => {
   test('the contract states it applies ONLY to coding turns, prose otherwise', () => {
-    const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'what_to_say', tier: 'cloud' });
+    const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'what_to_say', tier: 'cloud', codingTask: true });
     assert.ok(p.includes('This contract applies ONLY when the current turn asks for code'));
     assert.ok(p.includes('answer in plain spoken prose — no headings, no bullets, no section labels'));
+  });
+
+  // The 2026-08-09 mode-gate fix moved this boundary from a runtime hint
+  // (the sentence above, read by the model) to a structural guarantee (the
+  // block is absent outright) whenever the router says the turn isn't coding.
+  test('a non-coding turn on the SAME mode/action gets no coding-contract block at all', () => {
+    const p = v2.buildSystemPromptV2({ mode: 'technical-interview', action: 'what_to_say', tier: 'cloud', codingTask: false });
+    assert.ok(!p.includes('<coding_contract>'));
+    assert.ok(!p.includes('This contract applies ONLY when the current turn asks for code'));
   });
 });
 

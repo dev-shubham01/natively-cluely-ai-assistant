@@ -46,7 +46,7 @@ import { CHAT_MODE_PROMPT } from './llm/prompts';
 // byte-for-byte the legacy behavior.
 function resolveManualChatBasePrompt(
   llmHelper?: { getPromptTier?: () => string } | null,
-  opts?: { codingTask?: boolean },
+  opts?: { codingTask?: boolean; dsaTask?: boolean },
 ): string {
   try {
     const { resolveV2SystemPrompt, v2TierForPromptTier } = require('./llm/promptSystemV2');
@@ -56,6 +56,9 @@ function resolveManualChatBasePrompt(
       // Semantic coding activation: a coding turn gets the coding contract in
       // ANY mode (universal coding-answer contract, 2026-08-02).
       codingTask: opts?.codingTask,
+      // Narrows to the DSA discovery-narrative shape specifically (see
+      // BuildSystemPromptV2Input.dsaTask).
+      dsaTask: opts?.dsaTask,
       // This is the TYPED chat panel — the one surface where the user reads
       // the answer instead of speaking it. Attaches the scannable chat layout
       // (lead sentence → labeled sections → quotable close); every live and
@@ -3099,7 +3102,15 @@ export function initializeIpcHandlers(appState: AppState): void {
         // docs/answer-pipeline-rebuild/02_STATUS.md Phase 4 for the full writeup.
         const systemPromptOverride: string | undefined = options?.skipSystemPrompt
           ? ''
-          : resolveManualChatBasePrompt(llmHelper, { codingTask: isCodingChat });
+          : resolveManualChatBasePrompt(llmHelper, {
+              codingTask: isCodingChat,
+              // isCodingChat can be promoted to true for a coding follow-up
+              // whose own answerType isn't 'coding_question_answer' (see the
+              // coding-followup promotion above) — default that ambiguous
+              // case to the DSA shape (prior behavior); only a POSITIVELY
+              // classified general-implementation turn gets CODING_CONTRACT_IMPL.
+              dsaTask: isCodingChat && answerPlan.answerType !== 'coding_question_answer',
+            });
         // NOTE (audit 2026-06-28): the document-grounded greeting-suppression +
         // question-first restructuring now lives INSIDE LLMHelper._streamChatInner
         // (shapeDocumentGroundedSystemPrompt + buildDocumentGroundedUserContent),
@@ -3495,7 +3506,7 @@ export function initializeIpcHandlers(appState: AppState): void {
             // When a follow-up PROMOTED a non-coding plan to coding (bug #6), validate
             // under a coding answer type so the contract path runs (the plan type is still
             // follow_up/unknown). With NO explicit contract on a genuine coding type, this
-            // is the unchanged six-section safety net.
+            // is the default discovery-narrative safety net.
             const validationType = isCodingAnswerType(answerPlan.answerType)
               ? answerPlan.answerType
               : 'dsa_question_answer';
@@ -3512,9 +3523,20 @@ export function initializeIpcHandlers(appState: AppState): void {
                 finalText = structureValidation.repaired;
               }
               fullResponse = structureValidation.repaired;
-              // The validator's repair can introduce a hidden <verification_spec> via
-              // MISSING_CODE_MARKER — strip again so a repaired-stub + spec never leaks.
+              // Defensive: strip again in case repair surfaced a hidden
+              // <verification_spec> tag that survived from the original stream.
               if (isCodingChat) fullResponse = _stripSpec(fullResponse);
+            } else if (!structureValidation.ok) {
+              // dsa_question_answer's default discovery-narrative shape (no explicit
+              // contract) has no deterministic repair — see AnswerValidator.ts's
+              // validateCodingMarkdown doc comment. Log-only: ships as-is.
+              console.warn('[IPC] Coding chat answer failed structure validation (log-only, no rewrite)', {
+                answerType: answerPlan.answerType,
+                explicitContract: explicitCodingContract || 'none',
+                missingSections: structureValidation.missingSections,
+                hasCodeBlock: structureValidation.hasCodeBlock,
+                hasComplexity: structureValidation.hasComplexity,
+              });
             }
 
             // CODE-ONLY COMPLETENESS (spoken-answer-quality sprint 2026-06-15): a code answer
@@ -12175,7 +12197,10 @@ export function initializeIpcHandlers(appState: AppState): void {
           // Best-effort — never break the phone path on the ownership check.
           if (isIntelligenceFlagEnabled('trace')) console.warn('[SOURCE-GUARD] phone ownership check skipped (non-fatal):', pOwnErr?.message);
         }
-        const stream = llmHelper.streamChat(message, undefined, context, resolveManualChatBasePrompt(llmHelper, { codingTask: !!(phoneRouteOptions?.answerType && isCodingAnswerType(phoneRouteOptions.answerType as any)) }), false, false, [], phoneController.signal, undefined, phoneRouteOptions);
+        const stream = llmHelper.streamChat(message, undefined, context, resolveManualChatBasePrompt(llmHelper, {
+          codingTask: !!(phoneRouteOptions?.answerType && isCodingAnswerType(phoneRouteOptions.answerType as any)),
+          dsaTask: phoneRouteOptions?.answerType === 'dsa_question_answer',
+        }), false, false, [], phoneController.signal, undefined, phoneRouteOptions);
         let full = '';
         let phoneSuperseded = false;
         // Deadline-guarded (Issue 1) — this is a live streaming surface too: a hung

@@ -26,7 +26,7 @@
 //     codingContract.ts — the validator-pinned public product format)
 //   • provider API syntax / token limits / caching (provider adapters)
 
-import { CODING_CONTRACT, CODING_CONTRACT_TINY } from './codingContract';
+import { CODING_CONTRACT, CODING_CONTRACT_TINY, CODING_CONTRACT_IMPL } from './codingContract';
 import type { ModeTemplateType } from './modeProfiles';
 
 // ==========================================
@@ -61,12 +61,24 @@ export interface BuildSystemPromptV2Input {
      *  mode === 'custom'. */
     customInstructions?: string;
     /** SEMANTIC coding-task activation: when the caller's routing classified
-     *  the CURRENT TURN as a coding problem (AnswerPlanner isCodingAnswerType),
-     *  the coding contract is appended regardless of mode or action — a coding
-     *  question in General, Lecture, or a Custom mode gets the same
-     *  developer-quality answer shape as Technical Interview. The mode still
-     *  owns tone and speaker; it may never remove the essentials. */
+     *  the CURRENT TURN as a coding problem (AnswerPlanner isCodingAnswerType —
+     *  DSA/algorithm OR general implementation), the coding contract is
+     *  appended regardless of mode or action — a coding question in General,
+     *  Lecture, or a Custom mode gets the same developer-quality answer shape
+     *  as Technical Interview. The mode still owns tone and speaker; it may
+     *  never remove the essentials. Gates whether a contract attaches AT ALL;
+     *  `dsaTask` below decides WHICH contract. */
     codingTask?: boolean;
+    /** Narrows `codingTask` to the classic DSA/algorithm shape specifically
+     *  (AnswerPlanner answerType === 'dsa_question_answer'): selects the
+     *  discovery-narrative contract (CODING_CONTRACT). When `codingTask` is
+     *  true and `dsaTask` is explicitly `false` — a coding turn positively
+     *  known NOT to be DSA, e.g. "write a debounce function" — the general-
+     *  implementation contract (CODING_CONTRACT_IMPL) is used instead, so the
+     *  discovery-narrative headings never leak into non-DSA coding answers.
+     *  Left unset, a caller that cannot yet distinguish the two (V3's
+     *  turn-classifier) defaults to the DSA shape, preserving prior behavior. */
+    dsaTask?: boolean;
     /** TYPED-CHAT surface activation (2026-08-02): the user is READING this
      *  answer in the chat panel, nobody is speaking it. Attaches the scannable
      *  chat layout (lead sentence → labeled sections → quotable close) and
@@ -446,23 +458,35 @@ The user deliberately invoked this action, so always produce its output. ${NO_AC
 </silence_gate>`;
 }
 
-// Routes whose output can legitimately be a full coding answer. These get the
-// validator-pinned six-section contract (the tested public product format —
-// see codingContract.ts + AnswerValidator's scaffold repair) appended so v2
-// never fights the deterministic validator.
-const CODING_CONTRACT_MODES: ReadonlySet<PromptSystemV2Mode> = new Set(['technical-interview']);
+// The action whose output is always a live coding-problem hint/solution in
+// progress — the discovery-narrative contract always applies here regardless
+// of answerType. There is deliberately no mode-based gate: `technical-
+// interview` is the app's only mode (every answerType routes through it), so
+// a mode check can never turn this off. A previous version of this file kept
+// `technical-interview` in a CODING_CONTRACT_MODES set as "legacy behavior" —
+// that made the gate below permanently true, attaching the DSA contract to
+// EVERY turn (system design, debugging, conceptual, behavioral) regardless of
+// `codingTask`, contradicting AnswerPlanner's own per-answerType templates.
 const CODING_CONTRACT_ACTIONS: ReadonlySet<PromptSystemV2Action> = new Set(['code_hint']);
 
 function codingContractBlock(input: BuildSystemPromptV2Input, tier: PromptTierV2): string {
-    // UNIVERSAL SEMANTIC ACTIVATION: the contract attaches when the mode or
-    // action is coding-shaped (legacy behavior, kept) OR when the caller's
-    // routing classified the current turn as a coding task (`codingTask`) —
-    // so a coding question receives a developer-quality answer in EVERY mode,
-    // current or future, not only Technical Interview. Detection itself stays
-    // with the existing deterministic router (AnswerPlanner), never re-derived
-    // here from text.
-    if (!CODING_CONTRACT_MODES.has(input.mode) && !CODING_CONTRACT_ACTIONS.has(input.action) && !input.codingTask) return '';
-    const contract = tier === 'local' ? CODING_CONTRACT_TINY : CODING_CONTRACT;
+    // SEMANTIC ACTIVATION ONLY: the contract attaches when the action is
+    // coding-shaped OR when the caller's routing classified the current turn
+    // as a coding task (`codingTask`) — so a coding question receives a
+    // developer-quality answer in EVERY mode, current or future. Detection
+    // itself stays with the existing deterministic router (AnswerPlanner /
+    // turn-classifier), never re-derived here from text.
+    const isCodeHintAction = CODING_CONTRACT_ACTIONS.has(input.action);
+    if (!isCodeHintAction && !input.codingTask) return '';
+    // WHICH contract: the discovery-narrative shape (CODING_CONTRACT) is for
+    // classic DSA/algorithm problems specifically. A coding turn positively
+    // known NOT to be DSA (dsaTask === false — general implementation work)
+    // gets the code-first CODING_CONTRACT_IMPL instead, matching AnswerPlanner's
+    // own CODING_IMPL_TEMPLATE and never leaking the DSA headings into it.
+    const useDiscoveryContract = isCodeHintAction || input.dsaTask !== false;
+    const contract = useDiscoveryContract
+        ? (tier === 'local' ? CODING_CONTRACT_TINY : CODING_CONTRACT)
+        : CODING_CONTRACT_IMPL;
     // The applicability boundary matters as much as the contract: without it,
     // the mandatory-headings language bleeds into conceptual and behavioral
     // turns (91 of 92 measured heading/bullet violations came from
@@ -473,7 +497,7 @@ This contract applies ONLY when the current turn asks for code, an algorithm, a 
 ${contract}
 
 Universal coding rules, in every mode:
-1. The active mode shapes tone, speaker, and depth — it never removes the approach, the runnable code, the example or dry run, or the complexity from a coding answer. An explicit user format request (code only, hint only, complexity only, dry run only, explanation only) overrides this default shape.
+1. The active mode shapes tone, speaker, and depth — it never removes the reasoning toward the approach, the runnable code, or the complexity from a coding answer. An explicit user format request (code only, hint only, complexity only, dry run only, explanation only) overrides this default shape.
 2. A self-contained coding problem is answered directly from reliable knowledge. Never open with a materials disclaimer ("the provided materials do not cover this", "no coding sample was found", "the résumé does not contain this") and never consult résumé, job-description, or profile sources for it — use supplied files or samples only when the request itself refers to them.
 3. Use the language the user requested or the language of the supplied code; never silently switch languages. If no language is indicated and the choice materially matters, ask once — otherwise pick a common fit and name it.
 4. State complexity from the ACTUAL implementation written (nested loops, sorting, recursion depth, auxiliary storage), with meaningful variables (n for input size, k for distinct elements, V and E for graphs) — never a reflexive O(n).
@@ -525,6 +549,9 @@ export interface V2PromptDescriptor {
     /** Semantic coding-task activation carried through so a cloud→local
      *  downgrade recomposes the SAME contract set. */
     codingTask?: boolean;
+    /** DSA-vs-implementation narrowing, carried through for the same reason —
+     *  a downgrade must recompose with the SAME contract choice. */
+    dsaTask?: boolean;
     /** Typed-chat surface carried through for the same reason. */
     chatSurface?: boolean;
 }
@@ -607,6 +634,7 @@ export function buildSystemPromptV2(input: BuildSystemPromptV2Input): string {
         tier,
         customInstructions: input.customInstructions,
         codingTask: input.codingTask || undefined,
+        dsaTask: input.dsaTask,
         chatSurface: input.chatSurface || undefined,
     });
     return prompt;
@@ -870,6 +898,8 @@ export interface ResolveActionPromptInput {
     /** Caller routing classified the current turn as a coding task — attaches
      *  the coding contract in ANY mode (see BuildSystemPromptV2Input). */
     codingTask?: boolean;
+    /** DSA-vs-implementation narrowing (see BuildSystemPromptV2Input). */
+    dsaTask?: boolean;
     /** Typed-chat surface — attaches the scannable chat layout. Set only by
      *  the manual-chat call site (see BuildSystemPromptV2Input.chatSurface). */
     chatSurface?: boolean;
@@ -899,6 +929,7 @@ export function resolveV2SystemPrompt(input: ResolveActionPromptInput): string |
             tier: input.tier,
             customInstructions: input.customInstructions,
             codingTask: input.codingTask,
+            dsaTask: input.dsaTask,
             chatSurface: input.chatSurface,
         });
     } catch {

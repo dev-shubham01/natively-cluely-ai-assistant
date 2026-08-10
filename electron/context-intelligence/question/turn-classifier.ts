@@ -340,7 +340,22 @@ const METRIC_LOOKUP_RE =
  *  directive so detection and instruction share one definition. */
 export const SECONDARY_DOC_RE = /\b(decoys?|other candidates?|another candidate|second(ary)? candidate|unrelated (candidate|file|document))\b/i;
 
-const CODING_TASK_RE = /\b(reverse a|implement (a|an)|write (a|the) (code|function|program|query)|solve|algorithm for|time complexity|leetcode|binary search|linked list|sort(ing)? algorithm|dynamic programming)\b/;
+// Live regression (2026-08-10): this regex requires an explicit coding verb
+// or algorithm/data-structure vocabulary, so a BARE, unnamed LeetCode-style
+// problem statement ("Given an array nums of n integers, return an array of
+// all the unique quadruplets...") never matched — none of "solve",
+// "implement a/an", "write a/the function", or any DSA noun appear in that
+// kind of mechanical description. Every DSA question composed through V3
+// (default ON) got codingTask: false, so codingContractBlock attached NO
+// contract at all — not even the wrong one — for the vast majority of real
+// interview problems, which are read/pasted from a problem statement rather
+// than named ("solve two sum"). The second alternative below is the same
+// structural signal added to AnswerPlanner's DSA_PATTERNS for the identical
+// bug: the "Example [N]: Input: ... Output:" shape is essentially unique to
+// formal competitive-programming/interview problem statements and does not
+// occur in casual technical conversation, system-design prompts, or resume/
+// behavioral "for example" phrasing (verified directly — none of those match).
+const CODING_TASK_RE = /\b(reverse a|implement (a|an)|write (a|the) (code|function|program|query)|solve|algorithm for|time complexity|leetcode|binary search|linked list|sort(ing)? algorithm|dynamic programming)\b|\bexample\s*\d*\s*:\s*[\s\S]{0,40}?\binput\s*[:=]/i;
 
 const SYSTEM_DESIGN_RE = /\b(design a|scale (a|the|to)|system design|architecture for|how would you (build|design)|throughput|sharding|load balanc|(would|will|can|does) (it|that|this) scale)\b/;
 

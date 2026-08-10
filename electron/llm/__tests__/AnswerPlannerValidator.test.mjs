@@ -8,28 +8,21 @@ const planFor = (question, source = 'what_to_answer') => planAnswer({
   speakerPerspective: source === 'what_to_answer' ? 'interviewer' : 'user',
 });
 
-const REQUIRED_CODING_HEADINGS = [
-  '## Approach',
-  '## Technique / Data Structure / Algorithm Used',
-  '## Code',
-  '## Dry Run',
-  '## Complexity',
-  '## Interviewer Follow-up Points',
-];
-
-const assertCodingMarkdownContract = (answer) => {
-  for (const heading of REQUIRED_CODING_HEADINGS) {
-    assert.ok(answer.includes(heading), `missing heading ${heading}`);
-  }
-
-  const positions = REQUIRED_CODING_HEADINGS.map((heading) => answer.indexOf(heading));
-  for (let i = 1; i < positions.length; i++) {
-    assert.ok(positions[i - 1] < positions[i], `${REQUIRED_CODING_HEADINGS[i - 1]} must appear before ${REQUIRED_CODING_HEADINGS[i]}`);
-  }
-
-  assert.match(answer, /^## Approach\b/);
-  assert.doesNotMatch(answer.trim(), /^```/);
-  assert.match(answer, /```[a-zA-Z0-9+#-]+\n[\s\S]+?```/);
+// Discovery-narrative shape: one fixed opening heading, one or more numbered
+// "## Approach N" headings (each with its own code), then two fixed closing
+// headings. No deterministic repair exists for this shape any more — see
+// AnswerValidator.ts's validateCodingMarkdown doc comment.
+const assertDiscoveryNarrativeContract = (answer) => {
+  assert.match(answer, /^##\s+Understanding the Problem\b/, 'must open with Understanding the Problem');
+  const approachMatches = [...answer.matchAll(/^##\s+Approach\s+(\d+)\b/gim)];
+  assert.ok(approachMatches.length > 0, 'must have at least one numbered Approach heading');
+  approachMatches.forEach((m, i) => assert.equal(Number(m[1]), i + 1, 'approach numbers must be consecutive from 1'));
+  assert.doesNotMatch(answer.trim(), /^```/, 'must not start with a code fence');
+  assert.match(answer, /```[a-zA-Z0-9+#-]+\n[\s\S]+?```/, 'must have a language-tagged code block');
+  const complexityIdx = answer.search(/^##\s+Complexity\b/im);
+  const followUpIdx = answer.search(/^##\s+Interviewer Follow-up Points\b/im);
+  assert.ok(complexityIdx >= 0, 'must have a Complexity heading');
+  assert.ok(followUpIdx > complexityIdx, 'Interviewer Follow-up Points must come after Complexity');
   assert.match(answer, /Time Complexity:\s*`?O\([^)]*\)`?/i);
   assert.match(answer, /Space Complexity:\s*`?O\([^)]*\)`?/i);
 };
@@ -39,8 +32,8 @@ test('planAnswer detects terse DSA questions as dsa_question_answer', () => {
   assert.equal(twoSum.answerType, 'dsa_question_answer');
   assert.ok(twoSum.forbiddenContextLayers.includes('resume'));
   assert.ok(twoSum.forbiddenContextLayers.includes('jd'));
-  assert.match(twoSum.responseTemplate, /## Approach/);
-  assert.match(twoSum.responseTemplate, /## Technique \/ Data Structure \/ Algorithm Used/);
+  assert.match(twoSum.responseTemplate, /## Understanding the Problem/);
+  assert.match(twoSum.responseTemplate, /##\s+Approach\s+1/);
 });
 
 test('planAnswer detects system design and debugging answer types', () => {
@@ -61,23 +54,26 @@ test('planAnswer routes identity and JD-fit questions with isolated context', ()
 });
 
 test('validateAnswerStructure accepts complete coding answer', () => {
-  const answer = `## Approach\n\nUse a hash map to check complements as we scan.\n\n## Technique / Data Structure / Algorithm Used\n\nHash map for O(1) average lookup.\n\n## Code\n\n\`\`\`typescript\nfunction twoSum(nums: number[], target: number): number[] {\n  const seen = new Map<number, number>();\n  for (let i = 0; i < nums.length; i++) {\n    const complement = target - nums[i];\n    if (seen.has(complement)) return [seen.get(complement)!, i];\n    seen.set(nums[i], i);\n  }\n  return [];\n}\n\`\`\`\n\n## Dry Run\n\nFor [2,7,11,15] and target 9, 2 is stored, then 7 finds complement 2.\n\n## Complexity\n\nTime Complexity: O(n), because we scan once.\n\nSpace Complexity: O(n), because the map can store all numbers.\n\n## Interviewer Follow-up Points\n\n- Duplicates work because we check before insert.\n- Clarify whether to return indices or values.`;
+  const answer = `## Understanding the Problem\n\nWe need to find two indices whose values sum to a target.\n\n## Approach 1: Hash Map\n\nUse a hash map to check complements as we scan, since checking every pair would be O(n^2).\n\n\`\`\`typescript\nfunction twoSum(nums: number[], target: number): number[] {\n  const seen = new Map<number, number>();\n  for (let i = 0; i < nums.length; i++) {\n    const complement = target - nums[i];\n    if (seen.has(complement)) return [seen.get(complement)!, i];\n    seen.set(nums[i], i);\n  }\n  return [];\n}\n\`\`\`\n\n## Complexity\n\nTime Complexity: O(n), because we scan once.\n\nSpace Complexity: O(n), because the map can store all numbers.\n\n## Interviewer Follow-up Points\n\n- Duplicates work because we check before insert.\n- Clarify whether to return indices or values.`;
 
   const result = validateAnswerStructure('dsa_question_answer', answer);
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, `should pass; missing=${result.missingSections}`);
   assert.deepEqual(result.missingSections, []);
   assert.equal(result.hasCodeBlock, true);
   assert.equal(result.hasComplexity, true);
+  assertDiscoveryNarrativeContract(answer);
 });
 
-test('validateAnswerStructure repairs unstructured dsa answer', () => {
-  // Six-section repair behavior now applies to dsa_question_answer only
-  // (named algorithm problems). coding_question_answer goes through the
-  // lighter impl validator that accepts any tagged code block.
+test('validateAnswerStructure flags an unstructured dsa answer, with no repair', () => {
+  // Discovery-narrative validation applies to dsa_question_answer only (named
+  // algorithm problems). coding_question_answer goes through the lighter impl
+  // validator that accepts any tagged code block. There is no deterministic
+  // repair for the variable-shape dsa answer any more — see
+  // AnswerValidator.ts's validateCodingMarkdown doc comment.
   const result = validateAnswerStructure('dsa_question_answer', 'Use a hash map. ```ts\nconst x = 1;\n```');
   assert.equal(result.ok, false);
-  assert.ok(result.missingSections.includes('Approach'));
-  assertCodingMarkdownContract(result.repaired ?? '');
+  assert.ok(result.missingSections.length > 0);
+  assert.equal(result.repaired, undefined, 'no deterministic repair for this answer type');
 });
 
 test('classifyIntent prioritizes coding over generic example phrasing', async () => {
@@ -117,7 +113,7 @@ test('planAnswer classifies required odd/even manual prompts as coding answers',
   }
 });
 
-test('validateAnswerStructure rejects code-first markdown and re-sections it WITHOUT fabricating complexity', () => {
+test('validateAnswerStructure rejects code-first markdown, with no repair (deliberate scope decision)', () => {
   const badOddEven = `\`\`\`python
 def is_even(number):
     return number % 2 == 0
@@ -125,68 +121,53 @@ def is_even(number):
 
 The approach uses the modulo operator \`%\`.`;
 
-  // Six-section enforcement moved to dsa_question_answer.
+  // Discovery-narrative enforcement lives on dsa_question_answer only.
   const result = validateAnswerStructure('dsa_question_answer', badOddEven);
 
   assert.equal(result.ok, false);
-  assert.ok(result.repaired, 'expected repaired markdown');
-  assertCodingMarkdownContract(result.repaired ?? '');
-  // The model's own code is preserved (it really used `% 2`), not replaced by a
-  // canned template.
-  assert.match(result.repaired ?? '', /number % 2 == 0/);
-  assert.doesNotMatch(result.repaired ?? '', /check_odd_even/, 'must not inject a hardcoded odd/even template');
-  // The model gave NO complexity, so repair must emit a neutral O(?) placeholder
-  // — never a fabricated O(1)/O(n) it cannot justify.
-  assert.match(result.repaired ?? '', /O\(\?\)/, 'absent complexity → O(?) placeholder');
-  assert.doesNotMatch(result.repaired ?? '', /Time Complexity:\s*`?O\(1\)`?/i, 'must NOT fabricate O(1)');
-  assert.doesNotMatch(result.repaired ?? '', /resume|job description|salary|negotiation/i);
-  assert.doesNotMatch(result.repaired ?? '', /I am Natively|I'm Natively|as an AI/i);
+  // A model-chosen number of "Approach N" sections has no single canonical
+  // home the way six fixed slots did, so a wrong programmatic re-split could
+  // visibly mangle a correct answer — validation is log-only for this shape.
+  assert.equal(result.repaired, undefined, 'no deterministic repair for the variable-shape answer');
 });
 
-test('validateAnswerStructure requires deterministic markdown heading order for dsa answers', () => {
-  const wrongOrder = `## Code
+test('validateAnswerStructure requires the opening heading, numbered approaches, and closing order for dsa answers, with no repair', () => {
+  const wrongOrder = `## Complexity
+
+Time Complexity: O(1). Space Complexity: O(1).
+
+## Understanding the Problem
+
+Check whether a number is even or odd.
+
+## Approach 1: Modulo
+
+Use modulo.
 
 \`\`\`python
 def check_odd_even(num):
     return 'Even' if num % 2 == 0 else 'Odd'
 \`\`\`
 
-## Approach
-
-Use modulo.
-
-## Technique / Data Structure / Algorithm Used
-
-Modulo operator.
-
-## Dry Run
-
-For 7, 7 % 2 is 1, so odd.
-
-## Complexity
-
-Time Complexity: O(1). Space Complexity: O(1).
-
 ## Interviewer Follow-up Points
 
 - Negative numbers also work in Python.`;
 
-  // Heading-order enforcement lives on dsa_question_answer only now.
+  // Ordering enforcement lives on dsa_question_answer only now.
   const result = validateAnswerStructure('dsa_question_answer', wrongOrder);
 
-  assert.equal(result.ok, false);
-  assert.ok(result.missingSections.length === 0, 'all headings exist, failure should be ordering/start validation');
-  assert.ok(result.repaired, 'wrong-order markdown should be repaired');
-  assertCodingMarkdownContract(result.repaired ?? '');
+  assert.equal(result.ok, false, 'Complexity before the opening heading and the approach must fail');
+  assert.equal(result.repaired, undefined, 'no deterministic repair for the variable-shape answer');
 });
 
 // ── coding_question_answer (general implementation) path ────────────────────
 //
-// coding_question_answer now goes through validateImplAnswer (light validator):
+// coding_question_answer goes through validateImplAnswer (light validator):
 // any tagged code block passes. JSX/React content fenced with the wrong tag
 // (the canonical bug: model emits ```python on React code) is repaired to
-// ```tsx. There is NO six-section enforcement — that lives on
-// dsa_question_answer only.
+// ```tsx. There is NO discovery-narrative enforcement — that lives on
+// dsa_question_answer only. This path is untouched by the coding-contract
+// redesign.
 
 test('validateAnswerStructure accepts coding_question_answer with a tagged code block', () => {
   const reactCode = `Here's a stopwatch component.

@@ -54,15 +54,15 @@ Avoid corporate filler: unique blend, technical rigor, actionable insights/intel
 Never say "based on my resume" or "the candidate". If it sounds like LinkedIn, rewrite it in plain speech.`;
 
 // Conditional coding-format rule. An EXPLICIT user format request beats the default
-// six-heading DSA template (mirrors codingFollowup.detectExplicitCodingContract on the
-// full tier). Replaces the old unconditional "use the exact coding headings" line so a
-// small model honors "code only" / "complexity only" / "dry run only" / "explain only".
+// discovery-narrative DSA template (mirrors codingFollowup.detectExplicitCodingContract
+// on the full tier). Replaces the old unconditional "use the exact coding headings" line
+// so a small model honors "code only" / "complexity only" / "dry run only" / "explain only".
 const TINY_CODING_FORMAT_RULE = `Coding format:
 - If the user says code only / just the code: output ONLY the code in one fenced block. No headings, no prose, no dry run, no complexity.
 - If the user asks for complexity only (time/space, big-O): give ONLY the time and space complexity for the problem already in the conversation. No code.
 - If the user asks for a dry run / trace only: give ONLY the step-by-step trace of the existing solution. No new code.
 - If the user asks to explain without code: prose only, NO code block.
-- Otherwise (a full coding problem): use the exact coding headings from CORE RULES (## Approach / ## Technique / Data Structure / Algorithm Used / ## Code / ## Dry Run / ## Complexity / ## Interviewer Follow-up Points).`;
+- Otherwise (a full coding problem): use the discovery-narrative headings from CORE RULES (## Understanding the Problem, then one or more numbered ## Approach N sections each with its own code, then ## Complexity and ## Interviewer Follow-up Points).`;
 
 export const TINY_SYSTEM_PROMPT = `${TINY_CORE}
 

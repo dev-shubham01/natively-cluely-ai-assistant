@@ -87,22 +87,22 @@ describe('isCodingContinuation — coding follow-up shape', () => {
   });
 });
 
-describe('buildCodingContractPrompt — minimal vs six-section', () => {
-  test('null contract → full six-section CODING_CONTRACT', () => {
+describe('buildCodingContractPrompt — minimal vs discovery-narrative', () => {
+  test('null contract → full discovery-narrative CODING_CONTRACT', () => {
     const p = buildCodingContractPrompt(null);
-    assert.match(p, /## Approach/);
-    assert.match(p, /## Code/);
+    assert.match(p, /## Understanding the Problem/);
+    assert.match(p, /##\s+Approach\s+1/);
     assert.match(p, /## Complexity/);
     assert.match(p, /## Interviewer Follow-up Points/);
   });
 
-  test('code_only → minimal, instructs code-only, no real six-section template', () => {
+  test('code_only → minimal, instructs code-only, no real discovery-narrative template', () => {
     const p = buildCodingContractPrompt('code_only');
     assert.match(p, /CODE ONLY/i);
     // The only mention of headings is the NEGATION ("NO ... heading"); there is no
     // imperative "## Approach" section instruction telling the model to emit one.
     assert.match(p, /NO[\s\S]*heading/i);
-    assert.doesNotMatch(p, /Short, interview-speakable explanation/); // the real Approach body
+    assert.doesNotMatch(p, /Reason toward this approach out loud/); // the real Approach body
   });
 
   test('complexity_only → only complexity, references prior solution', () => {
@@ -145,11 +145,14 @@ describe('validateAnswerStructure — repair RESPECTS explicit contract (bug #5/
     assert.match(v.repaired, /def twoSum/);
   });
 
-  test('DEFAULT (null contract): clean code IS expanded to six sections (unchanged legacy)', () => {
+  test('DEFAULT (null contract): bare code with no headings fails validation, with no auto-expansion', () => {
+    // The discovery-narrative shape has no deterministic repair (a model-chosen
+    // number of "Approach N" sections has no single canonical home the way six
+    // fixed slots did) — see AnswerValidator.ts's validateCodingMarkdown doc
+    // comment. This replaces the old "repair expands to six sections" behavior.
     const v = validateAnswerStructure('dsa_question_answer', cleanCode, null);
     assert.equal(v.ok, false);
-    assert.match(v.repaired, /## Approach/);
-    assert.match(v.repaired, /## Complexity/);
+    assert.equal(v.repaired, undefined, 'no deterministic repair for the variable-shape answer');
   });
 
   test('complexity_only: a complexity answer is accepted verbatim (no six-section repair)', () => {

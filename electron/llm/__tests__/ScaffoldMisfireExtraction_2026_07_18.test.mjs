@@ -319,3 +319,45 @@ This part should never be treated as the real final answer.`;
     assert.equal(detectAndExtractScaffoldMisfire('behavioral_interview_answer', raw), null);
   });
 });
+
+// Discovery-narrative contract (2026-08-xx): the coding contract's headings
+// changed shape (fixed "## Understanding the Problem" opening, numbered
+// "## Approach N: <name>" sections instead of one bare "## Approach"). The
+// fingerprint regexes were updated additively (old alternatives kept, new
+// ones added) — these two tests are the regression guard for that update.
+describe('discovery-narrative contract: fingerprint stays in sync with the new coding shape', () => {
+  test('a leak shaped like the new discovery-narrative contract is still extracted', () => {
+    const raw = `## Understanding the Problem
+Restate the negotiation ask before responding.
+
+## Approach 1: Direct
+Consider stating a number grounded in market data.
+
+## Complexity
+Not applicable — this is a negotiation answer, not a coding question.
+
+---
+
+Given the scope of this role and what similar positions pay in the market, I'd want to land somewhere in the upper part of the band for this level.`;
+    const extracted = detectAndExtractScaffoldMisfire('negotiation_answer', raw);
+    assert.ok(extracted, 'should still extract — "Understanding the Problem" is a recognized fingerprint heading');
+    assert.match(extracted, /upper part of the band/);
+    assert.doesNotMatch(extracted, /## Understanding the Problem/);
+  });
+
+  test('a legitimate system_design_answer with its own numbered "Approach 1/2" comparison is never flagged', () => {
+    // Deliberate scope decision (see AnswerValidator.ts's
+    // CODING_SCAFFOLD_UNIQUE_HEADING_RE comment): a numbered Approach heading
+    // is NOT part of the tight fingerprint, specifically because system design
+    // answers can legitimately use this same numbering to compare
+    // architectures — this must never be mistaken for a coding-scaffold leak.
+    const raw = `## Approach 1: Single Leader
+A single leader handles all writes and replicates to followers. Simple, but the leader is a bottleneck under heavy write load.
+
+## Approach 2: Multi-Leader
+Multiple leaders accept writes in different regions and reconcile conflicts asynchronously. Scales writes better, at the cost of eventual consistency.
+
+Given the read-heavy profile described, I'd start with a single leader and add read replicas before reaching for multi-leader complexity.`;
+    assert.equal(detectAndExtractScaffoldMisfire('system_design_answer', raw), null);
+  });
+});

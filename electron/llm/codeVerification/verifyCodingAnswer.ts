@@ -86,7 +86,7 @@ ${question ? `Problem:\n${question}\n\n` : ''}Your code:
 ${code}
 \`\`\`
 
-Fix ONLY the bug so the function returns the correct output for that input (and all others). Keep the SAME six-section coding format (## Approach / ## Technique / Data Structure / Algorithm Used / ## Code / ## Dry Run / ## Complexity / ## Interviewer Follow-up Points) and re-emit the hidden <verification_spec> with the same cases. Do not change the function name. Output the full corrected answer.`;
+Fix ONLY the bug so the function returns the correct output for that input (and all others). Keep the SAME overall answer structure and headings (## Understanding the Problem, each ## Approach N: <name> section with its own code, ## Complexity, ## Interviewer Follow-up Points) and re-emit the hidden <verification_spec> with the same cases. Fix only the FINAL approach's code — do not change the function name. Output the full corrected answer.`;
 };
 
 /** One-shot repair prompt for a SQL answer whose result set was wrong. */
@@ -101,7 +101,7 @@ ${query}
 Expected rows: ${renderValue(expected, 400)}
 Your query returned: ${renderValue(actual, 400)}
 
-Fix the query to produce EXACTLY the expected rows. Keep the same six-section coding format and re-emit the hidden <verification_spec> with the same schema/seeds/expected (language "sql"). Output the full corrected answer.`;
+Fix the query to produce EXACTLY the expected rows. Keep the same overall answer structure and headings, fixing only the FINAL approach's query, and re-emit the hidden <verification_spec> with the same schema/seeds/expected (language "sql"). Output the full corrected answer.`;
 
 /**
  * Verify a coding answer end-to-end. Returns a VerificationOutcome describing

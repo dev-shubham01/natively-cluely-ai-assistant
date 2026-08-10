@@ -547,6 +547,10 @@ ANSWER SHAPE: ${intentResult.answerShape}
                 // Universal coding contract: a live coding question gets the
                 // contract in ANY mode, not only technical-interview.
                 codingTask: isCodingAnswerType(answerPlan?.answerType as AnswerType),
+                // Narrows to the DSA discovery-narrative shape specifically —
+                // a general implementation turn (coding_question_answer) gets
+                // CODING_CONTRACT_IMPL instead (see BuildSystemPromptV2Input).
+                dsaTask: answerPlan?.answerType === 'dsa_question_answer',
             });
             const basePrompt = v2BasePrompt
                 ?? (this.llmHelper.getPromptTier() === 'tiny'
