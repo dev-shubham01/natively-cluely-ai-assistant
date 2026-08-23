@@ -23,6 +23,7 @@ import { resolveAnswerPolicy, type AnswerPolicy } from '../policies/answer-polic
 import { CLAIM_AUTHORITY } from '../policies/source-authority-policy';
 import { classifyTurn, isBareFollowUp } from '../question/turn-classifier';
 import { applyContextRequirementsGuard } from './context-requirements-guard';
+import { selectStrategy } from '../strategies/selector';
 import type { AnswerTrace, RetrievalAttemptTrace } from '../observability/answer-trace';
 
 export interface AnswerRequest {
@@ -197,6 +198,11 @@ export function decide(req: AnswerRequest): Readonly<TurnDecision> {
   // is frozen. No-ops when interviewIntent is absent (non-interview modes).
   const guardedPlan = applyContextRequirementsGuard(retrievalPlan, cls.interviewIntent, policy);
 
+  // Phase 6: deterministic strategy selection before the decision is frozen.
+  const answerStrategy = cls.interviewIntent
+    ? selectStrategy(cls.interviewIntent.intent, cls.interviewIntent.interviewerBehavior)
+    : undefined;
+
   return freezeTurnDecision({
     requestId: req.requestId,
     requestSequence: req.requestSequence,
@@ -228,6 +234,7 @@ export function decide(req: AnswerRequest): Readonly<TurnDecision> {
     retrievalPlan: guardedPlan,
     createdAt: 0,   // stamped by the caller; kept deterministic for tests
     interviewIntent: cls.interviewIntent,
+    answerStrategy,
   });
 }
 

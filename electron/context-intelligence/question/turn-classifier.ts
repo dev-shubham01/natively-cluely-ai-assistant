@@ -1256,12 +1256,12 @@ export function buildInterviewIntent(
   } else {
     switch (intent) {
       case 'concept_explanation':
-      case 'mechanism_explanation':
       case 'knowledge_check':        structure = 'direct_definition'; break;
+      case 'mechanism_explanation':  structure = 'implementation_walkthrough'; break;
       case 'technology_decision':    structure = 'decision_rationale'; break;
       case 'coding_task':
-      case 'debugging':
       case 'optimization':           structure = 'implementation_walkthrough'; break;
+      case 'debugging':              structure = 'debugging_trace'; break;
       case 'behavioral':
       case 'experience_question':    structure = 'story_format'; break;
       case 'comparison':

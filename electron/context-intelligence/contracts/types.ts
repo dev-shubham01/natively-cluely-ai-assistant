@@ -300,6 +300,10 @@ export interface TurnDecision {
    *  Optional: absent on legacy/deserialized decisions. Use DEFAULT_INTERVIEW_INTENT as a
    *  fallback when the field must always be present. */
   interviewIntent?: InterviewIntent;
+  /** Phase 6: selected answer construction strategy. Absent when interviewIntent is absent
+   *  or selectStrategy() returns undefined (graceful degradation — prompt-composer omits
+   *  the answer_strategy section). */
+  answerStrategy?: AnswerStrategy;
 }
 
 // ── Interview Intelligence V1 — Phase 2 types ───────────────────────────────
@@ -364,6 +368,39 @@ export interface InterviewIntent {
   contextRequirements: ContextRequirements;
   expectedAnswer:      ExpectedAnswer;
   followUpLikelihood:  'low' | 'medium' | 'high';
+}
+
+// ── Interview Intelligence V1 — Phase 6 (Answer Strategy) ───────────────────
+
+export type StrategyId =
+  | 'define_concept'
+  | 'explain_mechanism'
+  | 'justify_decision'
+  | 'analyze_options'
+  | 'implement_solution'
+  | 'trace_bug'
+  | 'optimize_approach'
+  | 'design_system'
+  | 'design_classes'
+  | 'describe_project'
+  | 'narrate_experience'
+  | 'tell_behavioral_story'
+  | 'introduce_self'
+  | 'analyze_scale'
+  | 'continue_thread'
+  | 'defend_position'
+  | 'acknowledge_correction'
+  | 'restate_clearly'
+  | 'deepen_explanation';
+
+/** Phase 6: construction-approach instructions for an interview turn.
+ *  Distinct from ExpectedAnswer (which describes answer properties, not construction). */
+export interface AnswerStrategy {
+  id:                StrategyId;
+  triggerIntents:    InterviewIntentType[];
+  behaviorOverrides: InterviewerBehavior[];
+  promptSection:     string;
+  steps:             string[];
 }
 
 /**
