@@ -1229,7 +1229,13 @@ export function buildInterviewIntent(
     conversation:     cls.questionTypes.includes('FOLLOW_UP') || isOverrideBehavior,
     resume:           cls.requiredSourceTypes.includes('RESUME'),
     projects:         cls.claimTypes.includes('USER_PROJECT') || cls.claimTypes.includes('USER_MOTIVATION'),
-    code:             cls.questionTypes.includes('SCREEN_SPECIFIC') || cls.questionTypes.includes('CODING_TASK'),
+    // Phase 5: code=true only when the candidate's OWN code is involved.
+    // CODING_TASK alone means a generic DSA/algorithm question (FAST path, no
+    // retrieval) — those must NOT activate code-sample retrieval. PERSONAL_PROJECT
+    // co-occurrence indicates the question names the candidate's specific
+    // implementation, where CODING_SAMPLE evidence is meaningful.
+    code:             cls.questionTypes.includes('SCREEN_SPECIFIC')
+                   || (cls.questionTypes.includes('CODING_TASK') && cls.questionTypes.includes('PERSONAL_PROJECT')),
     documents:        cls.requiredSourceTypes.includes('REFERENCE_FILE') || cls.requiredSourceTypes.includes('PROJECT_FILE'),
     generalKnowledge: cls.questionTypes.includes('GENERAL_TECHNICAL') || cls.questionTypes.includes('CODING_TASK') || cls.questionTypes.includes('SYSTEM_DESIGN'),
   };

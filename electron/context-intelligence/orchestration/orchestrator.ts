@@ -22,6 +22,7 @@ import { resolveModePolicy, generalKnowledgeAllowed, type ModePolicy } from '../
 import { resolveAnswerPolicy, type AnswerPolicy } from '../policies/answer-policy';
 import { CLAIM_AUTHORITY } from '../policies/source-authority-policy';
 import { classifyTurn, isBareFollowUp } from '../question/turn-classifier';
+import { applyContextRequirementsGuard } from './context-requirements-guard';
 import type { AnswerTrace, RetrievalAttemptTrace } from '../observability/answer-trace';
 
 export interface AnswerRequest {
@@ -191,6 +192,11 @@ export function decide(req: AnswerRequest): Readonly<TurnDecision> {
     timeoutMs: 1200,
   };
 
+  // Phase 5: apply the contextRequirements semantic suppression guard.
+  // Runs after QT→claim→authority routing is complete and before the decision
+  // is frozen. No-ops when interviewIntent is absent (non-interview modes).
+  const guardedPlan = applyContextRequirementsGuard(retrievalPlan, cls.interviewIntent, policy);
+
   return freezeTurnDecision({
     requestId: req.requestId,
     requestSequence: req.requestSequence,
@@ -219,7 +225,7 @@ export function decide(req: AnswerRequest): Readonly<TurnDecision> {
     meetingClaimsRequireEvidence: policy.meetingClaimsRequireEvidence,
     jobClaimsRequireJdEvidence: policy.jobClaimsRequireJdEvidence,
 
-    retrievalPlan,
+    retrievalPlan: guardedPlan,
     createdAt: 0,   // stamped by the caller; kept deterministic for tests
     interviewIntent: cls.interviewIntent,
   });

@@ -348,7 +348,11 @@ describe('interviewIntent — intent derivation', () => {
     assert.equal(r.interviewIntent.expectedAnswer.structure, 'implementation_walkthrough');
     assert.equal(r.interviewIntent.expectedAnswer.includeCode, true);
     assert.equal(r.interviewIntent.expectedAnswer.includeComplexity, true);
-    assert.equal(r.interviewIntent.contextRequirements.code, true);
+    // Phase 5: code=false for a generic DSA task — no PERSONAL_PROJECT co-occurrence,
+    // so no CODING_SAMPLE retrieval is appropriate. includeCode in expectedAnswer is
+    // the answer-structure flag (generate code in the response); contextRequirements.code
+    // is the retrieval gate (fetch candidate's own code samples).
+    assert.equal(r.interviewIntent.contextRequirements.code, false);
   });
 
   test('system design → system_design intent with deep depth', () => {
@@ -466,10 +470,12 @@ describe('interviewIntent — contextRequirements derivation', () => {
     assert.equal(cr.projects, true);
   });
 
-  test('coding task: code true, generalKnowledge true', () => {
+  test('coding task: code false for generic DSA, generalKnowledge true', () => {
+    // Phase 5: code=false when CODING_TASK has no PERSONAL_PROJECT co-occurrence.
+    // A generic "implement X" question needs no CODING_SAMPLE retrieval.
     const r = classify('Implement a binary search.');
     const cr = r.interviewIntent.contextRequirements;
-    assert.equal(cr.code, true);
+    assert.equal(cr.code, false);
     assert.equal(cr.generalKnowledge, true);
   });
 });

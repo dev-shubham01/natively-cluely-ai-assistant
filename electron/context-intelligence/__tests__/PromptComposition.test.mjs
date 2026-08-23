@@ -197,9 +197,12 @@ describe('no-evidence notice requires a private claim', () => {
 
   test('general-claims follow-up with zero attachments gets NO evidence narrative', () => {
     const d = followUpDecision();
-    // Pin the routing shape this regression lives in: grounded conservative
-    // retrieval, nothing needed from a private source.
-    assert.equal(d.retrievalPlan.path, 'GROUNDED');
+    // Phase 5 guard (final contract): conversation=true alone does NOT authorize
+    // PROJECT_FILE or CODING_SAMPLE retrieval — the unclaimed GROUNDED fan-out is
+    // suppressed because no project/document/code claim was present. Path is FAST.
+    // Phase 4 topic-chain injection remains available independently.
+    assert.equal(d.retrievalPlan.path, 'FAST',
+      'generic follow-up with no personal/document signal takes FAST path after Phase 5 guard');
     assert.ok(!d.claimRequirements.some((c) => c.authority === 'PRIVATE_SOURCE_REQUIRED'),
       JSON.stringify(d.claimRequirements));
     const p = composePrompt({
