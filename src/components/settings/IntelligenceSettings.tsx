@@ -39,8 +39,6 @@ const FLAG_META: Record<string, { label: string; desc: string; group: string; ti
   answerDiversityGuard: { label: 'Polished phrasing', desc: 'Reduces repeated or templated wording so answers sound more natural.', group: 'Answer quality', tier: 'advanced' },
   globalSearchV2: { label: 'Search past meetings', desc: 'Search by keyword across all your saved meetings and jump to relevant moments.', group: 'Search', tier: 'advanced' },
   inMeetingSearchV2: { label: 'Search current meeting', desc: 'Search the live transcript of the meeting you’re in, with timestamps.', group: 'Search', tier: 'advanced' },
-  lectureIntelligenceV2: { label: 'Lecture notes', desc: 'Turns a lecture into structured notes, flashcards, and practice questions.', group: 'Lecture & diagrams', tier: 'advanced' },
-  diagramIntelligence: { label: 'Diagrams', desc: 'Draws a diagram to explain a concept during a lecture.', group: 'Lecture & diagrams', tier: 'advanced' },
   // ── Developer options: shadow / observe-only / inert → "Developer options" disclosure ─
   trace: { label: 'Diagnostics trace', desc: 'Records a per-answer routing trace (no transcript content). For troubleshooting only.', group: 'Developer options', tier: 'dev' },
   contextRouterV2: { label: 'Next-gen routing (preview)', desc: 'Evaluates a new routing engine in the background. No visible effect on answers yet.', group: 'Developer options', tier: 'dev' },
@@ -55,7 +53,7 @@ const FLAG_META: Record<string, { label: string; desc: string; group: string; ti
 const HINDSIGHT_FLAG_KEYS = new Set(['hindsightMemory', 'hindsightPostMeetingRetain', 'hindsightLiveRecall']);
 
 // Order for the per-group rendering inside the "Customize" disclosure (advanced tier).
-const ADVANCED_GROUP_ORDER = ['Memory', 'Answer quality', 'Search', 'Lecture & diagrams'];
+const ADVANCED_GROUP_ORDER = ['Memory', 'Answer quality', 'Search'];
 
 // Single source of truth for what the master "Smart features" switch controls: every
 // core-tier flag. Derived from FLAG_META so it can't drift.
@@ -63,9 +61,7 @@ const CORE_FLAG_KEYS = Object.entries(FLAG_META).filter(([, m]) => m.tier === 'c
 
 // Map a "Try it" runner to the flag that controls it. The off-state message points the user
 // at "Customize" (where these advanced toggles now live), not a top-level group.
-const TRY_IT_TOGGLE: Record<'lecture' | 'diagram' | 'search', { flag: string; label: string }> = {
-  lecture: { flag: 'lectureIntelligenceV2', label: 'Lecture notes' },
-  diagram: { flag: 'diagramIntelligence', label: 'Diagrams' },
+const TRY_IT_TOGGLE: Record<'search', { flag: string; label: string }> = {
   search: { flag: 'inMeetingSearchV2', label: 'Search current meeting' },
 };
 
@@ -420,7 +416,7 @@ export const IntelligenceSettings: React.FC = () => {
   // "Try it" feature runners (lecture notes / diagram / in-meeting search). These call the
   // real IPCs against the CURRENT meeting transcript, so they need an active meeting + the
   // matching flag; the handlers return { enabled:false } when the flag is off.
-  const [tryBusy, setTryBusy] = useState<null | 'lecture' | 'diagram' | 'search'>(null);
+  const [tryBusy, setTryBusy] = useState<null | 'search'>(null);
   const [tryOut, setTryOut] = useState<{ kind: string; text: string } | null>(null);
   const [searchQ, setSearchQ] = useState('');
   // When the user saves a NEW AI provider key while an app-managed Hindsight server is
@@ -438,7 +434,7 @@ export const IntelligenceSettings: React.FC = () => {
 
   const flagOn = useCallback((key: string) => flags.find((f) => f.key === key)?.enabled ?? false, [flags]);
 
-  const runTry = useCallback(async (kind: 'lecture' | 'diagram' | 'search', fn: () => Promise<any>) => {
+  const runTry = useCallback(async (kind: 'search', fn: () => Promise<any>) => {
     setTryBusy(kind); setTryOut(null);
     try {
       const res = await fn();
@@ -1059,24 +1055,6 @@ export const IntelligenceSettings: React.FC = () => {
         <div>
           <div className="text-sm font-semibold text-text-primary">{t('Try it')}</div>
           <div className="mt-1 text-xs leading-relaxed text-text-secondary">{t('These run on the meeting you’re currently in — not a saved recording. Turn the feature on under “Customize individual features” above, then join an active meeting.')}</div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled={tryBusy !== null || !flagOn('lectureIntelligenceV2')}
-            onClick={() => runTry('lecture', () => window.electronAPI.generateLectureNotes?.())}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-medium text-text-secondary transition-[colors,transform] hover:text-text-primary active:scale-[0.97] disabled:opacity-40 disabled:active:scale-100 motion-reduce:active:scale-100"
-          >
-            {tryBusy === 'lecture' ? <Loader2 size={14} className="animate-spin" /> : null} {t('Lecture notes')}
-          </button>
-          <button
-            type="button"
-            disabled={tryBusy !== null || !flagOn('diagramIntelligence')}
-            onClick={() => runTry('diagram', () => window.electronAPI.generateDiagram?.())}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-medium text-text-secondary transition-[colors,transform] hover:text-text-primary active:scale-[0.97] disabled:opacity-40 disabled:active:scale-100 motion-reduce:active:scale-100"
-          >
-            {tryBusy === 'diagram' ? <Loader2 size={14} className="animate-spin" /> : null} {t('Diagram')}
-          </button>
         </div>
         <div className="flex items-center gap-2">
           <input

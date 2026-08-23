@@ -145,12 +145,6 @@ export const DEFAULT_GROUNDING_PROFILE: GroundingProfile = {
   labelStyle: 'badge',
 };
 
-/** Seminar Mode's groundingProfile (Campaign 3 §3 step 3). */
-export const SEMINAR_GROUNDING_PROFILE: GroundingProfile = {
-  evidencePreference: 'required',
-  onNoEvidence: 'say_not_found_then_answer_general',
-  labelStyle: 'badge',
-};
 
 // ── Question-kind derivation (deterministic, regex/keyword-based) ───────────
 //
@@ -327,26 +321,7 @@ function probeOrderFor(
 // ── Grounding profile resolution ────────────────────────────────────────────
 
 function groundingProfileFor(input: TurnPlanInput): GroundingProfile {
-  // Resolution order (Campaign 3 iter12, founder §2.3 + §3 step 2):
-  //   1. Explicit `sourceContract.groundingProfile` (the durable schema
-  //      field, shipped in iter4). Per-mode override — highest priority.
-  //   2. `sourceContract.templateType === 'seminar'` (per-mode signal;
-  //      Sets the strictest profile automatically without a migration).
-  //   3. NATIVELY_SEMINAR_MODE env flag (legacy / global toggle for the
-  //      Seminar strict profile, used during the migration window).
-  //   4. DEFAULT_GROUNDING_PROFILE (preferred / answer_general_labeled —
-  //      the right behavior for the 7 existing built-in modes).
-  if (input.sourceContract?.groundingProfile) {
-    return input.sourceContract.groundingProfile;
-  }
-  if (input.sourceContract?.templateType === 'seminar') {
-    return SEMINAR_GROUNDING_PROFILE;
-  }
-  const seminarEnabled =
-    typeof process !== 'undefined'
-    && process.env?.NATIVELY_SEMINAR_MODE === '1';
-  if (seminarEnabled) return SEMINAR_GROUNDING_PROFILE;
-  return DEFAULT_GROUNDING_PROFILE;
+  return input.sourceContract?.groundingProfile ?? DEFAULT_GROUNDING_PROFILE;
 }
 
 // ── Main planner ────────────────────────────────────────────────────────────

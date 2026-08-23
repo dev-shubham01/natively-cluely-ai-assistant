@@ -31,11 +31,6 @@ export type AnswerContract =
   | 'interview_short'
   | 'interview_detailed'
   | 'coding_answer'
-  | 'sales_reply'
-  | 'lecture_notes'
-  | 'lecture_revision'
-  | 'lecture_diagram'
-  | 'team_meeting_summary'
   | 'general_assistant';
 
 export interface ContextRouterInput {
@@ -65,10 +60,6 @@ export interface ContextRouterDecision {
   useMeetingSummary: boolean;
   useBrowserDom: boolean;
   useReferenceFiles: boolean;
-  /** Phase 6/14 — pull cross-lecture / course memory (lecture mode recall asks). */
-  useLectureMemory: boolean;
-  /** Phase 6/15 — engage diagram generation for diagram-worthy lecture asks. */
-  useDiagramIntelligence: boolean;
   answerContract: AnswerContract;
   maxLatencyMs: number;
   /** Strict timeout for any OPTIONAL long-term-memory recall (Hindsight), ms. The
@@ -107,12 +98,6 @@ export function isBackwardLookingQuery(query: string): boolean {
 // In-meeting "search current meeting for X" — local-first, not long-term memory.
 const IN_MEETING_SEARCH_RE = /\b(search (this|the current|current) (meeting|call|transcript)|find (where|when) .* (mention|said|asked)|in this (meeting|call|transcript))\b/i;
 
-// Diagram-worthy asks ("generate/draw/create a diagram/flowchart/sequence/…").
-const DIAGRAM_RE = /\b(diagram|flow ?chart|sequence diagram|state (machine|diagram)|class diagram|mind ?map|concept map|er diagram|architecture diagram|draw (me )?(a|the)|visuali[sz]e|sketch (a|the))\b/i;
-
-// Cross-lecture / course recall ("which lecture mentioned…", "revision plan", "last lecture").
-const LECTURE_RECALL_RE = /\b(which lecture|last lecture|previous lecture|across (all )?lectures|course (memory|so far)|revision (plan|notes|checklist)|flash ?cards?|exam questions?|what did we cover|weak (concepts?|topics?))\b/i;
-
 // Mode template ids planAnswer/decideProfileIntelligence accept as a routing prior.
 const MODE_TEMPLATE_TYPES = new Set(['technical-interview']);
 
@@ -127,9 +112,7 @@ function toActiveModeInfo(mode?: string): ActiveModeInfo | null {
 // raw input.mode string — so the contract decision can't disagree with the planner
 // over what "team-meet" means (code-review 2026-06-12 MEDIUM: a raw 'Team-Meet' /
 // 'team_meet' would silently miss the team_meeting_summary contract).
-function answerContractFor(answerType: AnswerType, templateType?: string): AnswerContract {
-  // All technical types are coding-shaped (Approach/DS/Code/Dry-run/Complexity/
-  // Edge-cases). isCodingAnswerType only covers coding/dsa, so cover the rest here.
+function answerContractFor(answerType: AnswerType): AnswerContract {
   if (
     isCodingAnswerType(answerType) ||
     answerType === 'technical_concept_answer' ||
@@ -140,23 +123,15 @@ function answerContractFor(answerType: AnswerType, templateType?: string): Answe
     return 'coding_answer';
   }
   switch (answerType) {
-    case 'sales_answer':
-    case 'product_candidate_mix_answer':
-      return 'sales_reply';
-    case 'lecture_answer':
-      return 'lecture_notes';
     case 'general_meeting_answer':
-      return templateType === 'team-meet' ? 'team_meeting_summary' : 'general_assistant';
+      return 'general_assistant';
     case 'identity_answer':
     case 'profile_fact_answer':
     case 'skills_answer':
     case 'skill_experience_answer':
       return 'interview_short';
-    // A follow-up to a profile/interview answer inherits the detailed-interview
-    // contract; a follow-up in a non-interview mode falls to general below.
     case 'follow_up_answer':
-      return templateType === 'technical-interview' || templateType === 'looking-for-work'
-        ? 'interview_detailed' : 'general_assistant';
+      return 'interview_detailed';
     case 'project_answer':
     case 'project_followup_answer':
     case 'experience_answer':
@@ -164,13 +139,6 @@ function answerContractFor(answerType: AnswerType, templateType?: string): Answe
     case 'behavioral_interview_answer':
     case 'gap_analysis_answer':
     case 'negotiation_answer':
-    // JD-source + resume+JD mix shapes (2026-07-07, AnswerPlanner). Added here
-    // 2026-07-11 — these were routed to the 'general_assistant' default, which
-    // drops the detailed-interview answer contract for a genuinely detailed
-    // profile/JD answer. Missing from this switch is exactly the class of bug
-    // the Context OS ownership audit looks for: ProfileOutputValidator already
-    // treats all six as profile answer types (2026-07-07), but ContextRouter's
-    // contract mapping had drifted out of sync with AnswerPlanner.
     case 'jd_summary_answer':
     case 'jd_requirements_answer':
     case 'jd_fact_answer':
@@ -207,8 +175,6 @@ function fallbackDecision(
     useMeetingSummary: false,
     useBrowserDom: false,
     useReferenceFiles: false,
-    useLectureMemory: false,
-    useDiagramIntelligence: false,
     answerContract: 'general_assistant',
     maxLatencyMs: 2500,
     hindsightRecallTimeoutMs: 800,
@@ -262,12 +228,8 @@ export function routeContext(
   const required = new Set(plan.requiredContextLayers);
   const forbidden = new Set(plan.forbiddenContextLayers);
 
-  // PROFILE TREE: use when the deterministic profile decider says so AND the plan's
-  // hard policy isn't `forbidden` (coding/technical/sales/lecture get NO profile).
-  const useProfileTree =
-    profileDecision.profileContextPolicy !== 'forbidden' &&
-    profileDecision.shouldUseProfile &&
-    Boolean(input.profileAvailable);
+  // PROFILE TREE: disabled — AI answers from its own knowledge as a software engineer.
+  const useProfileTree = false;
 
   // LIVE TRANSCRIPT: required layer, or any live-surface source, when a transcript exists.
   const liveSurface = source === 'what_to_answer' || source === 'transcript';
@@ -290,46 +252,26 @@ export function routeContext(
   const isInMeetingSearch = IN_MEETING_SEARCH_RE.test(input.userQuery);
 
   const useMeetingSummary = isRecallQuery;
-  // Hindsight is for cross-meeting recall — never for identity/profile/coding (the
-  // spec's "do not use Hindsight first for" list). It's a DECISION only here; no
-  // client is built yet (deferred), but the integration point is defined.
+  // Hindsight is for cross-meeting recall — never for coding asks.
   const useHindsightRecall =
     isRecallQuery &&
     !isInMeetingSearch &&
-    profileDecision.profileContextPolicy !== 'required' &&
     !isCodingAnswerType(answerType);
 
-  // HYBRID RAG: in-meeting search, JD-fit evidence, or backward recall. Not for a
-  // pure identity/name ask (ProfileTree answers those deterministically).
-  // resume_jd_fit_answer / resume_jd_gap_answer (2026-07-07) are the same
-  // evidence-comparison shape as jd_fit_answer (candidate facts vs JD
-  // requirements) and were missing here — added 2026-07-11.
+  // HYBRID RAG: in-meeting search or backward recall only.
+  // Profile/JD-based RAG is disabled (no profile/JD uploaded).
   const useHybridRag =
     isInMeetingSearch ||
-    isRecallQuery ||
-    answerType === 'jd_fit_answer' ||
-    answerType === 'resume_jd_fit_answer' ||
-    answerType === 'resume_jd_gap_answer' ||
-    answerType === 'source_code_evidence_answer';
-
-  // LECTURE / DIAGRAM (Phase 6 V2): lecture mode no longer exists; only the
-  // answer-type signal can still trigger this (e.g. a lecture-shaped question
-  // asked inside technical-interview).
-  const lectureMode = answerType === 'lecture_answer';
-  // Diagram intelligence: an explicit diagram-worthy ask in a lecture context.
-  const useDiagramIntelligence = DIAGRAM_RE.test(input.userQuery) && lectureMode;
-  // Lecture memory: cross-lecture/course recall asks ("which lecture mentioned X",
-  // "revision plan", "last lecture") in lecture mode.
-  const useLectureMemory = lectureMode && LECTURE_RECALL_RE.test(input.userQuery);
+    isRecallQuery;
 
   // Latency budget — the plan already computes a first-useful budget; widen for
   // explicit deep recall, tighten for fast mode.
   let maxLatencyMs = plan.maxFirstUsefulTokenMs || 1800;
-  if (isRecallQuery || isInMeetingSearch || useLectureMemory) maxLatencyMs = Math.max(maxLatencyMs, 3000);
+  if (isRecallQuery || isInMeetingSearch) maxLatencyMs = Math.max(maxLatencyMs, 3000);
   if (input.latencyMode === 'fast') maxLatencyMs = Math.min(maxLatencyMs, 1200);
   if (input.latencyMode === 'deep') maxLatencyMs = Math.max(maxLatencyMs, 5000);
 
-  const answerContract = answerContractFor(answerType, activeModeInfo?.templateType);
+  const answerContract = answerContractFor(answerType);
 
   const reasonParts: string[] = [`answerType=${answerType}`, `policy=${profileDecision.profileContextPolicy}`];
   if (useProfileTree) reasonParts.push('profileTree');
@@ -339,8 +281,6 @@ export function routeContext(
   if (useMeetingSummary) reasonParts.push('meetingSummary');
   if (useReferenceFiles) reasonParts.push('referenceFiles');
   if (useBrowserDom) reasonParts.push('browserDom');
-  if (useLectureMemory) reasonParts.push('lectureMemory');
-  if (useDiagramIntelligence) reasonParts.push('diagram');
   const reason = reasonParts.join(' ');
 
   const decision: ContextRouterDecision = {
@@ -351,8 +291,6 @@ export function routeContext(
     useMeetingSummary,
     useBrowserDom,
     useReferenceFiles,
-    useLectureMemory,
-    useDiagramIntelligence,
     answerContract,
     maxLatencyMs,
     // Strict live recall timeout (spec: 300–800ms live). Deep mode allows the
@@ -372,8 +310,7 @@ export function routeContext(
       answerContract,
       routerDecision: {
         useProfileTree, useLiveTranscript, useHybridRag, useHindsightRecall,
-        useMeetingSummary, useBrowserDom, useReferenceFiles, useLectureMemory,
-        useDiagramIntelligence, maxLatencyMs,
+        useMeetingSummary, useBrowserDom, useReferenceFiles, maxLatencyMs,
       },
     });
     const rows: Array<[string, boolean, string]> = [
@@ -384,8 +321,6 @@ export function routeContext(
       ['meeting_summary', useMeetingSummary, 'medium'],
       ['reference_files', useReferenceFiles, 'low'],
       ['browser_dom', useBrowserDom, 'low'],
-      ['lecture_memory', useLectureMemory, 'medium'],
-      ['diagram_intelligence', useDiagramIntelligence, 'medium'],
     ];
     for (const [src, requested, trust] of rows) {
       t.noteContext({ source: src, trustLevel: trust, requested, retrieved: requested, included: requested, reason });

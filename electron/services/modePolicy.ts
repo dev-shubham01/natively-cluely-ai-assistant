@@ -29,7 +29,7 @@ import {
   type ModeSourceContract,
   type ModeSourceSwitch,
 } from './modeSourceContract';
-import { DEFAULT_GROUNDING_PROFILE, SEMINAR_GROUNDING_PROFILE, type GroundingProfile } from '../llm/TurnPlanner';
+import { DEFAULT_GROUNDING_PROFILE, type GroundingProfile } from '../llm/TurnPlanner';
 import type { SourceKind } from '../intelligence/context-os/sourceKinds';
 
 export interface ModePolicy {
@@ -106,22 +106,10 @@ function generalKnowledgeAllowedFor(sourceAuthority: ModeSourceAuthority): boole
     && sourceAuthority !== 'transcript_only';
 }
 
-/**
- * Mirrors TurnPlanner.groundingProfileFor's resolution order EXACTLY
- * (explicit contract override → seminar templateType → default) — see that
- * function's own doc comment for the full precedence rationale. `templateType`
- * is NOT a `ModeSourceContract` field (confirmed: TurnPlanInput's own
- * `sourceContract` shape supplies it as a sibling of `Pick<ModeSourceContract,
- * 'sourceAuthority'>`, not from the contract itself), so it is threaded
- * through via `mode.templateType` here, matching that established shape.
- */
 function resolveGroundingProfile(
   contract: Pick<ModeSourceContract, 'groundingProfile'>,
-  mode: { templateType?: string },
 ): GroundingProfile {
-  if (contract.groundingProfile) return contract.groundingProfile;
-  if (mode.templateType === 'seminar') return SEMINAR_GROUNDING_PROFILE;
-  return DEFAULT_GROUNDING_PROFILE;
+  return contract.groundingProfile ?? DEFAULT_GROUNDING_PROFILE;
 }
 
 export interface ResolveModePolicyModeInput {
@@ -130,7 +118,6 @@ export interface ResolveModePolicyModeInput {
   isCustom: boolean;
   personaPrompt?: string;
   hasReferenceFiles?: boolean;
-  /** Campaign-3 seminar-template signal — see resolveGroundingProfile's doc comment. */
   templateType?: string;
 }
 
@@ -151,6 +138,6 @@ export function resolveModePolicy(
     generalKnowledgeAllowed: generalKnowledgeAllowedFor(contract.sourceAuthority),
     personaPrompt: mode.personaPrompt,
     referenceOnly: contract.sourceAuthority === 'reference_files_only',
-    groundingProfile: resolveGroundingProfile(contract, mode),
+    groundingProfile: resolveGroundingProfile(contract),
   };
 }

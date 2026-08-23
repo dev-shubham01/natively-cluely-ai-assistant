@@ -197,53 +197,17 @@ Additional rules:
 - Do not include resume, JD, salary, negotiation, or unrelated profile context.
 - NEVER mention "Natively", the assistant, the product, or the candidate's profile anywhere in the answer.`;
 
-const BEHAVIORAL_TEMPLATE = `Use exactly these sections:
-
-Direct Answer:
-[One clear first-person answer.]
-
-Strong Example / STAR:
-[Situation, task, action, result using only grounded candidate facts.]
-
-Why It Matters For This Role:
-[Connect to the role only if JD context is present.]
-
-Short Closing Line:
-[One speakable closing sentence.]`;
+const BEHAVIORAL_TEMPLATE = `Answer as an experienced software engineer. Speak naturally in first person — one flowing response, no labeled sections. Lead with a direct answer to what was asked. Weave in a concrete example from your engineering experience: the situation, what you did, and the result. Close with one natural sentence. Keep it conversational and speakable.`;
 
 // Phase 3: a dedicated PROJECT template — project questions are NOT behavioral
 // STAR stories. Name the project, what was built, the (grounded) stack, the
 // candidate's personal role, and a grounded outcome — never an invented metric.
-const PROJECT_TEMPLATE = `Use exactly these sections:
-
-Best / Relevant Project:
-[Directly name the project from the grounded profile.]
-
-What I Built:
-[One concise first-person explanation of what the project is.]
-
-Tech Stack:
-[Technologies used — ONLY those present in the grounded project facts.]
-
-My Role:
-[What the candidate personally did. First person.]
-
-Impact / Why It Matters:
-[A grounded outcome or value. NEVER invent metrics, percentages, or numbers.]
-
-Speakable Final Answer:
-[A 2-4 sentence first-person version the candidate can say aloud.]`;
+const PROJECT_TEMPLATE = `Answer as an engineer describing a project you built. Speak in first person, naturally. Name the project, explain what it does in one clear sentence, describe the tech stack you used and your personal role, and mention the outcome or impact in qualitative terms. No section labels — just a natural 3-5 sentence answer an engineer would say in a real interview.`;
 
 // Phase 5: project FOLLOW-UP — drilling into a project already named. Answer the
 // specific drill-in (how built / role / stack / hardest part / why / learnings)
 // in first person, grounded ONLY in that project's facts and the prior turn.
-const PROJECT_FOLLOWUP_TEMPLATE = `You are answering a live FOLLOW-UP about a specific project the candidate already mentioned.
-
-Rules:
-- Answer the EXACT drill-in asked (how it was built, your role, the tech stack, the hardest part, why you built it, what you learned, optimisation) in FIRST PERSON.
-- Stay on the SAME project being discussed; do not switch projects.
-- Use ONLY grounded project facts. Never invent metrics, dates, team sizes, or technologies that are not in the project's facts.
-- Keep it concise and speakable (2-5 sentences). No headers unless the question asks for a breakdown.`;
+const PROJECT_FOLLOWUP_TEMPLATE = `Answer the specific follow-up question about the project already being discussed. Speak naturally as an engineer who worked on this project. First person, concise (2-5 sentences). Use qualitative language for outcomes — avoid inventing exact metrics, dates, or team sizes you don't have. No headers unless the question explicitly asks for a breakdown.`;
 
 const JD_FIT_TEMPLATE = `Use exactly these sections:
 
@@ -360,45 +324,9 @@ Justification:
 Closing:
 [Collaborative next step.]`;
 
-const SYSTEM_DESIGN_TEMPLATE = `Use exactly these sections:
+const SYSTEM_DESIGN_TEMPLATE = `Think through the design out loud as an engineer at a whiteboard. No section labels — just natural reasoning. Start by stating your key assumptions and any clarifying questions. Then walk through the high-level architecture, the main components and how data flows between them. Name tradeoffs as you hit them, not in a separate block at the end. Cover how you'd handle scale and failures. Close with the most interesting tradeoffs or things you'd revisit with more time.`;
 
-Clarify Requirements:
-[State the most important assumptions or questions.]
-
-High-Level Design:
-[Architecture overview.]
-
-Core Components:
-[Main services/components and responsibilities.]
-
-Data Flow:
-[How requests/data move through the system.]
-
-Scaling / Reliability:
-[Scale, fault tolerance, observability.]
-
-Tradeoffs:
-[Key design tradeoffs.]
-
-Follow-up Points:
-[Likely interviewer follow-ups.]`;
-
-const DEBUGGING_TEMPLATE = `Use exactly these sections:
-
-Likely Cause:
-[Most probable root cause.]
-
-How I Would Investigate:
-[Concrete debugging steps.]
-
-Fix:
-[Specific fix or mitigation.]
-
-Validation:
-[How to prove it works.]
-
-Prevention:
-[How to prevent recurrence.]`;
+const DEBUGGING_TEMPLATE = `Walk through your debugging reasoning out loud. No section labels — just natural thinking. Start with the most likely root cause and why you suspect it. Describe how you'd confirm it: what you'd check, what tools you'd use. Then give the fix. Mention how you'd verify it worked, and if there's a simple prevention worth noting, add it at the end. Speak like an engineer talking through a real incident.`;
 
 const DIRECT_SHORT_TEMPLATE = `Answer directly in 1-2 sentences. Do not include irrelevant context. Do not mention loaded context.`;
 // Skill experience / self-rating asks ("rate Python out of 10", "how strong is your

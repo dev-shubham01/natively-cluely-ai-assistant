@@ -55,8 +55,6 @@ export type IntelligenceFlagKey =
   | 'globalSearchV2'               // Phase 11
   | 'inMeetingSearchV2'            // Phase 12
   | 'conversationMemoryV2'         // Phase 13 (same-session follow-ups)
-  | 'lectureIntelligenceV2'        // Phase 14
-  | 'diagramIntelligence'          // Phase 15
   | 'hindsightMemory'              // Phase 16 — long-term memory provider on at all
   | 'hindsightLiveRecall'          // Phase 16 — last to enable (live recall in answers)
   | 'hindsightPostMeetingRetain'   // Phase 16 — async retain after meetings/lectures
@@ -427,8 +425,6 @@ const FLAGS: Record<IntelligenceFlagKey, FlagSpec> = {
   globalSearchV2: { env: 'NATIVELY_GLOBAL_SEARCH_V2', setting: 'globalSearchV2Enabled', default: false },
   inMeetingSearchV2: { env: 'NATIVELY_IN_MEETING_SEARCH_V2', setting: 'inMeetingSearchV2Enabled', default: false },
   conversationMemoryV2: { env: 'NATIVELY_CONVERSATION_MEMORY_V2', setting: 'conversationMemoryV2Enabled', default: false },
-  lectureIntelligenceV2: { env: 'NATIVELY_LECTURE_INTELLIGENCE_V2', setting: 'lectureIntelligenceV2Enabled', default: false },
-  diagramIntelligence: { env: 'NATIVELY_DIAGRAM_INTELLIGENCE', setting: 'diagramIntelligenceEnabled', default: false },
   hindsightMemory: { env: 'NATIVELY_HINDSIGHT_MEMORY', setting: 'hindsightMemoryEnabled', default: false },
   hindsightLiveRecall: { env: 'NATIVELY_HINDSIGHT_LIVE_RECALL', setting: 'hindsightLiveRecallEnabled', default: false },
   hindsightPostMeetingRetain: { env: 'NATIVELY_HINDSIGHT_POST_MEETING_RETAIN', setting: 'hindsightPostMeetingRetainEnabled', default: false },
