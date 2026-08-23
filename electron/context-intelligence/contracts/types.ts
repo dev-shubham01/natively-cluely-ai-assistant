@@ -366,6 +366,19 @@ export interface InterviewIntent {
   followUpLikelihood:  'low' | 'medium' | 'high';
 }
 
+/**
+ * One turn in a semantically cohesive topic chain (Interview Intelligence V1, Phase 4).
+ * Distinct from full conversation history: the chain resets on topic/domain shift.
+ * Capped at CHAIN_CAP turns (6); oldest turn evicted when the cap is exceeded.
+ */
+export interface ChainTurn {
+  question:            string;
+  answerSummary?:      string;          // ≤280 chars; referent only, never evidence
+  intent:              InterviewIntentType;
+  domain:              InterviewDomain[];
+  interviewerBehavior: InterviewerBehavior;
+}
+
 /** Safe backward-compatible fallback when interviewIntent is absent on a
  *  deserialized or pre-Phase-2 TurnDecision. */
 export const DEFAULT_INTERVIEW_INTENT: InterviewIntent = {

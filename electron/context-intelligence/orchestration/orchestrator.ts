@@ -936,6 +936,8 @@ export async function orchestrate(
       evidenceIds: evidence.map((e) => e.evidenceId),
       sourceIds: [...new Set(evidence.map((e) => e.sourceId))],
       decision: turnDecision,
+      // Phase 4: propagate multi-dimensional intent for topic chain management.
+      interviewIntent: decision.interviewIntent,
     });
   } catch { /* continuity must never break a turn */ }
 

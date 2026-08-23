@@ -48,6 +48,8 @@ export interface AdvanceTurnInput {
   evidenceIds?: string[];
   sourceIds?: string[];
   decision?: import('../contracts/types').PriorTurnDecision;
+  /** Phase 4: multi-dimensional intent for topic chain management. */
+  interviewIntent?: import('../contracts/types').InterviewIntent;
 }
 
 /** Advance after a decided turn. Called by orchestrate(); scope changes reset. */
@@ -59,6 +61,7 @@ export function advanceConversationState(input: AdvanceTurnInput): ConversationS
     evidenceIds: input.evidenceIds,
     sourceIds: input.sourceIds,
     decision: input.decision,
+    interviewIntent: input.interviewIntent,
     at: 0,
   });
   s.delete(input.sessionId);           // re-insert to refresh LRU position
@@ -81,7 +84,14 @@ export function recordAnswerSummary(sessionId: string, answerText: string): void
   const s = store();
   const cur = s.get(sessionId);
   if (!cur) return;
-  s.set(sessionId, { ...cur, previousAnswerSummary: String(answerText ?? '').slice(0, 280) || undefined });
+  const summary = String(answerText ?? '').slice(0, 280) || undefined;
+  // Phase 4: also update the last chain turn's answerSummary so subsequent
+  // DEEPENING/CLARIFICATION turns can reference what was answered.
+  const chain = cur.topicChain ?? [];
+  const nextChain = summary && chain.length > 0
+    ? [...chain.slice(0, -1), { ...chain[chain.length - 1], answerSummary: summary }]
+    : chain;
+  s.set(sessionId, { ...cur, previousAnswerSummary: summary, topicChain: nextChain });
 }
 
 /** Resolve a question against the session's state. Pure pass-through when no state. */

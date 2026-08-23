@@ -14,7 +14,7 @@
 //   2. Prior assistant output is a REFERENT, never evidence. It can tell you what
 //      "it" refers to; it can never support a factual claim.
 
-import type { EvidenceScope, PriorTurnDecision } from '../contracts/types';
+import type { EvidenceScope, PriorTurnDecision, ChainTurn, InterviewIntent } from '../contracts/types';
 import { scopeKey } from '../contracts/types';
 import { isBareFollowUp, isResponseRequest, isContinuationFragment } from './turn-classifier';
 
@@ -53,11 +53,23 @@ export interface ConversationState {
    */
   previousDecision?: PriorTurnDecision;
   unresolvedReferences: string[];
+  /**
+   * Phase 4: semantically cohesive topic chain (V1 Interview Intelligence).
+   * Resets on TOPIC_CHANGE behavior, domain shift, explicit section signal, or scope boundary.
+   * Defaults to [] on old state objects that predate Phase 4.
+   */
+  topicChain: ChainTurn[];
+  chainDepth: number;
   updatedAt: number;
 }
 
 export const MAX_ENTITIES = 8;
 export const MAX_SUMMARY_CHARS = 280;
+export const CHAIN_CAP = 6;
+
+// Explicit section boundary markers that reset the chain independently of
+// TOPIC_CHANGE behavior (which is a classifier output, not a raw-text signal).
+const SECTION_SIGNAL_RE = /\b(?:section|round|part)\s+\d+\b|\bnext\s+(?:section|round)\b/i;
 
 const STOP = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'have', 'has', 'was',
   'were', 'you', 'your', 'our', 'their', 'about', 'what', 'how', 'why', 'when', 'did', 'does',
@@ -157,6 +169,8 @@ export function emptyState(scope: EvidenceScope): ConversationState {
     previousEvidenceIds: [],
     previousSourceIds: [],
     unresolvedReferences: [],
+    topicChain: [],
+    chainDepth: 0,
     updatedAt: 0,
   };
 }
@@ -170,7 +184,33 @@ export interface AdvanceInput {
   /** This turn's source decision, when it retrieved. Absent ⇒ the previous
    *  decision is PRESERVED, not cleared. */
   decision?: PriorTurnDecision;
+  /** Phase 4: multi-dimensional intent for chain management. When absent, the
+   *  chain is not grown (safe on legacy/pre-Phase-4 call sites). */
+  interviewIntent?: InterviewIntent;
   at?: number;
+}
+
+/**
+ * Returns true when the topic chain must be reset before appending this turn.
+ * Implementation assumption: "meaningful semantic overlap" (V1 spec) is detected
+ * via InterviewDomain array intersection (unknown domains excluded). This is the
+ * smallest deterministic, no-LLM mechanism available — labeled as an assumption,
+ * not a V1-specified definition, so it can be revised if the spec is made precise.
+ */
+function shouldResetChain(base: ConversationState, input: AdvanceInput): boolean {
+  if (input.interviewIntent?.interviewerBehavior === 'TOPIC_CHANGE') return true;
+  if (SECTION_SIGNAL_RE.test(input.question)) return true;
+  const chain = base.topicChain ?? [];
+  if (input.interviewIntent && chain.length > 0) {
+    const lastTurn = chain[chain.length - 1];
+    const prevDomains = new Set(lastTurn.domain.filter((d) => d !== 'unknown'));
+    const currDomains = new Set(input.interviewIntent.domain.filter((d) => d !== 'unknown'));
+    if (prevDomains.size > 0 && currDomains.size > 0) {
+      const hasOverlap = [...currDomains].some((d) => prevDomains.has(d));
+      if (!hasOverlap) return true;
+    }
+  }
+  return false;
 }
 
 /** Bounded copy: state is size-capped by contract, and a pathological source
@@ -192,11 +232,34 @@ const boundDecision = (d: PriorTurnDecision): PriorTurnDecision => ({
  */
 export function advance(prev: ConversationState | null, input: AdvanceInput): ConversationState {
   const sid = scopeKey(input.scope);
+  // Scope change is reset trigger 1: resets everything including the chain.
   const base = prev && prev.scopeId === sid ? prev : emptyState(input.scope);
 
   const fresh = extractEntities(input.question);
   const merged = [...new Set([...fresh, ...base.activeEntities])].slice(0, MAX_ENTITIES);
   const persons = extractPersonEntities(input.question);
+
+  // Phase 4: topic chain management.
+  // Only reset-check when scope is the same — emptyState already gives a clean chain on scope change.
+  const prevChain: ChainTurn[] = base.topicChain ?? [];
+  const scopeChanged = !(prev && prev.scopeId === sid);
+  const resetChain = !scopeChanged && shouldResetChain(base, input);
+  const baseChain = resetChain ? [] : prevChain;
+
+  let nextChain: ChainTurn[];
+  if (input.interviewIntent) {
+    const newTurn: ChainTurn = {
+      question: input.question,
+      intent: input.interviewIntent.intent,
+      domain: input.interviewIntent.domain,
+      interviewerBehavior: input.interviewIntent.interviewerBehavior,
+      ...(input.answerSummary ? { answerSummary: input.answerSummary.slice(0, MAX_SUMMARY_CHARS) } : {}),
+    };
+    nextChain = [...baseChain, newTurn].slice(-CHAIN_CAP);
+  } else {
+    // No intent available (legacy/pre-Phase-4 call site) — preserve existing chain.
+    nextChain = baseChain;
+  }
 
   return {
     scopeId: sid,
@@ -215,6 +278,8 @@ export function advance(prev: ConversationState | null, input: AdvanceInput): Co
     previousSourceIds: input.sourceIds ?? [],
     previousDecision: input.decision ? boundDecision(input.decision) : base.previousDecision,
     unresolvedReferences: [],
+    topicChain: nextChain,
+    chainDepth: nextChain.length,
     updatedAt: input.at ?? 0,
   };
 }

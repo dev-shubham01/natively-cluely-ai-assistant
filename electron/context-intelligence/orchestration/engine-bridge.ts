@@ -144,6 +144,25 @@ export interface BridgeResult {
 }
 
 /**
+ * Format a topic chain for prompt injection (Phase 4).
+ * Chain depth 1 matches the existing flat format for backward compatibility.
+ * Chain depth 2+ summarises all turns with numbered lines.
+ */
+function formatTopicChain(chain: readonly import('../contracts/types').ChainTurn[]): string {
+  if (chain.length === 0) return '';
+  const last = chain[chain.length - 1];
+  if (chain.length === 1) {
+    let s = `Previous question: ${last.question}`;
+    if (last.answerSummary) s += `\nPrevious answer (referent only, NOT evidence): ${last.answerSummary}`;
+    return s;
+  }
+  const lines = chain.map((t, i) => `[${i + 1}] ${t.question}`);
+  let s = `Conversation chain (${chain.length} turns):\n${lines.join('\n')}`;
+  if (last.answerSummary) s += `\nPrevious answer (referent only, NOT evidence): ${last.answerSummary}`;
+  return s;
+}
+
+/**
  * Build a V3 prompt for an engine surface, or null to keep legacy behaviour.
  *
  * Never throws. A defect in the new path must degrade to legacy, never break a
@@ -191,24 +210,39 @@ export async function buildV3Prompt(input: BridgeInput): Promise<BridgeResult | 
       extraAllowedSourceTypes: input.extraAllowedSourceTypes,
     };
 
-    // Prior-turn continuity: callers that have a live transcript window pass
-    // their own summary; everyone else falls back to the session's V3
-    // conversation state (previous question + capped answer summary, rendered
-    // as a labelled referent — never evidence). Read BEFORE orchestrate(),
-    // which advances the state with THIS turn's question.
-    let convoSummary = input.conversationSummary;
-    if (!convoSummary) {
-      try {
-        const { getConversationState } = require('../question/conversation-state-store');
-        const cs = getConversationState(req.sessionId);
-        if (cs?.previousQuestion) {
-          convoSummary = `Previous question: ${cs.previousQuestion}`
-            + (cs.previousAnswerSummary ? `\nPrevious answer (referent only, NOT evidence): ${cs.previousAnswerSummary}` : '');
-        }
-      } catch { /* continuity must never break a turn */ }
-    }
+    // Phase 4: capture PRE-ORCHESTRATION state before orchestrate() advances it.
+    // The conversation chain for THIS turn's prompt is built from what existed
+    // BEFORE the current question was processed — the post-advance state has the
+    // current turn already appended and must never be used as prior context.
+    let preOrchState: import('../question/conversation-state').ConversationState | null = null;
+    try {
+      const { getConversationState } = require('../question/conversation-state-store');
+      preOrchState = getConversationState(req.sessionId);
+    } catch { /* continuity must never break a turn */ }
 
     const result = await orchestrate(req, input.retrieval);
+
+    // Build conversation summary AFTER orchestrate() so we have the current turn's
+    // interviewIntent to consult the gate — but USING the pre-orchestration chain.
+    // Caller-supplied conversationSummary bypasses the gate (backward compat).
+    let convoSummary: string | undefined = input.conversationSummary;
+    if (!convoSummary) {
+      const conversationGateOpen =
+        result.decision.interviewIntent?.contextRequirements.conversation ?? false;
+      if (conversationGateOpen && preOrchState) {
+        const chain = preOrchState.topicChain ?? [];
+        if (chain.length > 0) {
+          convoSummary = formatTopicChain(chain);
+        } else if (preOrchState.previousQuestion) {
+          // Backward compat: pre-Phase-4 state has no chain yet.
+          convoSummary = `Previous question: ${preOrchState.previousQuestion}`
+            + (preOrchState.previousAnswerSummary
+              ? `\nPrevious answer (referent only, NOT evidence): ${preOrchState.previousAnswerSummary}`
+              : '');
+        }
+      }
+      // conversation=false → convoSummary stays undefined → complete exclusion from prompt.
+    }
 
     // ── Outbound provider-data-scope filter ─────────────────────────────────
     // Settings > AI Providers > Privacy. Applied HERE — after retrieval, before
