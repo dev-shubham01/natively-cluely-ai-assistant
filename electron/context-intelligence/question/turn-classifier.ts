@@ -1078,12 +1078,34 @@ function hasCapsOrIdentifierEntity(text: string): boolean {
 // signals classifyTurn already produces. No LLM calls. No new data sources.
 // All regex patterns use the /i flag to stay case-insensitive.
 
-const IB_PUSHBACK_RE      = /\bbut why not\b|\bcouldn'?t you just\b|\bwhy not use\b|\bwhy not (?:just )?[a-z]/i;
-const IB_CORRECTION_RE    = /\bno,?\s+that'?s?\s+(?:not right|wrong|incorrect)\b|\bactually[,.]\b|\bthat(?:'?s|\s+is)\s+(?:not|wrong|incorrect)/i;
-const IB_CLARIFICATION_RE = /\bcan you (?:explain|clarify|elaborate)\b|\bwhat do you mean by\b|\bi don'?t (?:follow|understand)\b|\bexplain (?:that|it) again\b/i;
-const IB_DEEPENING_RE     = /\btell me more\b|\bgo (?:on|deeper|further)\b|\blet'?s go deeper\b|\belaborate\b|\band[?]\s*$/i;
-const IB_HINT_RE          = /\bthink about\b|\bwhat if you considered\b|\bwhat about [a-z]/i;
-const IB_TOPIC_CHANGE_RE  = /\bforget (?:that|it)\b|\blet'?s move on\b|\bmoving on\b|\bnow,?\s+(?:what|let'?s|tell)/i;
+// ── Phase 3: refined behavior-detection patterns ──────────────────────────────
+//
+// PUSHBACK: "Are you sure?" / "Isn't that X?" added alongside V1 examples.
+const IB_PUSHBACK_RE = /\bbut why not\b|\bcouldn'?t you just\b|\bwhy not use\b|\bwhy not (?:just )?[a-z]|\bare you sure(?: about that)?\b|\bisn'?t that\b/i;
+//
+// CORRECTION: "actually" narrowed — requires an immediately corrective pronoun/noun
+// following it. "Actually, can you explain X?" no longer fires; "Actually, that's
+// wrong." still does. The first and third alternatives are unchanged from Phase 2.
+const IB_CORRECTION_RE = /\bno,?\s+that'?s?\s+(?:not right|wrong|incorrect)\b|\bactually[,.]?\s+(?:that|it|this|no)\b|\bthat(?:'?s|\s+is)\s+(?:not|wrong|incorrect)/i;
+//
+// CLARIFICATION: "can you explain/clarify/elaborate" now requires a context
+// anchor (that/it/this/again/further/what you said). Without the anchor — e.g.
+// "Can you explain closures?" — the sub-pattern does not fire and the turn
+// falls through to QUESTION. "could you clarify/rephrase that" added.
+// The three always-clarification alternatives (what do you mean by / I don't
+// follow / explain that again) are unchanged.
+const IB_CLARIFICATION_RE = /\bcan you (?:explain|clarify|elaborate) (?:that|it|this|again|further|what you (?:said|mean|meant))\b|\bcould you (?:clarify|rephrase) that\b|\bwhat do you mean by\b|\bi don'?t (?:follow|understand)\b|\bexplain (?:that|it) again\b/i;
+//
+// DEEPENING: "expand on that/this/it", "go into more detail", "say more" added.
+const IB_DEEPENING_RE = /\btell me more\b|\bgo (?:on|deeper|further)\b|\blet'?s go deeper\b|\belaborate\b|\band[?]\s*$|\bexpand on (?:that|this|it)\b|\bgo into (?:more )?detail\b|\bsay more\b/i;
+//
+// HINT: unchanged — "What about X?" is V1-spec-faithful; resolution of the
+// HINT/QUESTION ambiguity for "What about X?" requires Phase 4 conversation
+// context and is deferred.
+const IB_HINT_RE = /\bthink about\b|\bwhat if you considered\b|\bwhat about [a-z]/i;
+//
+// TOPIC_CHANGE: "let's change gears", "on a different note", "next question" added.
+const IB_TOPIC_CHANGE_RE = /\bforget (?:that|it)\b|\blet'?s (?:move on|change gears)\b|\bmoving on\b|\bnow,?\s+(?:what|let'?s|tell)|\bon a different note\b|\bnext question\b/i;
 
 const BEHAVIORAL_FRAMING_RE = /\btell (?:me|us) about a time\b|\bgive (?:me|us) an example of (?:a time|when)\b|\bwalk (?:me|us) through a (?:time|situation)\b/i;
 const INTRODUCTION_RE       = /\btell me about yourself\b|\bwalk me through your background\b|\bintroduce yourself\b/i;
@@ -1201,7 +1223,10 @@ export function buildInterviewIntent(
 
   // ── 5. ContextRequirements — derived from existing Classification signals ─
   const contextRequirements: ContextRequirements = {
-    conversation:     cls.questionTypes.includes('FOLLOW_UP'),
+    // Override behaviors (PUSHBACK/CORRECTION/CLARIFICATION/DEEPENING) are always
+    // responses to a prior answer and require prior-turn context, even when the
+    // underlying question was not classified as FOLLOW_UP by the existing machinery.
+    conversation:     cls.questionTypes.includes('FOLLOW_UP') || isOverrideBehavior,
     resume:           cls.requiredSourceTypes.includes('RESUME'),
     projects:         cls.claimTypes.includes('USER_PROJECT') || cls.claimTypes.includes('USER_MOTIVATION'),
     code:             cls.questionTypes.includes('SCREEN_SPECIFIC') || cls.questionTypes.includes('CODING_TASK'),

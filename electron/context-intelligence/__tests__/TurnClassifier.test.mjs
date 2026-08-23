@@ -514,6 +514,162 @@ describe('interviewIntent — backward compatibility', () => {
   });
 });
 
+// ── Phase 3: refined behavior detection ──────────────────────────────────────
+//
+// Regression guards for the two false-positive fixes, new pattern coverage,
+// ambiguous-case precedence, and contextRequirements.conversation correctness
+// for override behaviors. Phase 2 tests above already cover the canonical V1
+// examples (PUSHBACK, CORRECTION, CLARIFICATION, DEEPENING) and are not
+// duplicated here.
+
+describe('interviewIntent — Phase 3 behavior detection: false-positive guards', () => {
+  test('"Actually, can you explain closures?" must NOT be CORRECTION', () => {
+    // "Actually," as a discourse opener does not narrow the correction anchor
+    // (that/it/this/no). Must fall through to QUESTION / concept_explanation.
+    const r = classify('Actually, can you explain closures?');
+    assert.notEqual(r.interviewIntent.interviewerBehavior, 'CORRECTION',
+      '"Actually, can you explain X?" fired CORRECTION — narrowed pattern regression');
+    assert.equal(r.interviewIntent.intent, 'concept_explanation',
+      'intent must be concept_explanation, not follow_up_generic');
+  });
+
+  test('"Actually, that\'s wrong." MUST still be CORRECTION', () => {
+    // The narrowed "actually" pattern must still fire when "that" follows.
+    const r = classify("Actually, that's wrong. You need an index.");
+    assert.equal(r.interviewIntent.interviewerBehavior, 'CORRECTION',
+      'narrowed pattern must still catch "Actually, that\'s wrong."');
+    assert.equal(r.interviewIntent.intent, 'follow_up_generic');
+  });
+
+  test('"Can you explain what closures are in JavaScript?" must NOT be CLARIFICATION', () => {
+    // No context anchor (that/it/this/again/further) and long enough to not be a
+    // bare follow-up (> FOLLOW_UP_MAX_WORDS = 5). Must classify as concept_explanation.
+    const r = classify('Can you explain what closures are in JavaScript?');
+    assert.notEqual(r.interviewIntent.interviewerBehavior, 'CLARIFICATION',
+      '"Can you explain X?" fired CLARIFICATION — context-anchor fix regression');
+    assert.equal(r.interviewIntent.intent, 'concept_explanation');
+  });
+
+  test('"Can you explain that again?" MUST still be CLARIFICATION', () => {
+    // "again" is the anchor — the narrowed pattern must still fire.
+    const r = classify('Can you explain that again?');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'CLARIFICATION');
+    assert.equal(r.interviewIntent.intent, 'follow_up_generic');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'clarification_response');
+  });
+
+  test('"Can you clarify that?" must be CLARIFICATION (context-anchored)', () => {
+    // Anchor "that" immediately follows the verb — CLARIFICATION fires.
+    // Note: "Can you elaborate on that?" correctly gets DEEPENING (via \belaborate\b)
+    // because semantically it asks for more depth, not re-explanation.
+    const r = classify('Can you clarify that?');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'CLARIFICATION');
+    assert.equal(r.interviewIntent.intent, 'follow_up_generic');
+  });
+});
+
+describe('interviewIntent — Phase 3 behavior detection: new patterns', () => {
+  test('"Expand on that." → DEEPENING', () => {
+    const r = classify('Expand on that.');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'DEEPENING');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'deepening_elaboration');
+  });
+
+  test('"Go into more detail." → DEEPENING', () => {
+    const r = classify('Go into more detail.');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'DEEPENING');
+  });
+
+  test('"Say more." → DEEPENING', () => {
+    const r = classify('Say more.');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'DEEPENING');
+  });
+
+  test('"Are you sure about that?" → PUSHBACK', () => {
+    const r = classify('Are you sure about that?');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'PUSHBACK');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'pushback_response');
+  });
+
+  test('"Are you sure?" → PUSHBACK', () => {
+    const r = classify('Are you sure?');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'PUSHBACK');
+  });
+
+  test('"Let\'s change gears. What is a closure?" → TOPIC_CHANGE', () => {
+    const r = classify("Let's change gears. What is a closure?");
+    assert.equal(r.interviewIntent.interviewerBehavior, 'TOPIC_CHANGE');
+  });
+
+  test('"On a different note, explain recursion." → TOPIC_CHANGE', () => {
+    const r = classify('On a different note, explain recursion.');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'TOPIC_CHANGE');
+  });
+
+  test('"Next question: what is a mutex?" → TOPIC_CHANGE', () => {
+    const r = classify('Next question: what is a mutex?');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'TOPIC_CHANGE');
+  });
+});
+
+describe('interviewIntent — Phase 3 behavior detection: ambiguous-case precedence', () => {
+  test('PUSHBACK wins over DEEPENING when both match', () => {
+    // "Tell me more" (DEEPENING) + "but why not use" (PUSHBACK).
+    // PUSHBACK is checked first in the detection chain — it must win.
+    const r = classify('Tell me more, but why not use PostgreSQL instead?');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'PUSHBACK',
+      'PUSHBACK must win over DEEPENING when both patterns match');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'pushback_response');
+  });
+
+  test('CORRECTION wins over CLARIFICATION when both match', () => {
+    // "Actually, that's wrong" (CORRECTION) present alongside clarification-like text.
+    // CORRECTION is checked before CLARIFICATION.
+    const r = classify("Actually, that's wrong — could you clarify what you meant?");
+    assert.equal(r.interviewIntent.interviewerBehavior, 'CORRECTION');
+  });
+});
+
+describe('interviewIntent — Phase 3 contextRequirements.conversation for override behaviors', () => {
+  test('DEEPENING sets conversation = true', () => {
+    const r = classify('Tell me more about that.');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'DEEPENING');
+    assert.equal(r.interviewIntent.contextRequirements.conversation, true,
+      'DEEPENING is a response to prior answer — conversation context required');
+  });
+
+  test('PUSHBACK sets conversation = true', () => {
+    const r = classify('But why not use Redis for this?');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'PUSHBACK');
+    assert.equal(r.interviewIntent.contextRequirements.conversation, true);
+  });
+
+  test('CORRECTION sets conversation = true', () => {
+    const r = classify("No, that's not right.");
+    assert.equal(r.interviewIntent.interviewerBehavior, 'CORRECTION');
+    assert.equal(r.interviewIntent.contextRequirements.conversation, true);
+  });
+
+  test('CLARIFICATION sets conversation = true', () => {
+    const r = classify('What do you mean by eventual consistency?');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'CLARIFICATION');
+    assert.equal(r.interviewIntent.contextRequirements.conversation, true);
+  });
+
+  test('HINT does NOT set conversation = true for a non-FOLLOW_UP question', () => {
+    const r = classify('Think about what happens at scale.');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'HINT');
+    assert.equal(r.interviewIntent.contextRequirements.conversation, false,
+      'HINT is non-override — conversation not required');
+  });
+
+  test('QUESTION does NOT set conversation = true', () => {
+    const r = classify('What is idempotency in an HTTP API?');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'QUESTION');
+    assert.equal(r.interviewIntent.contextRequirements.conversation, false);
+  });
+});
+
 // NOTE: a "candidate claims are reachable in recruiting" describe used to
 // live here (found by sweeping all eight modes with one question — recruiting
 // returned ZERO raw candidates where the identical query returned 9
