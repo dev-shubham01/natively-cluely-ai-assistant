@@ -45,6 +45,26 @@ describe('one decision, frozen', () => {
     assert.throws(() => { d.retrievalPlan.shouldRetrieve = false; }, TypeError);
   });
 
+  test('interviewIntent is present and deep-frozen on every decision', () => {
+    const d = decide(req({ manualQuestion: 'What is idempotency in an HTTP API?' }));
+    assert.ok(d.interviewIntent !== undefined, 'interviewIntent must be present');
+    assert.throws(
+      () => { d.interviewIntent.intent = 'behavioral'; },
+      TypeError,
+      'interviewIntent.intent must be frozen',
+    );
+    assert.throws(
+      () => { d.interviewIntent.contextRequirements.code = true; },
+      TypeError,
+      'interviewIntent.contextRequirements must be frozen (nested deep-freeze)',
+    );
+    assert.throws(
+      () => { d.interviewIntent.expectedAnswer.depth = 'deep'; },
+      TypeError,
+      'interviewIntent.expectedAnswer must be frozen (nested deep-freeze)',
+    );
+  });
+
   test('manual input beats transcript — resolution happens once', () => {
     const d = decide(req({ manualQuestion: 'What is a mutex?', transcriptQuestion: 'tell me about your project' }));
     assert.equal(d.resolvedQuestion, 'What is a mutex?');

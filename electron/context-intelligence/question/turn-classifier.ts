@@ -16,7 +16,11 @@
 //
 // See docs/context-intelligence-v3/04_TARGET_ARCHITECTURE.md
 
-import type { QuestionType, ClaimType, RetrievalPath, SourceType } from '../contracts/types';
+import type {
+  QuestionType, ClaimType, RetrievalPath, SourceType,
+  InterviewIntent, InterviewIntentType, InterviewDomain, QuestionStyle as IQuestionStyle,
+  InterviewerBehavior, ContextRequirements, AnswerDepth, AnswerStructure, ExpectedAnswer,
+} from '../contracts/types';
 import type { ModePolicy } from '../policies/mode-policy-registry';
 import { CLAIM_AUTHORITY } from '../policies/source-authority-policy';
 
@@ -71,6 +75,9 @@ export interface Classification {
   /** Human-readable justification, recorded in the trace so a bad decision is
    *  attributable to a rule rather than to "the model felt like it". */
   reason: string;
+  /** Multidimensional interview intent (Interview Intelligence V1, Phase 2).
+   *  Derived deterministically from the same signals above; additive only. */
+  interviewIntent?: InterviewIntent;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -1065,6 +1072,199 @@ function hasCapsOrIdentifierEntity(text: string): boolean {
   return /\b([a-z]+-?\d+|\d+[a-z]+)\b/i.test(String(text));
 }
 
+// ── Interview Intelligence V1 — Phase 2 ─────────────────────────────────────
+//
+// Deterministic derivation of InterviewIntent from the same Classification
+// signals classifyTurn already produces. No LLM calls. No new data sources.
+// All regex patterns use the /i flag to stay case-insensitive.
+
+const IB_PUSHBACK_RE      = /\bbut why not\b|\bcouldn'?t you just\b|\bwhy not use\b|\bwhy not (?:just )?[a-z]/i;
+const IB_CORRECTION_RE    = /\bno,?\s+that'?s?\s+(?:not right|wrong|incorrect)\b|\bactually[,.]\b|\bthat(?:'?s|\s+is)\s+(?:not|wrong|incorrect)/i;
+const IB_CLARIFICATION_RE = /\bcan you (?:explain|clarify|elaborate)\b|\bwhat do you mean by\b|\bi don'?t (?:follow|understand)\b|\bexplain (?:that|it) again\b/i;
+const IB_DEEPENING_RE     = /\btell me more\b|\bgo (?:on|deeper|further)\b|\blet'?s go deeper\b|\belaborate\b|\band[?]\s*$/i;
+const IB_HINT_RE          = /\bthink about\b|\bwhat if you considered\b|\bwhat about [a-z]/i;
+const IB_TOPIC_CHANGE_RE  = /\bforget (?:that|it)\b|\blet'?s move on\b|\bmoving on\b|\bnow,?\s+(?:what|let'?s|tell)/i;
+
+const BEHAVIORAL_FRAMING_RE = /\btell (?:me|us) about a time\b|\bgive (?:me|us) an example of (?:a time|when)\b|\bwalk (?:me|us) through a (?:time|situation)\b/i;
+const INTRODUCTION_RE       = /\btell me about yourself\b|\bwalk me through your background\b|\bintroduce yourself\b/i;
+const EXPERIENCE_TIME_RE    = /\bdescribe a (?:time|situation)\b/i;
+const PROJECT_DEEP_RE       = /\bhow did you (?:handle|solve|approach)\b/i;
+
+/**
+ * Build an InterviewIntent from the resolved question and its existing
+ * Classification. Pure, synchronous, and deterministic — no LLM, no I/O.
+ *
+ * Called at the end of classifyTurn(); the returned object is subsequently
+ * frozen by freezeTurnDecision() via the deep-walk in contracts/types.ts.
+ */
+export function buildInterviewIntent(
+  resolvedQuestion: string,
+  cls: Classification,
+): InterviewIntent {
+  const raw = resolvedQuestion.trim();
+
+  // ── 1. InterviewerBehavior — checked first, override types win ────────────
+  let interviewerBehavior: InterviewerBehavior;
+  if      (IB_PUSHBACK_RE.test(raw))      interviewerBehavior = 'PUSHBACK';
+  else if (IB_CORRECTION_RE.test(raw))    interviewerBehavior = 'CORRECTION';
+  else if (IB_CLARIFICATION_RE.test(raw)) interviewerBehavior = 'CLARIFICATION';
+  else if (IB_DEEPENING_RE.test(raw))     interviewerBehavior = 'DEEPENING';
+  else if (IB_HINT_RE.test(raw))          interviewerBehavior = 'HINT';
+  else if (IB_TOPIC_CHANGE_RE.test(raw))  interviewerBehavior = 'TOPIC_CHANGE';
+  else if (cls.questionTypes.includes('FOLLOW_UP')) interviewerBehavior = 'FOLLOW_UP';
+  else interviewerBehavior = 'QUESTION';
+
+  const isOverrideBehavior = interviewerBehavior === 'PUSHBACK'
+    || interviewerBehavior === 'CORRECTION'
+    || interviewerBehavior === 'CLARIFICATION'
+    || interviewerBehavior === 'DEEPENING';
+
+  // ── 2. InterviewIntentType ────────────────────────────────────────────────
+  let intent: InterviewIntentType;
+  if (isOverrideBehavior) {
+    intent = 'follow_up_generic';
+  } else if (cls.questionTypes.includes('CODING_TASK')) {
+    intent = 'coding_task';
+  } else if (cls.questionTypes.includes('SYSTEM_DESIGN')) {
+    intent = 'system_design';
+  } else if (BEHAVIORAL_FRAMING_RE.test(raw)) {
+    intent = 'behavioral';
+  } else if (INTRODUCTION_RE.test(raw)) {
+    intent = 'introduction';
+  } else if (EXPERIENCE_TIME_RE.test(raw)) {
+    intent = 'experience_question';
+  } else if (cls.questionTypes.includes('PERSONAL_PROJECT') && /\bwhy\b/i.test(raw)) {
+    intent = 'technology_decision';
+  } else if (PROJECT_DEEP_RE.test(raw) && cls.questionTypes.includes('PERSONAL_PROJECT')) {
+    intent = 'project_deep_dive';
+  } else if (cls.questionTypes.includes('PERSONAL_PROJECT')) {
+    intent = 'project_context';
+  } else if (/\b(?:compare|vs\.?|versus|difference between)\b/i.test(raw)) {
+    intent = 'comparison';
+  } else if (/\b(?:tradeoffs?|pros and cons|advantages|disadvantages)\b/i.test(raw)) {
+    intent = 'tradeoff';
+  } else if (/\b(?:optimize|improve|reduce (?:latency|cost)|speed up)\b/i.test(raw)) {
+    intent = 'optimization';
+  } else if (/\b(?:scale|10x|traffic (?:grows|increases)|handle load)\b/i.test(raw)) {
+    intent = 'scalability';
+  } else if (/\b(?:debug|why is this (?:failing|broken)|what'?s wrong)\b/i.test(raw)) {
+    intent = 'debugging';
+  } else if (/\b(?:low[- ]level design|design (?:the )?class|lld\b)\b/i.test(raw)) {
+    intent = 'lld';
+  } else if (/\b(?:do you know|are you familiar with|have you heard of)\b/i.test(raw)) {
+    intent = 'knowledge_check';
+  } else if (cls.questionTypes.includes('FOLLOW_UP')) {
+    intent = 'follow_up_generic';
+  } else if (/\bhow does .+? work\b/i.test(raw)) {
+    intent = 'mechanism_explanation';
+  } else {
+    intent = 'concept_explanation';
+  }
+
+  // ── 3. InterviewDomain (multi-select) ────────────────────────────────────
+  const domains = new Set<InterviewDomain>();
+  if (/\b(?:closure|prototype|event.?loop|hoisting|javascript)\b/i.test(raw)) domains.add('javascript');
+  if (/\b(?:typescript|generics|interface\b)\b/i.test(raw)) domains.add('typescript');
+  if (/\b(?:react|hooks?|jsx|next\.?js|usestate|useeffect)\b/i.test(raw)) { domains.add('react'); domains.add('frontend'); }
+  if (/\b(?:node\.?js|express|fastify|koa)\b/i.test(raw)) { domains.add('node'); domains.add('backend'); }
+  if (/\b(?:html|css|webpack|vite|browser\b|dom\b|frontend)\b/i.test(raw)) domains.add('frontend');
+  if (/\b(?:backend|server.?side|microservices?|api design)\b/i.test(raw)) domains.add('backend');
+  if (/\b(?:postgres|mysql|mongodb|redis|sqlite|database|nosql)\b/i.test(raw)) domains.add('database');
+  if (/\b(?:tcp|udp|http\b|websocket|dns|networking)\b/i.test(raw)) domains.add('networking');
+  if (/\b(?:operating system|deadlock|semaphore|mutex\b|context switch|memory management|virtual memory|paging)\b/i.test(raw)) domains.add('os');
+  if (/\b(?:algorithm|big.?o|sort(?:ing)?|binary search|graph\b|tree\b|linked list|dp\b)\b/i.test(raw)) { domains.add('algorithms'); domains.add('data_structures'); }
+  if (/\b(?:system design|distributed|microservice|load balanc|sharding)\b/i.test(raw)) domains.add('system_design');
+  if (/\b(?:test(?:ing)?|unit test|tdd|jest|cypress|vitest)\b/i.test(raw)) domains.add('testing');
+  if (/\b(?:docker|kubernetes|ci.?cd|devops|deploy)\b/i.test(raw)) domains.add('devops');
+  if (/\b(?:security|auth\b|oauth|jwt|xss|csrf|encrypt)\b/i.test(raw)) domains.add('security');
+  if (intent === 'behavioral' || intent === 'introduction' || intent === 'experience_question') domains.add('behavioral');
+  if (cls.questionTypes.includes('PERSONAL_PROJECT') || cls.questionTypes.includes('PERSONAL_EXPERIENCE')) domains.add('project_specific');
+  if (domains.size === 0) domains.add('unknown');
+
+  // ── 4. QuestionStyle ──────────────────────────────────────────────────────
+  const trimmed = raw.replace(/^(can|could|would|will|do|does|did|should|is|are)\s+you\s+/i, '');
+  let questionStyle: IQuestionStyle;
+  if      (/^what\b/i.test(trimmed))                                           questionStyle = 'what';
+  else if (/^why\b/i.test(trimmed))                                             questionStyle = 'why';
+  else if (/^how\b/i.test(trimmed))                                             questionStyle = 'how';
+  else if (/^when\b/i.test(trimmed))                                            questionStyle = 'when';
+  else if (/^(?:compare|vs\.?|what'?s the difference)/i.test(trimmed))         questionStyle = 'compare';
+  else if (/^(?:but why|couldn'?t you|why not|are you sure)/i.test(trimmed))   questionStyle = 'challenge';
+  else if (/^(?:debug|why is this|what'?s wrong)/i.test(trimmed))              questionStyle = 'debug';
+  else if (/^design\b/i.test(trimmed))                                          questionStyle = 'design';
+  else if (/^(?:write|implement|code|build)\b/i.test(trimmed))                 questionStyle = 'implement';
+  else if (/^(?:optimize|improve|can you make)/i.test(trimmed))                 questionStyle = 'optimize';
+  else if (/^(?:explain|walk me through|describe)\b/i.test(trimmed))           questionStyle = 'explain';
+  else if (/^tell me about a time\b/i.test(trimmed))                           questionStyle = 'experience';
+  else if (/^(?:tell me about yourself|walk me through your background)\b/i.test(trimmed)) questionStyle = 'open';
+  else                                                                          questionStyle = 'what';
+
+  // ── 5. ContextRequirements — derived from existing Classification signals ─
+  const contextRequirements: ContextRequirements = {
+    conversation:     cls.questionTypes.includes('FOLLOW_UP'),
+    resume:           cls.requiredSourceTypes.includes('RESUME'),
+    projects:         cls.claimTypes.includes('USER_PROJECT') || cls.claimTypes.includes('USER_MOTIVATION'),
+    code:             cls.questionTypes.includes('SCREEN_SPECIFIC') || cls.questionTypes.includes('CODING_TASK'),
+    documents:        cls.requiredSourceTypes.includes('REFERENCE_FILE') || cls.requiredSourceTypes.includes('PROJECT_FILE'),
+    generalKnowledge: cls.questionTypes.includes('GENERAL_TECHNICAL') || cls.questionTypes.includes('CODING_TASK') || cls.questionTypes.includes('SYSTEM_DESIGN'),
+  };
+
+  // ── 6. ExpectedAnswer ─────────────────────────────────────────────────────
+  let depth: AnswerDepth;
+  if (intent === 'system_design' || intent === 'lld' || intent === 'scalability' || intent === 'project_deep_dive') depth = 'deep';
+  else if (intent === 'knowledge_check') depth = 'brief';
+  else depth = 'standard';
+
+  let structure: AnswerStructure;
+  if (interviewerBehavior === 'PUSHBACK') {
+    structure = 'pushback_response';
+  } else if (interviewerBehavior === 'CORRECTION' || interviewerBehavior === 'CLARIFICATION') {
+    structure = 'clarification_response';
+  } else if (interviewerBehavior === 'DEEPENING') {
+    structure = 'deepening_elaboration';
+  } else {
+    switch (intent) {
+      case 'concept_explanation':
+      case 'mechanism_explanation':
+      case 'knowledge_check':        structure = 'direct_definition'; break;
+      case 'technology_decision':    structure = 'decision_rationale'; break;
+      case 'coding_task':
+      case 'debugging':
+      case 'optimization':           structure = 'implementation_walkthrough'; break;
+      case 'behavioral':
+      case 'experience_question':    structure = 'story_format'; break;
+      case 'comparison':
+      case 'tradeoff':               structure = 'comparison_table'; break;
+      case 'system_design':
+      case 'scalability':
+      case 'lld':                    structure = 'system_breakdown'; break;
+      case 'project_context':
+      case 'project_deep_dive':      structure = 'experience_narrative'; break;
+      case 'introduction':           structure = 'open_narrative'; break;
+      case 'follow_up_generic':      structure = 'deepening_elaboration'; break;
+      default:                       structure = 'direct_definition';
+    }
+  }
+
+  const includeCode       = intent === 'coding_task' || intent === 'optimization' || intent === 'debugging';
+  const includeTradeoffs  = intent === 'tradeoff' || intent === 'technology_decision' || intent === 'comparison';
+  const includeExample    = depth !== 'brief' && intent !== 'behavioral' && intent !== 'introduction' && intent !== 'follow_up_generic';
+  const includeComplexity = intent === 'coding_task' || intent === 'optimization';
+
+  const expectedAnswer: ExpectedAnswer = { depth, structure, includeExample, includeTradeoffs, includeCode, includeComplexity };
+
+  // ── 7. followUpLikelihood ─────────────────────────────────────────────────
+  const HIGH_LIKELIHOOD: ReadonlyArray<InterviewIntentType> = [
+    'coding_task', 'system_design', 'lld', 'scalability', 'technology_decision',
+    'comparison', 'tradeoff', 'concept_explanation', 'mechanism_explanation',
+  ];
+  const LOW_LIKELIHOOD: ReadonlyArray<InterviewIntentType> = ['introduction', 'knowledge_check', 'follow_up_generic'];
+  const followUpLikelihood: 'low' | 'medium' | 'high' =
+    HIGH_LIKELIHOOD.includes(intent) ? 'high' : LOW_LIKELIHOOD.includes(intent) ? 'low' : 'medium';
+
+  return { intent, domain: [...domains], questionStyle, interviewerBehavior, contextRequirements, expectedAnswer, followUpLikelihood };
+}
+
 // NOTE: this must stay consistent with CLAIM_AUTHORITY in
 // policies/source-authority-policy.ts. They answer different questions — that
 // one says which source may EVIDENCE a claim, this one says which sources a
@@ -1200,5 +1400,7 @@ export function classifyTurn(input: ClassificationInput): Classification {
     reason = 'mode disables retrieval';
   }
 
-  return { questionTypes: types, claimTypes: claims, claimClauses: clauses, path, shouldRetrieve, requiredSourceTypes, unsupportedInMode, reason };
+  const baseCls: Classification = { questionTypes: types, claimTypes: claims, claimClauses: clauses, path, shouldRetrieve, requiredSourceTypes, unsupportedInMode, reason };
+  const interviewIntent = buildInterviewIntent(input.resolvedQuestion, baseCls);
+  return { ...baseCls, interviewIntent };
 }

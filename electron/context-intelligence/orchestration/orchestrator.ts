@@ -221,6 +221,7 @@ export function decide(req: AnswerRequest): Readonly<TurnDecision> {
 
     retrievalPlan,
     createdAt: 0,   // stamped by the caller; kept deterministic for tests
+    interviewIntent: cls.interviewIntent,
   });
 }
 
@@ -710,6 +711,26 @@ export async function orchestrate(
   } catch { /* continuity must never break a turn */ }
 
   let decision = decide(effectiveReq);
+
+  // Interview Intent debug logging (Phase 2) — gated on existing debug config.
+  // Raw question text is never logged; only derived intent fields are emitted.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getContextDebugLevel } = require('../debug/debug-config');
+    if (getContextDebugLevel() !== 'off' && decision.interviewIntent) {
+      const ii = decision.interviewIntent;
+      console.log('[V3:intent]', JSON.stringify({
+        requestId: decision.requestId,
+        intent: ii.intent,
+        domain: ii.domain,
+        questionStyle: ii.questionStyle,
+        interviewerBehavior: ii.interviewerBehavior,
+        contextRequirements: ii.contextRequirements,
+        followUpLikelihood: ii.followUpLikelihood,
+        answerStructure: ii.expectedAnswer.structure,
+      }));
+    }
+  } catch { /* observability must never break a turn */ }
 
   // Precedence follow-up (live turns 18/92, 2026-08-01): "Why did you ignore
   // the other values?" / "Why are the lower values not current?" ask about the

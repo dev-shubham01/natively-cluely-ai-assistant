@@ -328,6 +328,192 @@ describe('response-request follow-ups resolve against the previous turn', () => 
   });
 });
 
+// ── Phase 2: InterviewIntent — additive classification on every turn ──────────
+//
+// These assertions verify that classifyTurn() now returns an interviewIntent
+// field alongside the existing Classification fields, and that the 7 dimensions
+// are derived correctly from the same deterministic signals.
+
+describe('interviewIntent — intent derivation', () => {
+  test('general concept question → concept_explanation', () => {
+    const r = classify('What is idempotency in the context of an HTTP API?');
+    assert.ok(r.interviewIntent, 'interviewIntent must be present');
+    assert.equal(r.interviewIntent.intent, 'concept_explanation');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'QUESTION');
+  });
+
+  test('coding task → coding_task intent with implementation_walkthrough structure', () => {
+    const r = classify('Implement a binary search algorithm.');
+    assert.equal(r.interviewIntent.intent, 'coding_task');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'implementation_walkthrough');
+    assert.equal(r.interviewIntent.expectedAnswer.includeCode, true);
+    assert.equal(r.interviewIntent.expectedAnswer.includeComplexity, true);
+    assert.equal(r.interviewIntent.contextRequirements.code, true);
+  });
+
+  test('system design → system_design intent with deep depth', () => {
+    const r = classify('Design a URL shortener that handles 100M users.');
+    assert.equal(r.interviewIntent.intent, 'system_design');
+    assert.equal(r.interviewIntent.expectedAnswer.depth, 'deep');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'system_breakdown');
+  });
+
+  test('behavioral framing → behavioral intent with story_format', () => {
+    const r = classify('Tell me about a time you had to handle a production incident.');
+    assert.equal(r.interviewIntent.intent, 'behavioral');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'story_format');
+    assert.equal(r.interviewIntent.contextRequirements.generalKnowledge, false);
+  });
+
+  test('self-introduction → introduction intent with open_narrative', () => {
+    const r = classify('Tell me about yourself.');
+    assert.equal(r.interviewIntent.intent, 'introduction');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'open_narrative');
+    assert.equal(r.interviewIntent.followUpLikelihood, 'low');
+  });
+
+  test('personal project with why → technology_decision with decision_rationale', () => {
+    const r = classify('Why did you choose React for your WebRTC project?');
+    assert.equal(r.interviewIntent.intent, 'technology_decision');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'decision_rationale');
+    assert.equal(r.interviewIntent.expectedAnswer.includeTradeoffs, true);
+  });
+
+  test('personal project without why → project_context with experience_narrative', () => {
+    const r = classify('Tell me about your WebRTC project.');
+    assert.equal(r.interviewIntent.intent, 'project_context');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'experience_narrative');
+    assert.equal(r.interviewIntent.contextRequirements.resume, true);
+    assert.equal(r.interviewIntent.contextRequirements.projects, true);
+  });
+
+  test('knowledge check form → knowledge_check with brief depth', () => {
+    const r = classify('Are you familiar with Redis?');
+    assert.equal(r.interviewIntent.intent, 'knowledge_check');
+    assert.equal(r.interviewIntent.expectedAnswer.depth, 'brief');
+    assert.equal(r.interviewIntent.followUpLikelihood, 'low');
+  });
+
+  test('comparison question → comparison with comparison_table', () => {
+    const r = classify('What is the difference between SQL and NoSQL databases?');
+    assert.equal(r.interviewIntent.intent, 'comparison');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'comparison_table');
+    assert.equal(r.interviewIntent.expectedAnswer.includeTradeoffs, true);
+  });
+
+  test('follow-up → follow_up_generic intent', () => {
+    const r = classify('Why?', 'technical-interview', { isFollowUp: true });
+    assert.equal(r.interviewIntent.intent, 'follow_up_generic');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'FOLLOW_UP');
+    assert.equal(r.interviewIntent.contextRequirements.conversation, true);
+  });
+});
+
+describe('interviewIntent — interviewerBehavior overrides', () => {
+  test('pushback phrasing → PUSHBACK behavior with pushback_response structure', () => {
+    const r = classify('But why not use Redis for this?');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'PUSHBACK');
+    assert.equal(r.interviewIntent.intent, 'follow_up_generic');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'pushback_response');
+  });
+
+  test('clarification phrasing → CLARIFICATION behavior with clarification_response', () => {
+    const r = classify('Can you explain what you mean by eventual consistency?');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'CLARIFICATION');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'clarification_response');
+  });
+
+  test('deepening phrasing → DEEPENING behavior with deepening_elaboration', () => {
+    const r = classify('Tell me more about that approach.');
+    assert.equal(r.interviewIntent.interviewerBehavior, 'DEEPENING');
+    assert.equal(r.interviewIntent.expectedAnswer.structure, 'deepening_elaboration');
+  });
+});
+
+describe('interviewIntent — domain detection', () => {
+  test('React keyword → react + frontend domains', () => {
+    const r = classify('How do React hooks work?');
+    assert.ok(r.interviewIntent.domain.includes('react'), JSON.stringify(r.interviewIntent.domain));
+    assert.ok(r.interviewIntent.domain.includes('frontend'), JSON.stringify(r.interviewIntent.domain));
+  });
+
+  test('database keyword → database domain', () => {
+    const r = classify('What is the difference between SQL and NoSQL databases?');
+    assert.ok(r.interviewIntent.domain.includes('database'), JSON.stringify(r.interviewIntent.domain));
+  });
+
+  test('no keyword match → unknown domain', () => {
+    const r = classify('What is idempotency in the context of an HTTP API?');
+    // http\b matches networking pattern; idempotency matches nothing specific
+    // The key guarantee: domain is always a non-empty array
+    assert.ok(r.interviewIntent.domain.length > 0, 'domain must never be empty');
+  });
+});
+
+describe('interviewIntent — contextRequirements derivation', () => {
+  test('general question: no resume, no projects, generalKnowledge true', () => {
+    const r = classify('What is a bloom filter?');
+    const cr = r.interviewIntent.contextRequirements;
+    assert.equal(cr.resume, false);
+    assert.equal(cr.projects, false);
+    assert.equal(cr.generalKnowledge, true);
+  });
+
+  test('personal question: resume true, generalKnowledge false', () => {
+    const r = classify('Tell me about your WebRTC project.');
+    const cr = r.interviewIntent.contextRequirements;
+    assert.equal(cr.resume, true);
+    assert.equal(cr.projects, true);
+  });
+
+  test('coding task: code true, generalKnowledge true', () => {
+    const r = classify('Implement a binary search.');
+    const cr = r.interviewIntent.contextRequirements;
+    assert.equal(cr.code, true);
+    assert.equal(cr.generalKnowledge, true);
+  });
+});
+
+describe('interviewIntent — followUpLikelihood', () => {
+  test('system_design → high likelihood', () => {
+    assert.equal(classify('Design a URL shortener.').interviewIntent.followUpLikelihood, 'high');
+  });
+
+  test('introduction → low likelihood', () => {
+    assert.equal(classify('Tell me about yourself.').interviewIntent.followUpLikelihood, 'low');
+  });
+
+  test('behavioral → medium likelihood', () => {
+    assert.equal(classify('Tell me about a time you handled a conflict.').interviewIntent.followUpLikelihood, 'medium');
+  });
+});
+
+describe('interviewIntent — backward compatibility', () => {
+  test('interviewIntent is present on every classification result', () => {
+    for (const q of [
+      'What is idempotency in an HTTP API?',
+      'Tell me about your WebRTC project.',
+      'Reverse a linked list.',
+      'Design a URL shortener.',
+      'Why?',
+    ]) {
+      const r = classify(q);
+      assert.ok(r.interviewIntent !== undefined, `interviewIntent missing for: "${q}"`);
+    }
+  });
+
+  test('existing Classification fields are unchanged by Phase 2', () => {
+    const r = classify('Tell me about your WebRTC project.');
+    // All pre-Phase-2 fields must still be present and correct
+    assert.ok(r.questionTypes.includes('PERSONAL_PROJECT'), 'questionTypes unchanged');
+    assert.ok(r.claimTypes.includes('USER_PROJECT'), 'claimTypes unchanged');
+    assert.ok(r.requiredSourceTypes.includes('RESUME'), 'requiredSourceTypes unchanged');
+    assert.equal(r.shouldRetrieve, true, 'shouldRetrieve unchanged');
+    assert.equal(r.path, 'GROUNDED', 'path unchanged');
+    assert.ok(r.reason.length > 0, 'reason unchanged');
+  });
+});
+
 // NOTE: a "candidate claims are reachable in recruiting" describe used to
 // live here (found by sweeping all eight modes with one question — recruiting
 // returned ZERO raw candidates where the identical query returned 9

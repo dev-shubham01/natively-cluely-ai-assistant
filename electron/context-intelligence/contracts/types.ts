@@ -296,7 +296,94 @@ export interface TurnDecision {
   /** Attached by the orchestrator (never by decide()) when the question is a
    *  precedence follow-up and the session recorded a prior source decision. */
   precedenceHistory?: PriorTurnDecision;
+  /** Multidimensional interview intent classification (Interview Intelligence V1, Phase 2).
+   *  Optional: absent on legacy/deserialized decisions. Use DEFAULT_INTERVIEW_INTENT as a
+   *  fallback when the field must always be present. */
+  interviewIntent?: InterviewIntent;
 }
+
+// ── Interview Intelligence V1 — Phase 2 types ───────────────────────────────
+//
+// These types are ADDITIVE. They do not replace QuestionType, ClaimType, or
+// any existing classification machinery. InterviewIntent is derived
+// deterministically from the same signals Classification already produces.
+
+export type InterviewIntentType =
+  | 'concept_explanation' | 'mechanism_explanation' | 'technology_decision'
+  | 'comparison' | 'tradeoff' | 'coding_task' | 'debugging' | 'optimization'
+  | 'system_design' | 'lld' | 'project_context' | 'project_deep_dive'
+  | 'experience_question' | 'behavioral' | 'introduction' | 'scalability'
+  | 'knowledge_check' | 'follow_up_generic';
+
+export type InterviewDomain =
+  | 'javascript' | 'typescript' | 'react' | 'frontend' | 'backend' | 'node'
+  | 'database' | 'networking' | 'os' | 'general_cs' | 'algorithms'
+  | 'data_structures' | 'system_design' | 'security' | 'testing' | 'devops'
+  | 'behavioral' | 'project_specific' | 'unknown';
+
+export type QuestionStyle =
+  | 'what' | 'why' | 'how' | 'when' | 'compare' | 'challenge'
+  | 'debug' | 'design' | 'implement' | 'optimize' | 'explain'
+  | 'experience' | 'open';
+
+export type InterviewerBehavior =
+  | 'QUESTION' | 'FOLLOW_UP' | 'DEEPENING' | 'PUSHBACK'
+  | 'CORRECTION' | 'CLARIFICATION' | 'HINT' | 'TOPIC_CHANGE';
+
+export interface ContextRequirements {
+  conversation:     boolean;
+  resume:           boolean;
+  projects:         boolean;
+  code:             boolean;
+  documents:        boolean;
+  generalKnowledge: boolean;
+}
+
+export type AnswerDepth = 'brief' | 'standard' | 'deep';
+
+export type AnswerStructure =
+  | 'direct_definition' | 'decision_rationale' | 'implementation_walkthrough'
+  | 'story_format' | 'comparison_table' | 'system_breakdown' | 'debugging_trace'
+  | 'experience_narrative' | 'pushback_response' | 'clarification_response'
+  | 'open_narrative' | 'deepening_elaboration';
+
+export interface ExpectedAnswer {
+  depth:             AnswerDepth;
+  structure:         AnswerStructure;
+  includeExample:    boolean;
+  includeTradeoffs:  boolean;
+  includeCode:       boolean;
+  includeComplexity: boolean;
+}
+
+export interface InterviewIntent {
+  intent:              InterviewIntentType;
+  domain:              InterviewDomain[];
+  questionStyle:       QuestionStyle;
+  interviewerBehavior: InterviewerBehavior;
+  contextRequirements: ContextRequirements;
+  expectedAnswer:      ExpectedAnswer;
+  followUpLikelihood:  'low' | 'medium' | 'high';
+}
+
+/** Safe backward-compatible fallback when interviewIntent is absent on a
+ *  deserialized or pre-Phase-2 TurnDecision. */
+export const DEFAULT_INTERVIEW_INTENT: InterviewIntent = {
+  intent: 'concept_explanation',
+  domain: ['general_cs'],
+  questionStyle: 'what',
+  interviewerBehavior: 'QUESTION',
+  contextRequirements: {
+    conversation: false, resume: false, projects: false,
+    code: false, documents: false, generalKnowledge: true,
+  },
+  expectedAnswer: {
+    depth: 'standard', structure: 'direct_definition',
+    includeExample: false, includeTradeoffs: false,
+    includeCode: false, includeComplexity: false,
+  },
+  followUpLikelihood: 'medium',
+};
 
 /**
  * Deep-freeze a TurnDecision.
