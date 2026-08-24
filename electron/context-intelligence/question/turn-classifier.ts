@@ -1154,7 +1154,13 @@ const IB_TOPIC_CHANGE_RE = /\bforget (?:that|it)\b|\blet'?s (?:move on|change ge
 const BEHAVIORAL_FRAMING_RE = /\btell (?:me|us) about a time\b|\bgive (?:me|us) an example of (?:a time|when)\b|\bwalk (?:me|us) through a (?:time|situation)\b/i;
 const INTRODUCTION_RE       = /\btell me about yourself\b|\bwalk me through your background\b|\bintroduce yourself\b/i;
 const EXPERIENCE_TIME_RE    = /\bdescribe a (?:time|situation)\b/i;
-const PROJECT_DEEP_RE       = /\bhow did you (?:handle|solve|approach)\b/i;
+// Phase 14 (AG-003): extended with verbs representing specific technical execution
+// acts a candidate performed inside their own project. All require PERSONAL_PROJECT
+// co-occurrence (line 1219) — generic hypothetical forms ("How would you debug…",
+// "How do you optimize…") lack that type and fall through to the appropriate
+// general intent. "solve" is retained for phrasing that does not trigger
+// CODING_TASK_RE; cases where CODING_TASK fires first are a separate known gap.
+const PROJECT_DEEP_RE       = /\bhow did you (?:handle|solve|approach|debug|troubleshoot|optimize|implement|fix|resolve|investigate|diagnose)\b/i;
 
 // Phase 13 (D-13-001): CODING_TASK_RE includes bare DSA nouns ("binary search",
 // "linked list") that match concept questions — "What is a binary search tree?"
@@ -1198,7 +1204,17 @@ export function buildInterviewIntent(
   let intent: InterviewIntentType;
   if (isOverrideBehavior) {
     intent = 'follow_up_generic';
-  } else if (cls.questionTypes.includes('CODING_TASK') && !CONCEPT_FRAMING_FOR_DSA_RE.test(raw)) {
+  // Phase 14 (SOLVE CONFLICT): CODING_TASK_RE contains bare \bsolve\b which also
+  // fires on "How did you solve X in your project?" — a past-tense personal
+  // retrospective that V1 assigns to project_deep_dive. When PERSONAL_PROJECT is
+  // co-present AND PROJECT_DEEP_RE matches, the project branch must win.
+  // CODING_TASK_RE's "solve" is retained for pure coding asks ("Solve this problem",
+  // "Solve the binary search problem") which carry no PERSONAL_PROJECT type.
+  } else if (
+    cls.questionTypes.includes('CODING_TASK')
+    && !CONCEPT_FRAMING_FOR_DSA_RE.test(raw)
+    && !(cls.questionTypes.includes('PERSONAL_PROJECT') && PROJECT_DEEP_RE.test(raw))
+  ) {
     intent = 'coding_task';
   } else if (LLD_STRONG_RE.test(raw) || (LLD_DOMAIN_RE.test(raw) && !HLD_SIGNALS_RE.test(raw))) {
     intent = 'lld';

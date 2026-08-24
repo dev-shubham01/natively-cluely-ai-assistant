@@ -1071,17 +1071,23 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
     },
   },
 
-  // ── Phase 12: personal vs non-personal variant (gc_079) ─────────────────────
-  // "How did you debug the issue in your project?" looks like debugging but
-  // PERSONAL_PROJECT fires first → project_context. Tests that personal framing
-  // diverts to the project retrieval path even for debugging-style questions.
+  // ── Phase 12 → Phase 14 revised: personal debug question (gc_079) ──────────
+  // Phase 14 (AG-003): "How did you debug X in your project?" is a specific
+  // technical execution act within the candidate's project → project_deep_dive.
+  // Original Phase 12 expectation was project_context; revised because V1 defines
+  // project_deep_dive as questions about how the candidate handled/solved/approached/
+  // debugged a specific problem inside their project. The "must NOT be the generic
+  // debugging intent" constraint remains satisfied: PERSONAL_PROJECT fires, PROJECT_DEEP_RE
+  // matches "how did you debug", and the result is project_deep_dive (not debugging).
+  // Strategy and context requirements are identical to project_context (describe_project,
+  // resume+projects+documents+stories). Only intent and depth (now 'deep') change.
   {
     id: 'gc_079',
     question: 'How did you debug the issue in your project?',
     risk: 'high',
-    notes: 'Personal framing + PROJECT_RE → PERSONAL_PROJECT → project_context; must NOT be debugging',
+    notes: 'Phase 14 revised: PERSONAL_PROJECT + "how did you debug" → project_deep_dive; must NOT be generic debugging intent',
     expected: {
-      intent: 'project_context',
+      intent: 'project_deep_dive',
       strategy: 'describe_project',
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, documents: true, stories: true },
@@ -1211,6 +1217,71 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
     expected: {
       intent: 'concept_explanation',
       strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 14: project deep-dive extended verb boundary (gc_088) ──────────────
+  // AG-003 regression guard: PROJECT_DEEP_RE was extended to recognise additional
+  // verbs representing specific technical execution acts within a project.
+  // This case locks "troubleshoot" (a newly added verb) so that a project-scoped
+  // troubleshooting question reaches project_deep_dive and does NOT fall through
+  // to project_context or the generic debugging intent.
+  {
+    id: 'gc_088',
+    question: 'How did you troubleshoot the latency issue in your project?',
+    risk: 'high',
+    notes: 'AG-003 regression guard: PERSONAL_PROJECT + "how did you troubleshoot" → project_deep_dive; must NOT be project_context or debugging',
+    expected: {
+      intent: 'project_deep_dive',
+      strategy: 'describe_project',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: true, documents: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+
+  // ── Phase 14 (SOLVE CONFLICT): solve-in-project cases (gc_089–gc_091) ────────
+  // CODING_TASK_RE contains \bsolve\b which eclipsed PROJECT_DEEP_RE for past-tense
+  // personal project questions. The Phase 14 fix adds a PERSONAL_PROJECT +
+  // PROJECT_DEEP_RE co-occurrence guard to the CODING_TASK branch so that
+  // "how did you solve X in your project?" reaches project_deep_dive.
+  {
+    id: 'gc_089',
+    question: 'How did you solve the performance issue in your project?',
+    risk: 'high',
+    notes: 'SOLVE CONFLICT fix: PERSONAL_PROJECT + "how did you solve" → project_deep_dive; must NOT be coding_task',
+    expected: {
+      intent: 'project_deep_dive',
+      strategy: 'describe_project',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: true, documents: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+  {
+    id: 'gc_090',
+    question: 'How did you solve the authentication problem in your project?',
+    risk: 'high',
+    notes: 'SOLVE CONFLICT fix: PERSONAL_PROJECT + "how did you solve" → project_deep_dive',
+    expected: {
+      intent: 'project_deep_dive',
+      strategy: 'describe_project',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: true, documents: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+  {
+    id: 'gc_091',
+    question: 'Solve this algorithm problem.',
+    risk: 'high',
+    notes: 'SOLVE CONFLICT fix: pure coding ask with no PERSONAL_PROJECT → must remain coding_task',
+    expected: {
+      intent: 'coding_task',
+      strategy: 'implement_solution',
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,

@@ -1,6 +1,6 @@
 // electron/context-intelligence/evaluation/golden-evaluator.ts
 //
-// Phase 11 deterministic golden evaluator.
+// Phase 14 deterministic golden evaluator.
 //
 // Evaluates the DECISION layer only: classifyTurn → selectStrategy →
 // contextRequirements. Does NOT call the retrieval layer or any LLM.
@@ -84,7 +84,7 @@ export function buildGradeReport(results: CaseEvaluationResult[]): GradeReport {
 
 export function printGradeReport(report: GradeReport): void {
   const pct = (r: number) => `${(r * 100).toFixed(1)}%`;
-  console.log('\n=== Phase 13 Golden Dataset Grade Report ===');
+  console.log('\n=== Phase 14 Golden Dataset Grade Report ===');
   console.log(`Total: ${report.totalCases}  Pass: ${report.passed}  Fail: ${report.failed}  Rate: ${pct(report.passRate)}`);
   console.log(`High-risk: ${report.highRiskCases}  Pass: ${report.highRiskPassed}  Rate: ${pct(report.highRiskPassRate)}`);
   console.log(`CR false-positive count (high-risk): ${report.crFalsePositiveCount}`);
