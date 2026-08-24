@@ -39,7 +39,7 @@ const makeIntent = (overrides = {}) => ({
   domain: ['algorithms'],
   questionStyle: 'what',
   interviewerBehavior: 'QUESTION',
-  contextRequirements: { conversation: false, resume: false, projects: false, code: false, documents: false, generalKnowledge: true },
+  contextRequirements: { conversation: false, resume: false, projects: false, code: false, documents: false, stories: false, generalKnowledge: true },
   expectedAnswer: { depth: 'standard', structure: 'direct_definition', includeExample: false, includeTradeoffs: false, includeCode: false, includeComplexity: false },
   followUpLikelihood: 'medium',
   ...overrides,
@@ -50,18 +50,18 @@ const reactIntent     = makeIntent({ domain: ['react', 'frontend'] });
 const deepeningIntent = makeIntent({
   intent: 'follow_up_generic',
   interviewerBehavior: 'DEEPENING',
-  contextRequirements: { conversation: true, resume: false, projects: false, code: false, documents: false, generalKnowledge: true },
+  contextRequirements: { conversation: true, resume: false, projects: false, code: false, documents: false, stories: false, generalKnowledge: true },
 });
 const topicChangeIntent = makeIntent({
   intent: 'follow_up_generic',
   interviewerBehavior: 'TOPIC_CHANGE',
-  contextRequirements: { conversation: false, resume: false, projects: false, code: false, documents: false, generalKnowledge: true },
+  contextRequirements: { conversation: false, resume: false, projects: false, code: false, documents: false, stories: false, generalKnowledge: true },
 });
 const hintIntent = makeIntent({
   intent: 'follow_up_generic',
   domain: ['algorithms'],
   interviewerBehavior: 'HINT',
-  contextRequirements: { conversation: false, resume: false, projects: false, code: false, documents: false, generalKnowledge: true },
+  contextRequirements: { conversation: false, resume: false, projects: false, code: false, documents: false, stories: false, generalKnowledge: true },
 });
 
 // ── A: First turn creates chain entry ─────────────────────────────────────────

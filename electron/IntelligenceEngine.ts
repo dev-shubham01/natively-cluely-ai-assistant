@@ -4232,6 +4232,7 @@ export class IntelligenceEngine extends EventEmitter {
             let profilePort: unknown = null;
             let profileSourceCount = 0;
             let resolvedProfileSources: Array<{ role: string; id: string }> = [];
+            let storyBankPort: unknown = null;
             try {
                 if (policy.profileSources?.length) {
                     const { collectV3ProfileSources } = require('./services/knowledge/v3ProfileSources');
@@ -4247,6 +4248,15 @@ export class IntelligenceEngine extends EventEmitter {
                         if (profilePort) {
                             profileSourceCount = collected.docs.length;
                             resolvedProfileSources = collected.resolved;
+                        }
+                        // Phase 7 StoryBank: activated lazily at retrieve-time when
+                        // contextRequirements.stories === true. Additive — failure
+                        // here keeps primary evidence intact.
+                        try {
+                            const { createStoryBankRetrievalPort } = require('./context-intelligence/retrieval/story-bank-port');
+                            storyBankPort = createStoryBankRetrievalPort({ docs: collected.docs, userId: 'local' });
+                        } catch (sbErr) {
+                            console.warn('[V3] story-bank port failed — story context disabled:', (sbErr as Error)?.message ?? sbErr);
                         }
                     }
                 }
@@ -4275,7 +4285,13 @@ export class IntelligenceEngine extends EventEmitter {
                         tokenBudget: policy.contextBudget.evidenceTokens,
                     }));
                 }
-                if (ports.length > 1) port = combineRetrievalPorts(ports as never[]);
+                const primaryPort = ports.length > 1 ? combineRetrievalPorts(ports as never[]) : modePort;
+                if (storyBankPort) {
+                    const { createCompositeRetrievalPort } = require('./context-intelligence/retrieval/composite-retrieval-port');
+                    port = createCompositeRetrievalPort(primaryPort, storyBankPort);
+                } else {
+                    port = primaryPort;
+                }
             } catch { /* meeting/profile combination is additive — mode port alone still answers */ }
 
             return {

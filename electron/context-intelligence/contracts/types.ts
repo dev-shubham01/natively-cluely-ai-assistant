@@ -340,6 +340,7 @@ export interface ContextRequirements {
   projects:         boolean;
   code:             boolean;
   documents:        boolean;
+  stories:          boolean;
   generalKnowledge: boolean;
 }
 
@@ -425,7 +426,7 @@ export const DEFAULT_INTERVIEW_INTENT: InterviewIntent = {
   interviewerBehavior: 'QUESTION',
   contextRequirements: {
     conversation: false, resume: false, projects: false,
-    code: false, documents: false, generalKnowledge: true,
+    code: false, documents: false, stories: false, generalKnowledge: true,
   },
   expectedAnswer: {
     depth: 'standard', structure: 'direct_definition',

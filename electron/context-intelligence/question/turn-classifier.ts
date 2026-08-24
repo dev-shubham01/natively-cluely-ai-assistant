@@ -1237,6 +1237,17 @@ export function buildInterviewIntent(
     code:             cls.questionTypes.includes('SCREEN_SPECIFIC')
                    || (cls.questionTypes.includes('CODING_TASK') && cls.questionTypes.includes('PERSONAL_PROJECT')),
     documents:        cls.requiredSourceTypes.includes('REFERENCE_FILE') || cls.requiredSourceTypes.includes('PROJECT_FILE'),
+    // Phase 7: stories=true when the answer must be grounded in the candidate's
+    // own personal experience — behavioral, experience, intro, and project intents.
+    // Derived from the already-computed `intent` to avoid a second classifier.
+    // Independent of resume/projects: "why Redis?" → stories=true, projects=true,
+    // resume=false. Flags remain orthogonal.
+    stories:          intent === 'behavioral'          ||
+                      intent === 'experience_question' ||
+                      intent === 'introduction'        ||
+                      intent === 'project_context'     ||
+                      intent === 'project_deep_dive'   ||
+                      intent === 'technology_decision',
     generalKnowledge: cls.questionTypes.includes('GENERAL_TECHNICAL') || cls.questionTypes.includes('CODING_TASK') || cls.questionTypes.includes('SYSTEM_DESIGN'),
   };
 

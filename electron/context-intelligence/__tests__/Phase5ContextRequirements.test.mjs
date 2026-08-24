@@ -33,7 +33,7 @@ const makeIntent = (cr) => ({
   intent: 'concept_explanation', domain: ['unknown'],
   interviewerBehavior: 'QUESTION', questionStyle: 'what',
   contextRequirements: { conversation: false, resume: false, projects: false,
-                         code: false, documents: false, generalKnowledge: true, ...cr },
+                         code: false, documents: false, stories: false, generalKnowledge: true, ...cr },
   expectedAnswer: { depth: 'standard', structure: 'direct_definition',
                     technicalDepth: 'intermediate', includeCode: false,
                     includeExamples: false, includeAnalogy: false },

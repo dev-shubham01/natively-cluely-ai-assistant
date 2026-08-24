@@ -1120,6 +1120,7 @@ export function initializeIpcHandlers(appState: AppState): void {
             let v3ProfilePort: unknown = null;
             let v3ProfileCounts = { profileResume: 0, profileJd: 0, profileFact: 0 };
             let v3ProfileResolved: Array<{ role: string; id: string }> = [];
+            let v3StoryBankPort: unknown = null;
             try {
               if (policy.profileSources?.length) {
                 const { collectV3ProfileSources } = require('./services/knowledge/v3ProfileSources');
@@ -1135,6 +1136,15 @@ export function initializeIpcHandlers(appState: AppState): void {
                   if (v3ProfilePort) {
                     v3ProfileCounts = collected.counts;
                     v3ProfileResolved = collected.resolved;
+                  }
+                  // Phase 7 StoryBank: activated lazily at retrieve-time when
+                  // contextRequirements.stories === true. Additive — failure
+                  // here keeps primary evidence intact.
+                  try {
+                    const { createStoryBankRetrievalPort } = require('./context-intelligence/retrieval/story-bank-port');
+                    v3StoryBankPort = createStoryBankRetrievalPort({ docs: collected.docs, userId: V3_USER_ID });
+                  } catch (sbErr) {
+                    console.warn('[V3] story-bank port failed — story context disabled:', (sbErr as Error)?.message ?? sbErr);
                   }
                 }
               }
@@ -1154,7 +1164,13 @@ export function initializeIpcHandlers(appState: AppState): void {
                 tokenBudget: policy.contextBudget.evidenceTokens,
               })] : []),
             ];
-            const port = v3Ports.length > 1 ? combineRetrievalPorts(v3Ports as never[]) : modePort;
+            const primaryPort = v3Ports.length > 1 ? combineRetrievalPorts(v3Ports as never[]) : modePort;
+            const port = v3StoryBankPort
+              ? (() => {
+                  const { createCompositeRetrievalPort } = require('./context-intelligence/retrieval/composite-retrieval-port');
+                  return createCompositeRetrievalPort(primaryPort, v3StoryBankPort);
+                })()
+              : primaryPort;
 
             // ONE construction, shared with every engine surface: the bridge
             // resolves the per-mode Answer policy, reads conversation state for
