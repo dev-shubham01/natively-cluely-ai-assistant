@@ -69,6 +69,9 @@ export interface RolloutCounters {
   /** Milliseconds, for the p95 TTFT abort condition. Bounded ring buffer: an
    *  unbounded latency array in a long meeting is its own leak. */
   latencyMs: number[];
+
+  /** Phase 11: per-intent turn distribution, process-local. */
+  intentDistribution: Record<string, number>;
 }
 
 const MAX_LATENCY_SAMPLES = 512;
@@ -87,6 +90,7 @@ function emptyCounters(): RolloutCounters {
     supersededTurns: 0,
     v3FallbackBySurface: {},
     latencyMs: [],
+    intentDistribution: {},
   };
 }
 
@@ -138,6 +142,8 @@ export function recordTurnMetrics(trace: AnswerTrace | null | undefined): void {
     bump(counters.path, t.retrievalPath ?? t.decision?.retrievalPlan?.path);
     bump(counters.answerability, t.answerability);
     bump(counters.fallback, t.fallbackUsed);
+    if (!counters.intentDistribution) counters.intentDistribution = {};
+    bump(counters.intentDistribution, t.interviewClassification?.intent);
 
     if (t.status === 'SUPERSEDED') counters.supersededTurns += 1;
 

@@ -291,6 +291,9 @@ export async function buildV3Prompt(input: BridgeInput): Promise<BridgeResult | 
       fallbackUsed: result.trace.fallbackUsed,
     });
 
+    // Phase 11: record prompt section names for observability (names only, never content).
+    result.trace.promptSectionsRendered = composed.sections;
+
     // What this prompt actually carries: the scopes of the evidence that
     // survived BOTH the privacy filter and the packing budget, plus the
     // transcript scope when a conversation summary rides along. This is the

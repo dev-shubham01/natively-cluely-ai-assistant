@@ -172,6 +172,33 @@ export interface AnswerTrace {
     activeTopic?: string;
     previousQuestion?: string;
   };
+
+  /**
+   * Phase 11: Interview Intelligence classification snapshot.
+   * Populated when the turn ran through the V1 interview pipeline.
+   * Identity/enum values only — no evidence content.
+   */
+  interviewClassification?: {
+    intent:              string;
+    behavior:            string;
+    strategyId:          string;
+    storyBankActivated:  boolean;
+    contextRequirements: {
+      conversation:     boolean;
+      resume:           boolean;
+      projects:         boolean;
+      code:             boolean;
+      documents:        boolean;
+      stories:          boolean;
+      generalKnowledge: boolean;
+    };
+  };
+
+  /**
+   * Phase 11: section names rendered into the prompt (standard debug level).
+   * Section names only — never section content.
+   */
+  promptSectionsRendered?: string[];
 }
 
 // ── redaction ───────────────────────────────────────────────────────────────
@@ -238,6 +265,17 @@ export function compareDecisions(legacy: AnswerTrace, v3: AnswerTrace): TraceDiv
 
   const ev = (t: AnswerTrace) => t.acceptedEvidence.map((e) => e.evidenceId).sort();
   cmp('acceptedEvidence', ev(legacy), ev(v3));
+
+  // OD3: interview classification comparison — only when both traces carry the
+  // field. Additive guard: a trace without the field is not treated as divergent.
+  if (legacy.interviewClassification && v3.interviewClassification) {
+    cmp('interviewClassification.intent',   legacy.interviewClassification.intent,   v3.interviewClassification.intent);
+    cmp('interviewClassification.behavior', legacy.interviewClassification.behavior, v3.interviewClassification.behavior);
+    cmp('interviewClassification.strategyId', legacy.interviewClassification.strategyId, v3.interviewClassification.strategyId);
+    cmp('interviewClassification.contextRequirements',
+      legacy.interviewClassification.contextRequirements,
+      v3.interviewClassification.contextRequirements);
+  }
 
   return out;
 }

@@ -226,6 +226,28 @@ export interface ContextDebugTurnComplete {
     final: string;
   };
 
+  /**
+   * Phase 11: Interview Intelligence classification snapshot.
+   * Populated when the turn ran through the V1 interview pipeline.
+   */
+  interview?: {
+    intent:             string;
+    behavior:           string;
+    strategyId:         string;
+    storyBankActivated: boolean;
+    contextRequirements: {
+      conversation:     boolean;
+      resume:           boolean;
+      projects:         boolean;
+      code:             boolean;
+      documents:        boolean;
+      stories:          boolean;
+      generalKnowledge: boolean;
+    };
+    /** Verbose only: section names rendered into the prompt (never content). */
+    promptSectionsRendered?: string[];
+  };
+
   errors: ContextDebugError[];
 }
 

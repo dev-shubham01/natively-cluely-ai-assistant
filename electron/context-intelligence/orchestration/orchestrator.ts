@@ -869,6 +869,15 @@ export async function orchestrate(
     errorCodes: [],
     engine: 'v3',
     ...(referentResolution ? { referentResolution } : {}),
+    ...(decision.interviewIntent ? {
+      interviewClassification: {
+        intent:             decision.interviewIntent.intent,
+        behavior:           decision.interviewIntent.interviewerBehavior,
+        strategyId:         decision.answerStrategy?.id ?? '',
+        storyBankActivated: decision.interviewIntent.contextRequirements.stories,
+        contextRequirements: { ...decision.interviewIntent.contextRequirements },
+      },
+    } : {}),
   };
 
   // Phase 10 §4: count the decision-layer signals. Derived from the trace

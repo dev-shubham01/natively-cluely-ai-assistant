@@ -333,6 +333,18 @@ export class ContextDebugTurnCollector {
         ...(t?.promptTokenEstimate ? { promptTokenEstimate: t.promptTokenEstimate } : {}),
       },
       answer: { final: this.finalAnswer },
+      ...(this.decision?.interviewIntent ? {
+        interview: {
+          intent:             this.decision.interviewIntent.intent,
+          behavior:           this.decision.interviewIntent.interviewerBehavior,
+          strategyId:         this.decision.answerStrategy?.id ?? '',
+          storyBankActivated: this.decision.interviewIntent.contextRequirements.stories,
+          contextRequirements: { ...this.decision.interviewIntent.contextRequirements },
+          ...(this.level === 'verbose' && this.trace?.promptSectionsRendered
+            ? { promptSectionsRendered: this.trace.promptSectionsRendered }
+            : {}),
+        },
+      } : {}),
       errors: this.errors,
     };
     return record;
