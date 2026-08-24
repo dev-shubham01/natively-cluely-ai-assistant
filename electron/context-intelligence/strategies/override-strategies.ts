@@ -60,7 +60,7 @@ export const RESTATE_CLEARLY: AnswerStrategy = {
     'unclear, briefly ask: "Is it the [specific part] I should clarify?" Keep it focused — ' +
     'the goal is to resolve the specific confusion, not deliver a second version of the full answer.',
   steps: [
-    'Identify which specific part of the previous answer the question refers to.',
+    'Identify which specific part of the previous answer the question refers to. If it is unclear which part caused confusion, ask a focused question before restating: "Is it the [specific aspect] you\'d like me to clarify?"',
     'Restate that specific part in simpler terms or from a different angle.',
     'Use a concrete example or analogy if the abstract statement was what caused confusion.',
     'Distinguish what the concept is from what it might be confused with, if relevant.',
@@ -84,7 +84,7 @@ export const DEEPEN_EXPLANATION: AnswerStrategy = {
     'Identify what level of depth was already covered in the previous answer.',
     'Choose the next level: mechanism, implementation detail, tradeoff, edge case, or alternative.',
     'Provide specific, concrete depth on that dimension — not additional abstractions.',
-    'If relevant, note what you are deliberately not expanding and why.',
+    'Pick one dimension to deepen rather than trying to cover everything — depth on a single aspect is more valuable than breadth across several.',
     'Stop at a natural point; avoid escalating depth without a signal to continue.',
   ],
 };
