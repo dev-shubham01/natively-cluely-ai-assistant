@@ -1176,4 +1176,44 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       storyBankActivated: false,
     },
   },
+
+  // ── Phase 13: mechanism/follow-up boundary (gc_086) ──────────────────────────
+  // D-13-002 regression guard: "How does X work?" questions ≤ 5 words previously
+  // matched isBareFollowUp (FOLLOW_UP_RE starts with "how" + word count ≤ 5), routing
+  // them to follow_up_generic. The Phase 13 fix adds a "how does … work" exclusion
+  // in isBareFollowUp that fires only when the subject is not an anaphor, allowing
+  // short mechanism questions to reach mechanism_explanation.
+  {
+    id: 'gc_086',
+    question: 'How does TCP handshake work?',
+    risk: 'high',
+    notes: 'D-13-002 regression guard: short "How does X work?" must reach mechanism_explanation, not follow_up_generic',
+    expected: {
+      intent: 'mechanism_explanation',
+      strategy: 'explain_mechanism',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 13: DSA concept/coding-task boundary (gc_087) ──────────────────────
+  // D-13-001 regression guard: CODING_TASK_RE contains bare DSA nouns "binary search"
+  // and "linked list" that fire on concept questions. The Phase 13 fix adds a
+  // CONCEPT_FRAMING_FOR_DSA_RE guard in buildInterviewIntent that bypasses the
+  // coding_task branch when concept framing ("what is", "explain", "how does … work")
+  // is detected, routing the question to concept_explanation instead.
+  {
+    id: 'gc_087',
+    question: 'What is a binary search tree?',
+    risk: 'high',
+    notes: 'D-13-001 regression guard: DSA concept question must reach concept_explanation, not coding_task',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
 ] as const;

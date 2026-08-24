@@ -491,6 +491,12 @@ export const isBareFollowUp = (raw: string): boolean => {
   const q = String(raw).toLowerCase();
   if (RESPONSE_REQUEST_RE.test(q)) return true;
   if (isContinuationFragment(q)) return true;
+  // Phase 13 (D-13-002): "How does X work?" where X is a specific non-anaphor subject
+  // is a standalone mechanism question. Short word count must not override the subject —
+  // a bare follow-up lacks a subject entirely ("How?"), while "How does TCP work?" has
+  // one. Anaphoric subjects ("how does that work?") retain the follow-up classification
+  // because they reference a prior turn, not a concept.
+  if (/\bhow does\b/.test(q) && /\bwork\b/.test(q) && !CONTEXT_ANAPHOR_RE.test(q)) return false;
   return FOLLOW_UP_RE.test(q) && q.split(/\s+/).filter(Boolean).length <= FOLLOW_UP_MAX_WORDS;
 };
 
@@ -1150,6 +1156,15 @@ const INTRODUCTION_RE       = /\btell me about yourself\b|\bwalk me through your
 const EXPERIENCE_TIME_RE    = /\bdescribe a (?:time|situation)\b/i;
 const PROJECT_DEEP_RE       = /\bhow did you (?:handle|solve|approach)\b/i;
 
+// Phase 13 (D-13-001): CODING_TASK_RE includes bare DSA nouns ("binary search",
+// "linked list") that match concept questions — "What is a binary search tree?"
+// contains "binary search" but is asking about a data structure, not requesting an
+// implementation. When concept framing is detected, the coding_task intent branch
+// in buildInterviewIntent is bypassed so the question reaches its correct intent.
+// "how does .+? work" is included because that phrasing makes a question a mechanism
+// question even when a DSA noun triggers CODING_TASK_RE.
+const CONCEPT_FRAMING_FOR_DSA_RE = /\b(?:what is(?: an?)?|what are|explain|define|describe|how does .+? work)\b/i;
+
 /**
  * Build an InterviewIntent from the resolved question and its existing
  * Classification. Pure, synchronous, and deterministic — no LLM, no I/O.
@@ -1183,7 +1198,7 @@ export function buildInterviewIntent(
   let intent: InterviewIntentType;
   if (isOverrideBehavior) {
     intent = 'follow_up_generic';
-  } else if (cls.questionTypes.includes('CODING_TASK')) {
+  } else if (cls.questionTypes.includes('CODING_TASK') && !CONCEPT_FRAMING_FOR_DSA_RE.test(raw)) {
     intent = 'coding_task';
   } else if (LLD_STRONG_RE.test(raw) || (LLD_DOMAIN_RE.test(raw) && !HLD_SIGNALS_RE.test(raw))) {
     intent = 'lld';
