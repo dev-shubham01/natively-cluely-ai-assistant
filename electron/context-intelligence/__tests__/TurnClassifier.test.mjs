@@ -682,3 +682,113 @@ describe('interviewIntent — Phase 3 contextRequirements.conversation for overr
 // everywhere else, a CANDIDATE_FILE policy dead end). Deleted, not adapted —
 // entirely about recruiting's own CANDIDATE_FILE authorization, which
 // technical-interview (the only surviving mode) does not have.
+
+// ── Classifier hardening: bare coding imperatives (Issue 1) ──────────────────
+describe('classifier hardening — bare coding imperatives', () => {
+  // True positives: sentence-initial imperative without a/an
+  test('"Implement debounce." → CODING_TASK, coding_task intent, FAST path', () => {
+    const r = classify('Implement debounce.');
+    assert.ok(r.questionTypes.includes('CODING_TASK'), `types: ${r.questionTypes}`);
+    assert.equal(r.interviewIntent.intent, 'coding_task');
+    assert.equal(r.shouldRetrieve, false);
+    assert.equal(r.path, 'FAST');
+  });
+
+  test('"Write a debounce function." → CODING_TASK, coding_task intent', () => {
+    const r = classify('Write a debounce function.');
+    assert.ok(r.questionTypes.includes('CODING_TASK'), `types: ${r.questionTypes}`);
+    assert.equal(r.interviewIntent.intent, 'coding_task');
+  });
+
+  test('"Code binary search." → CODING_TASK (binary search anchor)', () => {
+    const r = classify('Code binary search.');
+    assert.ok(r.questionTypes.includes('CODING_TASK'), `types: ${r.questionTypes}`);
+    assert.equal(r.interviewIntent.intent, 'coding_task');
+  });
+
+  test('"Implement a stack." → CODING_TASK (implement + article, pre-existing)', () => {
+    const r = classify('Implement a stack.');
+    assert.ok(r.questionTypes.includes('CODING_TASK'), `types: ${r.questionTypes}`);
+    assert.equal(r.interviewIntent.intent, 'coding_task');
+  });
+
+  // False positives: embedded "implement" in a non-imperative question must stay general
+  test('"Explain how to implement caching." → NOT CODING_TASK', () => {
+    const r = classify('Explain how to implement caching.');
+    assert.ok(!r.questionTypes.includes('CODING_TASK'), `types: ${r.questionTypes}`);
+    assert.notEqual(r.interviewIntent.intent, 'coding_task');
+  });
+
+  test('"Why did you implement Redis?" → NOT CODING_TASK (personal, past tense)', () => {
+    const r = classify('Why did you implement Redis?');
+    assert.ok(!r.questionTypes.includes('CODING_TASK'), `types: ${r.questionTypes}`);
+    assert.notEqual(r.interviewIntent.intent, 'coding_task');
+  });
+
+  test('"What did you implement?" → NOT CODING_TASK', () => {
+    const r = classify('What did you implement?');
+    assert.ok(!r.questionTypes.includes('CODING_TASK'), `types: ${r.questionTypes}`);
+    assert.notEqual(r.interviewIntent.intent, 'coding_task');
+  });
+});
+
+// ── Classifier hardening: experience/challenge framing (Issue 2) ─────────────
+describe('classifier hardening — experience/challenge framing', () => {
+  // True positives: "tell me about / describe / walk me through a [difficulty-adj] X"
+  test('"Tell me about a difficult technical problem you solved." → experience_question, stories=true', () => {
+    const r = classify('Tell me about a difficult technical problem you solved.');
+    assert.equal(r.interviewIntent.intent, 'experience_question',
+      `intent was: ${r.interviewIntent.intent}`);
+    assert.equal(r.interviewIntent.contextRequirements.stories, true,
+      'stories must be true for experience_question');
+  });
+
+  test('"Tell me about a challenging problem you faced." → experience_question, stories=true', () => {
+    const r = classify('Tell me about a challenging problem you faced.');
+    assert.equal(r.interviewIntent.intent, 'experience_question');
+    assert.equal(r.interviewIntent.contextRequirements.stories, true);
+  });
+
+  test('"Describe a difficult technical problem you handled." → experience_question, stories=true', () => {
+    const r = classify('Describe a difficult technical problem you handled.');
+    assert.equal(r.interviewIntent.intent, 'experience_question');
+    assert.equal(r.interviewIntent.contextRequirements.stories, true);
+  });
+
+  test('"Walk me through a challenging situation you faced." → experience_question, stories=true', () => {
+    const r = classify('Walk me through a challenging situation you faced.');
+    assert.equal(r.interviewIntent.intent, 'experience_question');
+    assert.equal(r.interviewIntent.contextRequirements.stories, true);
+  });
+
+  // False positives: general/conceptual questions must NOT become experience_question
+  test('"What is a difficult technical problem?" → NOT experience_question', () => {
+    const r = classify('What is a difficult technical problem?');
+    assert.notEqual(r.interviewIntent.intent, 'experience_question',
+      `intent was: ${r.interviewIntent.intent}`);
+    assert.equal(r.interviewIntent.contextRequirements.stories, false);
+  });
+
+  test('"How do you solve difficult technical problems?" → NOT experience_question', () => {
+    const r = classify('How do you solve difficult technical problems?');
+    assert.notEqual(r.interviewIntent.intent, 'experience_question');
+    assert.equal(r.interviewIntent.contextRequirements.stories, false);
+  });
+
+  test('"What are common challenges in distributed systems?" → NOT experience_question', () => {
+    const r = classify('What are common challenges in distributed systems?');
+    assert.notEqual(r.interviewIntent.intent, 'experience_question');
+    assert.equal(r.interviewIntent.contextRequirements.stories, false);
+  });
+
+  test('"Explain a difficult problem in React." → NOT experience_question', () => {
+    const r = classify('Explain a difficult problem in React.');
+    assert.notEqual(r.interviewIntent.intent, 'experience_question');
+    assert.equal(r.interviewIntent.contextRequirements.stories, false);
+  });
+
+  test('"Why did you choose React?" → NOT experience_question', () => {
+    const r = classify('Why did you choose React?');
+    assert.notEqual(r.interviewIntent.intent, 'experience_question');
+  });
+});

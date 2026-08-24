@@ -362,9 +362,14 @@ export const SECONDARY_DOC_RE = /\b(decoys?|other candidates?|another candidate|
 // formal competitive-programming/interview problem statements and does not
 // occur in casual technical conversation, system-design prompts, or resume/
 // behavioral "for example" phrasing (verified directly — none of those match).
-const CODING_TASK_RE = /\b(reverse a|implement (a|an)|write (a|the) (code|function|program|query)|solve|algorithm for|time complexity|leetcode|binary search|linked list|sort(ing)? algorithm|dynamic programming)\b|\bexample\s*\d*\s*:\s*[\s\S]{0,40}?\binput\s*[:=]/i;
+const CODING_TASK_RE = /\b(reverse a|implement (a|an)|write (a|the) (code|function|program|query)|solve|algorithm for|time complexity|leetcode|binary search|linked list|sort(ing)? algorithm|dynamic programming)\b|\bexample\s*\d*\s*:\s*[\s\S]{0,40}?\binput\s*[:=]|^(?:implement|code)\b|write (?:a|an|the) (?:\w+ ){1,3}(?:function|program|class|method|algorithm|solution)\b/i;
 
 const SYSTEM_DESIGN_RE = /\b(design a|scale (a|the|to)|system design|architecture for|how would you (build|design)|throughput|sharding|load balanc|(would|will|can|does) (it|that|this) scale)\b/;
+
+// Extended experience framing — covers "tell me about / describe / walk me through a [difficulty-adj] X"
+// without requiring the canonical "a time when" form used by BEHAVIORAL_FRAMING_RE.
+// Defined here (before detectTypes) so behavioralFraming can reference it at line ~535.
+const EXPERIENCE_CHALLENGE_RE = /\b(?:tell (?:me|us) about|describe|walk (?:me|us) through)\s+(?:a|an)\s+(?:\w+\s+){0,2}(?:difficult|challenging|complex|hard|tough|tricky|critical|significant|notable)\b/i;
 
 // A bare follow-up carries no subject of its own ("Why?", "Would that scale?").
 // It must NOT match a self-contained general question that merely starts with the
@@ -532,7 +537,8 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
     // interviewer-perspective contract): "tell me about a time you said no to
     // a stakeholder" is a work-history question, never assistant meta-talk —
     // bare speech verbs swallowed it (audit 2026-08-01, HIGH).
-    const behavioralFraming = /\b(?:tell (?:me|us) about a time|describe a (?:time|situation)|give (?:me|us) an example of (?:a time|when)|walk (?:me|us) through a (?:time|situation))\b/.test(clause);
+    const behavioralFraming = /\b(?:tell (?:me|us) about a time|describe a (?:time|situation)|give (?:me|us) an example of (?:a time|when)|walk (?:me|us) through a (?:time|situation))\b/.test(clause)
+      || EXPERIENCE_CHALLENGE_RE.test(clause);
     // Speech verbs are assistant-meta ONLY with a deictic or empty complement:
     // "what did you just say?" / "you answered that wrong" are about the
     // assistant; "you said no to a stakeholder" / "you said you left Google"
@@ -1154,6 +1160,8 @@ export function buildInterviewIntent(
   } else if (INTRODUCTION_RE.test(raw)) {
     intent = 'introduction';
   } else if (EXPERIENCE_TIME_RE.test(raw)) {
+    intent = 'experience_question';
+  } else if (EXPERIENCE_CHALLENGE_RE.test(raw)) {
     intent = 'experience_question';
   } else if (cls.questionTypes.includes('PERSONAL_PROJECT') && /\bwhy\b/i.test(raw)) {
     intent = 'technology_decision';

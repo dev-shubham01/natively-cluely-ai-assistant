@@ -479,6 +479,90 @@ function privacyWithholdingNotice(scopes: readonly string[] | undefined, hasEvid
     + 'Providers > Privacy or the question asked again with a local provider.';
 }
 
+// ── Phase 8: answer strategy and depth helpers ───────────────────────────────
+//
+// renderAnswerStrategy consumes the frozen answerStrategy from TurnDecision.
+// It renders promptSection + steps verbatim from the static registry.
+// strategyId is INTERNAL metadata and must never appear in the system prompt.
+// Evidence content cannot influence strategy text — it comes exclusively from
+// the registry constants in strategies/.
+
+function renderAnswerStrategy(d: Readonly<TurnDecision>): string {
+  const s = d.answerStrategy;
+  if (!s) return '';
+  const steps = s.steps.map((step, i) => `${i + 1}. ${step}`).join('\n');
+  return `# Answer approach\n${s.promptSection}\n\nSteps:\n${steps}`;
+}
+
+/**
+ * Renders depth/structural expectations from ExpectedAnswer only when they
+ * add meaningful guidance beyond what AnswerStrategy already says.
+ * Boolean flags (includeTradeoffs, includeCode, includeComplexity) are
+ * omitted when a strategy is present because the strategy already instructs
+ * those behaviours for the intents that trigger them.
+ */
+function renderAnswerDepth(d: Readonly<TurnDecision>): string {
+  const ii = d.interviewIntent;
+  if (!ii) return '';
+  const ea = ii.expectedAnswer;
+  // Trigger condition: skip when depth is standard and no structural flags are set.
+  if (ea.depth === 'standard' && !ea.includeTradeoffs && !ea.includeCode && !ea.includeComplexity) return '';
+  const lines: string[] = [];
+  if (ea.depth === 'brief') {
+    lines.push('Keep the answer short — one to two sentences is appropriate. Do not expand unnecessarily.');
+  } else if (ea.depth === 'deep') {
+    lines.push('This question warrants detailed treatment; cover the key dimensions thoroughly.');
+  }
+  // Only surface flag guidance when no strategy is present — a present strategy
+  // already instructs these behaviours for the intents that activate those flags
+  // (e.g. IMPLEMENT_SOLUTION already says "state time and space complexity").
+  if (d.answerStrategy === undefined) {
+    if (ea.includeTradeoffs) lines.push('Address tradeoffs explicitly: what the approach gains and what it costs.');
+    if (ea.includeCode) lines.push('Include a concrete implementation example or code sample.');
+    if (ea.includeComplexity) lines.push('State time and space complexity.');
+  }
+  if (lines.length === 0) return '';
+  return `# Answer depth\n${lines.join('\n')}`;
+}
+
+/**
+ * Renders a per-turn contextual frame for personal narrative evidence.
+ *
+ * Activation gates (both must be true):
+ *   1. interviewIntent.contextRequirements.stories === true (this turn needs narrative)
+ *   2. At least one StoryBank evidence item survived packing and privacy filtering.
+ *
+ * Gate 2 ensures the frame is never rendered when no personal evidence
+ * actually reached the model — telling the LLM to use evidence it was not
+ * given is a fabrication risk, not a grounding instruction.
+ *
+ * The frame lives in the USER message immediately after the evidence block.
+ * It is contextual framing for what the evidence IS, not a permanent rule.
+ * The permanent rules (PERMANENT_RULES) already prohibit fabrication;
+ * this section tells the model what the evidence in this turn represents.
+ */
+function renderPersonalEvidenceFrame(
+  evidence: EvidenceItem[],
+  packed: PackedContext,
+  d: Readonly<TurnDecision>,
+): string {
+  if (d.interviewIntent?.contextRequirements.stories !== true) return '';
+  const includedIds = new Set(packed.includedEvidenceIds);
+  const hasPersonal = evidence.some(
+    (e) => includedIds.has(e.evidenceId)
+      && (e.metadata as Record<string, unknown> | undefined)?.storyBank === true,
+  );
+  if (!hasPersonal) return '';
+  return '# Personal experience evidence\n'
+    + 'The evidence above includes personal background — the candidate\'s own projects, experience, and achievements. '
+    + 'When answering:\n'
+    + '- Speak from this personal evidence; do not add details it does not mention.\n'
+    + '- Do not invent metrics, outcomes, or technologies that are not in the evidence.\n'
+    + '- If the evidence is insufficient to answer fully, acknowledge the gap honestly '
+    + 'rather than filling it with invented experience.\n'
+    + '- Do not fabricate personal experience under any circumstances.';
+}
+
 export function composePrompt(input: ComposeInput): ComposedPrompt {
   const { decision: d, policy, evidence } = input;
 
@@ -512,6 +596,11 @@ export function composePrompt(input: ComposeInput): ComposedPrompt {
     push('source_authority', authorityRules(d) ? `# Source authority\n${authorityRules(d)}` : ''),
     push('mode', `# Mode\n${policy.name} — ${policy.purpose}`),
     push('grounding', `# Grounding\n${fallbackGuidance(d, policy)}`),
+    // Phase 8: answer approach — construction instructions from the selected strategy.
+    // Placed after grounding (which defines what may be claimed) and before the
+    // per-evidence contracts so strategy text precedes the data it governs.
+    push('answer_strategy', renderAnswerStrategy(d)),
+    push('answer_depth', renderAnswerDepth(d)),
     push('follow_up', followUpGuidance(d, input.fallbackUsed, Boolean(input.conversationSummary))),
     push('absence_contract', absenceContract(evidence, input.withheldScopes)),
     push('precedence_contract', precedenceContract(evidence)),
@@ -555,6 +644,11 @@ export function composePrompt(input: ComposeInput): ComposedPrompt {
     packed.evidenceBlock && input.withheldScopes?.length
       ? push('privacy_withheld', privacyWithholdingNotice(input.withheldScopes, true))
       : '',
+    // Phase 8: personal experience frame — rendered only when stories=true AND
+    // at least one StoryBank evidence item actually survived packing/privacy
+    // filtering. Placed in the user message immediately after the evidence block
+    // because it contextualises what the evidence is, not what the rules are.
+    push('personal_evidence_frame', renderPersonalEvidenceFrame(evidence, packed, d)),
     input.realtimeInstruction ? push('presentation', renderRealtime(input.realtimeInstruction)) : '',
   ].filter((s) => s.trim()).join('\n\n');
 
