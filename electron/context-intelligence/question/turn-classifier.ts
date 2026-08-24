@@ -366,10 +366,42 @@ const CODING_TASK_RE = /\b(reverse a|implement (a|an)|write (a|the) (code|functi
 
 const SYSTEM_DESIGN_RE = /\b(design a|scale (a|the|to)|system design|architecture for|how would you (build|design)|throughput|sharding|load balanc|(would|will|can|does) (it|that|this) scale)\b/;
 
+// Phase 10: LLD detection — two-tier check used in buildInterviewIntent.
+//
+// LLD_STRONG_RE: explicit low-level / OOP vocabulary. Fires unconditionally — if the
+// question contains "lld", "design the classes", "class diagram", etc., the intent is
+// unambiguous regardless of any co-occurring HLD vocabulary.
+//
+// LLD_DOMAIN_RE: canonical OOP/object-design problem domains. Fires ONLY when
+// HLD_SIGNALS_RE is absent, so "Design a parking lot with distributed replicas" stays
+// system_design while "Design a parking lot" routes to lld.
+//
+// Both are checked BEFORE cls.questionTypes.includes('SYSTEM_DESIGN') in
+// buildInterviewIntent because SYSTEM_DESIGN_RE's "design a" pattern would otherwise win.
+const LLD_STRONG_RE = /\b(?:low[- ]level design|lld\b|design (?:the )?(?:class(?:es)?|interfaces?|objects?)|class diagram|object[- ]oriented design|classes and interfaces)\b/i;
+const LLD_DOMAIN_RE = /\bdesign (?:a|an)\s+(?:parking (?:lot|garage|system)|vending machine|elevator(?: system| controller)?|chess(?: game| engine)?|deck of cards?|coffee (?:maker|machine|vending machine)?|atm(?: machine)?|movie (?:ticket|booking)(?: system)?|restaurant(?: management| ordering| system)?|library(?: management| system)?)\b/i;
+const HLD_SIGNALS_RE = /\b(?:distributed|scalable|microservic|load balanc|shard(?:ing)?|replica(?:tion)?|partition(?:ing)?|millions?|billions?|at scale|high[- ]?availab|fault[- ]?tolerant|horizontal scal)\b/i;
+
 // Extended experience framing — covers "tell me about / describe / walk me through a [difficulty-adj] X"
 // without requiring the canonical "a time when" form used by BEHAVIORAL_FRAMING_RE.
 // Defined here (before detectTypes) so behavioralFraming can reference it at line ~535.
 const EXPERIENCE_CHALLENGE_RE = /\b(?:tell (?:me|us) about|describe|walk (?:me|us) through)\s+(?:a|an)\s+(?:\w+\s+){0,2}(?:difficult|challenging|complex|hard|tough|tricky|critical|significant|notable)\b/i;
+
+// Phase 10: technology decision — "why did you choose/use/go with [tech]?"
+//
+// Two-part check: TECH_DECISION_FRAMING_RE captures the choice/selection verb framing;
+// TECH_DECISION_SUBJECT_RE gates on a recognised technology name.
+//
+// False-positive guards:
+//   "Why did you choose this career?"  → framing matches, subject does NOT → no fire
+//   "Why did you disagree?"            → framing does NOT match (no choice verb) → no fire
+//   "Why did you leave your company?"  → framing does NOT match ("leave" ≠ choice verb) → no fire
+//   "Why?"                             → framing does NOT match (requires verb phrase) → no fire
+const TECH_DECISION_FRAMING_RE = /\bwhy\s+did\s+you\s+(?:choose|use|go\s+with|go\s+for|pick|select|opt\s+for)\b|\bwhat\s+made\s+you\s+(?:choose|use|pick|go\s+with|select)\b|\bwhy\s+did\s+you\s+decide\s+(?:to\s+use|on)\b/i;
+// Mainstream databases, frameworks, languages, and infrastructure used in architectural-choice
+// questions. Deliberately focused — kept narrow enough to avoid obvious false positives while
+// covering all required technology-decision test cases.
+const TECH_DECISION_SUBJECT_RE = /\b(?:redis|kafka|rabbitmq|mongodb|postgresql|postgres|mysql|sqlite|cassandra|dynamodb|elasticsearch|memcached|react|angular|vue|svelte|nextjs|nuxt|typescript|javascript|python|java|kotlin|swift|rust|golang|ruby|php|scala|node(?:\.?js)?|express|fastify|django|flask|rails|spring|docker|kubernetes|terraform|nginx|apache|graphql|grpc|websocket|aws|gcp|azure|microservices?|serverless)\b/i;
 
 // A bare follow-up carries no subject of its own ("Why?", "Would that scale?").
 // It must NOT match a self-contained general question that merely starts with the
@@ -1153,6 +1185,8 @@ export function buildInterviewIntent(
     intent = 'follow_up_generic';
   } else if (cls.questionTypes.includes('CODING_TASK')) {
     intent = 'coding_task';
+  } else if (LLD_STRONG_RE.test(raw) || (LLD_DOMAIN_RE.test(raw) && !HLD_SIGNALS_RE.test(raw))) {
+    intent = 'lld';
   } else if (cls.questionTypes.includes('SYSTEM_DESIGN')) {
     intent = 'system_design';
   } else if (BEHAVIORAL_FRAMING_RE.test(raw)) {
@@ -1163,6 +1197,8 @@ export function buildInterviewIntent(
     intent = 'experience_question';
   } else if (EXPERIENCE_CHALLENGE_RE.test(raw)) {
     intent = 'experience_question';
+  } else if (TECH_DECISION_FRAMING_RE.test(raw) && TECH_DECISION_SUBJECT_RE.test(raw)) {
+    intent = 'technology_decision';
   } else if (cls.questionTypes.includes('PERSONAL_PROJECT') && /\bwhy\b/i.test(raw)) {
     intent = 'technology_decision';
   } else if (PROJECT_DEEP_RE.test(raw) && cls.questionTypes.includes('PERSONAL_PROJECT')) {
@@ -1179,8 +1215,6 @@ export function buildInterviewIntent(
     intent = 'scalability';
   } else if (/\b(?:debug|why is this (?:failing|broken)|what'?s wrong)\b/i.test(raw)) {
     intent = 'debugging';
-  } else if (/\b(?:low[- ]level design|design (?:the )?class|lld\b)\b/i.test(raw)) {
-    intent = 'lld';
   } else if (/\b(?:do you know|are you familiar with|have you heard of)\b/i.test(raw)) {
     intent = 'knowledge_check';
   } else if (cls.questionTypes.includes('FOLLOW_UP')) {
