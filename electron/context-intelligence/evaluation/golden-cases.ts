@@ -615,4 +615,565 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       storyBankActivated: false,
     },
   },
+
+  // ── Phase 12: project_deep_dive (gc_047–gc_049) ──────────────────────────────
+  // PROJECT_DEEP_RE = /\bhow did you (?:handle|solve|approach)\b/i AND
+  // cls.questionTypes includes PERSONAL_PROJECT (personal=true AND PROJECT_RE match).
+  // All three produce describe_project strategy — shares with project_context.
+  {
+    id: 'gc_047',
+    question: 'How did you handle scaling in your project?',
+    risk: 'high',
+    notes: 'PROJECT_DEEP_RE + PERSONAL_PROJECT → project_deep_dive; first coverage of this intent',
+    expected: {
+      intent: 'project_deep_dive',
+      strategy: 'describe_project',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: true, documents: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+  {
+    id: 'gc_048',
+    question: 'How did you approach the architecture of your project?',
+    risk: 'high',
+    notes: 'PROJECT_DEEP_RE + PERSONAL_PROJECT → project_deep_dive',
+    expected: {
+      intent: 'project_deep_dive',
+      strategy: 'describe_project',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: true, documents: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+  {
+    id: 'gc_049',
+    question: 'How did you handle failures in the service you shipped?',
+    risk: 'medium',
+    notes: 'PROJECT_DEEP_RE ("handle") + PERSONAL_PROJECT ("you shipped" → PERSONAL_RE + PROJECT_RE)',
+    expected: {
+      intent: 'project_deep_dive',
+      strategy: 'describe_project',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: true, documents: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+
+  // ── Phase 12: scalability (gc_050–gc_052) ────────────────────────────────────
+  // HIGH risk: /\b(?:scale|10x|traffic (?:grows|increases)|handle load)\b/ routing.
+  // gc_052 is a boundary negative — "10x increase in traffic" routes to project_context,
+  // not scalability, because PERSONAL_PROJECT fires before scalability in the chain.
+  {
+    id: 'gc_050',
+    question: 'How would you scale this to handle millions of users?',
+    risk: 'high',
+    notes: 'scalability RE fires; first coverage of this intent',
+    expected: {
+      intent: 'scalability',
+      strategy: 'analyze_scale',
+      behavior: 'QUESTION',
+      contextRequirements: { documents: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_051',
+    question: 'How would you scale this system horizontally?',
+    risk: 'medium',
+    expected: {
+      intent: 'scalability',
+      strategy: 'analyze_scale',
+      behavior: 'QUESTION',
+      contextRequirements: { documents: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_052',
+    question: 'How would you handle a 10x increase in traffic?',
+    risk: 'high',
+    notes: 'Scalability boundary — "10x" matches scalability RE but PERSONAL_PROJECT fires first → project_context; must NOT be scalability',
+    expected: {
+      intent: 'project_context',
+      strategy: 'describe_project',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: true, documents: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+
+  // ── Phase 12: optimization — three CR variants (gc_053–gc_056) ───────────────
+  // gc_053/055 probe that the same intent produces different CR sets based on
+  // question phrasing; gc_056 is a boundary negative for optimization.
+  {
+    id: 'gc_053',
+    question: 'How would you optimize this query?',
+    risk: 'medium',
+    expected: {
+      intent: 'optimization',
+      strategy: 'optimize_approach',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_054',
+    question: 'How would you optimize this code?',
+    risk: 'medium',
+    notes: '"this code" → code=true; screen-context signal',
+    expected: {
+      intent: 'optimization',
+      strategy: 'optimize_approach',
+      behavior: 'QUESTION',
+      contextRequirements: { code: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_055',
+    question: 'How would you improve the performance of this API?',
+    risk: 'medium',
+    notes: '"API" → documents=true; reference-file signal',
+    expected: {
+      intent: 'optimization',
+      strategy: 'optimize_approach',
+      behavior: 'QUESTION',
+      contextRequirements: { documents: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_056',
+    question: 'How would you make this algorithm faster?',
+    risk: 'high',
+    notes: 'Optimization boundary — "faster" does not match optimize RE; routes to concept_explanation; must NOT be optimization',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { documents: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 12: knowledge_check (gc_057–gc_060) ────────────────────────────────
+  // HIGH risk: /\b(?:do you know|are you familiar with|have you heard of)\b/
+  // gc_059–060 are boundary negatives — "have you ever used" and "what is your
+  // experience" do NOT match the knowledge_check RE and fall through to concept_explanation.
+  {
+    id: 'gc_057',
+    question: 'Are you familiar with GraphQL?',
+    risk: 'high',
+    notes: 'knowledge_check RE fires; "GraphQL" triggers documents=true reference-file pattern',
+    expected: {
+      intent: 'knowledge_check',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { documents: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_058',
+    question: 'Do you know about event sourcing?',
+    risk: 'medium',
+    expected: {
+      intent: 'knowledge_check',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_059',
+    question: 'Have you ever used Kubernetes?',
+    risk: 'high',
+    notes: 'Knowledge_check boundary — "have you ever used" does NOT match knowledge_check RE; falls to concept_explanation; must NOT be knowledge_check',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_060',
+    question: 'What is your experience with Redis?',
+    risk: 'medium',
+    notes: 'Knowledge_check boundary — "what is your experience" does NOT match knowledge_check RE; falls to concept_explanation',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 12: PUSHBACK / defend_position (gc_061–gc_063) ─────────────────────
+  // HIGH risk — only behavior override that requires a specific linguistic form;
+  // the trigger is narrow and regressions would silently fall to concept_explanation.
+  // gc_063 asserts the negative: a softened pushback form must NOT trigger PUSHBACK.
+  {
+    id: 'gc_061',
+    question: 'That seems overly complicated though, why not just use Redis?',
+    risk: 'high',
+    notes: 'IB_PUSHBACK_RE fires → follow_up_generic, strategy=defend_position, behavior=PUSHBACK; first PUSHBACK coverage',
+    expected: {
+      intent: 'follow_up_generic',
+      strategy: 'defend_position',
+      behavior: 'PUSHBACK',
+      contextRequirements: { conversation: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_062',
+    question: "That approach won't scale — why not use a simpler solution?",
+    risk: 'high',
+    notes: 'IB_PUSHBACK_RE fires → PUSHBACK → defend_position',
+    expected: {
+      intent: 'follow_up_generic',
+      strategy: 'defend_position',
+      behavior: 'PUSHBACK',
+      contextRequirements: { conversation: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_063',
+    question: "But wouldn't a simpler approach work better here?",
+    risk: 'high',
+    notes: 'PUSHBACK boundary — softened form lacks the "why not" phrasing; routes to concept_explanation; must NOT be PUSHBACK',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 12: boundary pairs ──────────────────────────────────────────────────
+
+  // lld vs system_design — HLD_SIGNALS_RE must prevent domain-name LLD routing
+  {
+    id: 'gc_064',
+    question: 'Design a high-level distributed storage system.',
+    risk: 'high',
+    notes: 'HLD_SIGNALS_RE fires ("high-level") → system_design; must NOT be lld even though "design" is present',
+    expected: {
+      intent: 'system_design',
+      strategy: 'design_system',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // coding_task vs mechanism_explanation — "implement" vs "how does … work"
+  {
+    id: 'gc_065',
+    question: 'Implement a rate limiter in Python.',
+    risk: 'medium',
+    notes: 'Coding/mechanism boundary — "implement" → coding_task; cf. gc_066 for the mechanism form',
+    expected: {
+      intent: 'coding_task',
+      strategy: 'implement_solution',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_066',
+    question: 'How does the rate limiter work?',
+    risk: 'medium',
+    notes: 'Coding/mechanism boundary — "how does … work" → mechanism_explanation; cf. gc_065 for the coding form',
+    expected: {
+      intent: 'mechanism_explanation',
+      strategy: 'explain_mechanism',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 12: negative contextRequirements (gc_067–gc_071) ───────────────────
+  // These cases assert that personal-context flags (resume, stories) are FALSE for
+  // generic technical questions. The evaluator raises cr_false_positive if any
+  // asserted-false flag is true in the actual output.
+  {
+    id: 'gc_067',
+    question: 'Design a notification system.',
+    risk: 'high',
+    notes: 'system_design must NOT activate stories/resume/code retrieval',
+    expected: {
+      intent: 'system_design',
+      strategy: 'design_system',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true, stories: false, resume: false, code: false },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_068',
+    question: 'Design the classes for a library management system.',
+    risk: 'high',
+    notes: 'lld must NOT activate stories/resume retrieval',
+    expected: {
+      intent: 'lld',
+      strategy: 'design_classes',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true, stories: false, resume: false },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_069',
+    question: 'What is a race condition?',
+    risk: 'medium',
+    notes: 'concept_explanation must NOT activate personal-context retrieval',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true, stories: false, resume: false },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_070',
+    question: 'How would you debug a race condition?',
+    risk: 'medium',
+    notes: 'debugging must NOT activate personal-context retrieval when no personal framing',
+    expected: {
+      intent: 'debugging',
+      strategy: 'trace_bug',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true, stories: false, resume: false },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_071',
+    question: 'How does the HTTP request-response cycle work?',
+    risk: 'medium',
+    notes: 'mechanism_explanation must NOT activate personal-context retrieval',
+    expected: {
+      intent: 'mechanism_explanation',
+      strategy: 'explain_mechanism',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true, stories: false, resume: false },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 12: additional thin-coverage intents ────────────────────────────────
+
+  // tradeoff (Phase 11 had 1 case; adding 2 more)
+  {
+    id: 'gc_072',
+    question: 'What are the tradeoffs of using a message queue?',
+    risk: 'medium',
+    expected: {
+      intent: 'tradeoff',
+      strategy: 'analyze_options',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_073',
+    question: 'What are the pros and cons of eventual consistency?',
+    risk: 'low',
+    expected: {
+      intent: 'tradeoff',
+      strategy: 'analyze_options',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // behavioral (Phase 11 had 1 case; adding 2 more)
+  {
+    id: 'gc_074',
+    question: 'Tell me about a time you led a project under pressure.',
+    risk: 'medium',
+    expected: {
+      intent: 'behavioral',
+      strategy: 'tell_behavioral_story',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+  {
+    id: 'gc_075',
+    question: 'Tell me about a time you had to resolve a conflict between team members.',
+    risk: 'medium',
+    expected: {
+      intent: 'behavioral',
+      strategy: 'tell_behavioral_story',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+
+  // experience_question (Phase 11 had 1 case; adding 1 more)
+  {
+    id: 'gc_076',
+    question: 'Tell me about a challenging bug you had to fix.',
+    risk: 'medium',
+    expected: {
+      intent: 'experience_question',
+      strategy: 'narrate_experience',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+
+  // coding_task additional
+  {
+    id: 'gc_077',
+    question: 'Write a function to reverse a linked list.',
+    risk: 'medium',
+    notes: '"Write a function" → coding_task; contrast with "Write a depth-first search" which routes to concept_explanation',
+    expected: {
+      intent: 'coding_task',
+      strategy: 'implement_solution',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // debugging additional
+  {
+    id: 'gc_078',
+    question: 'How would you debug a race condition?',
+    risk: 'medium',
+    notes: 'Same question as gc_070 but without negative CR assertions — confirms debug intent triggers consistently',
+    expected: {
+      intent: 'debugging',
+      strategy: 'trace_bug',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 12: personal vs non-personal variant (gc_079) ─────────────────────
+  // "How did you debug the issue in your project?" looks like debugging but
+  // PERSONAL_PROJECT fires first → project_context. Tests that personal framing
+  // diverts to the project retrieval path even for debugging-style questions.
+  {
+    id: 'gc_079',
+    question: 'How did you debug the issue in your project?',
+    risk: 'high',
+    notes: 'Personal framing + PROJECT_RE → PERSONAL_PROJECT → project_context; must NOT be debugging',
+    expected: {
+      intent: 'project_context',
+      strategy: 'describe_project',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: true, documents: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+
+  // ── Phase 12: follow_up_generic variants (gc_080–gc_082) ────────────────────
+  // Additional DEEPENING and FOLLOW_UP forms beyond gc_042–044.
+  {
+    id: 'gc_080',
+    question: 'Can you elaborate?',
+    risk: 'medium',
+    notes: 'IB_DEEPENING_RE fires → DEEPENING → deepen_explanation',
+    expected: {
+      intent: 'follow_up_generic',
+      strategy: 'deepen_explanation',
+      behavior: 'DEEPENING',
+      contextRequirements: { conversation: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_081',
+    question: 'Go on.',
+    risk: 'medium',
+    notes: 'IB_DEEPENING_RE fires → DEEPENING → deepen_explanation',
+    expected: {
+      intent: 'follow_up_generic',
+      strategy: 'deepen_explanation',
+      behavior: 'DEEPENING',
+      contextRequirements: { conversation: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_082',
+    question: 'Can you give an example?',
+    risk: 'medium',
+    notes: 'FOLLOW_UP questionType (legacy classifier) → continue_thread; not DEEPENING',
+    expected: {
+      intent: 'follow_up_generic',
+      strategy: 'continue_thread',
+      behavior: 'FOLLOW_UP',
+      contextRequirements: { conversation: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 12: comparison additional (gc_083–gc_084) ─────────────────────────
+  {
+    id: 'gc_083',
+    question: "What's the difference between PostgreSQL and MongoDB?",
+    risk: 'low',
+    expected: {
+      intent: 'comparison',
+      strategy: 'analyze_options',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_084',
+    question: 'Compare synchronous and asynchronous programming.',
+    risk: 'low',
+    notes: '"asynchronous" triggers documents=true reference-file pattern',
+    expected: {
+      intent: 'comparison',
+      strategy: 'analyze_options',
+      behavior: 'QUESTION',
+      contextRequirements: { documents: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 12: personal concept_explanation (gc_085) ─────────────────────────
+  // "Why did you design" has PERSONAL_RE + MOTIVATION_RE, but because there is no
+  // PROJECT_RE match on "design" alone (PERSONAL_PROJECT needs "project", "built",
+  // etc.), it falls through to concept_explanation with projects=true from the
+  // personal context signal.
+  {
+    id: 'gc_085',
+    question: 'Why did you design the database schema that way?',
+    risk: 'medium',
+    notes: 'Personal framing but no PROJECT_RE match → concept_explanation; projects=true from personal context signal',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { projects: true },
+      storyBankActivated: false,
+    },
+  },
 ] as const;
