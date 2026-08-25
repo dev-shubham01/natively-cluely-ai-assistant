@@ -187,12 +187,16 @@ describe('unsupported-in-mode is distinct from "no source needed"', () => {
 // FULL with ZERO evidence: the one shape that licenses fabricating a number.
 
 describe('metric-of-a-definite-subject is grounded, not general', () => {
-  test('the G-03 question retrieves and claims the primary source', () => {
+  test('the G-03 question retrieves with a private fact claim', () => {
     const c = classify('What is the peak transaction volume of the payments API?', 'technical-interview');
     assert.equal(c.shouldRetrieve, true, 'must retrieve — model knowledge cannot hold this value');
     assert.notEqual(c.path, 'FAST');
-    assert.ok(c.claimTypes.includes('USER_PROJECT'),
-      `the mode's primary source must claim it, got ${JSON.stringify(c.claimTypes)}`);
+    // Phase 15 (D-01 fix): before D-01 the RESUME-primary fallback produced USER_PROJECT
+    // for this metric question even with no personal cue. After D-01 it correctly gets
+    // DOCUMENT_FACT via the definite-value-lookup path. Retrieval is still required;
+    // only the claim type refines to reflect that this is a document fact, not project context.
+    assert.ok(c.claimTypes.includes('DOCUMENT_FACT'),
+      `must carry a private fact claim (DOCUMENT_FACT), got ${JSON.stringify(c.claimTypes)}`);
     assert.ok(!c.claimTypes.includes('GENERAL_TECHNICAL'),
       'a general claim here would satisfy answerability with no evidence at all');
   });
@@ -1090,5 +1094,147 @@ describe('Phase 10 — all 18 InterviewIntentType values reachable', () => {
   test('"How did you handle scaling in your project?" → project_deep_dive', () => {
     const r = classify('How did you handle scaling in your project?');
     assert.equal(r.interviewIntent.intent, 'project_deep_dive');
+  });
+});
+
+// ── Phase 15: D-02 — past-tense personal project detection ──────────────────
+//
+// PERSONAL_PAST_PROJECT_RE was added to catch "you built/designed/shipped/…"
+// constructions that previously fell through PERSONAL_RE (which requires "your",
+// "did you", etc.). Requirements state these are personal project questions, not
+// generic concepts. Expected values derived from V1 spec.
+
+describe('Phase 15 D-02 — personal past-verb project detection', () => {
+  test('"Tell me about a project you built." → project_context', () => {
+    const r = classify('Tell me about a project you built.');
+    assert.equal(r.interviewIntent.intent, 'project_context', `intent was ${r.interviewIntent.intent}`);
+    assert.equal(r.interviewIntent.contextRequirements.projects, true);
+    assert.equal(r.interviewIntent.contextRequirements.stories, true);
+  });
+
+  test('"Tell me about a project you designed." → project_context', () => {
+    const r = classify('Tell me about a project you designed.');
+    assert.equal(r.interviewIntent.intent, 'project_context', `intent was ${r.interviewIntent.intent}`);
+    assert.equal(r.interviewIntent.contextRequirements.projects, true);
+  });
+
+  test('"Tell me about a project you worked on." → project_context', () => {
+    const r = classify('Tell me about a project you worked on.');
+    assert.equal(r.interviewIntent.intent, 'project_context', `intent was ${r.interviewIntent.intent}`);
+    assert.equal(r.interviewIntent.contextRequirements.projects, true);
+  });
+
+  test('"Tell me about a project you shipped." → project_context', () => {
+    const r = classify('Tell me about a project you shipped.');
+    assert.equal(r.interviewIntent.intent, 'project_context', `intent was ${r.interviewIntent.intent}`);
+    assert.equal(r.interviewIntent.contextRequirements.projects, true);
+  });
+
+  test('"Tell me about a project you developed." → project_context', () => {
+    const r = classify('Tell me about a project you developed.');
+    assert.equal(r.interviewIntent.intent, 'project_context', `intent was ${r.interviewIntent.intent}`);
+    assert.equal(r.interviewIntent.contextRequirements.projects, true);
+  });
+
+  // Negative boundary: present-tense "how do you X" must not become project_context
+  // (D-02 requirement explicitly lists these as generic).
+  test('"How do you implement caching?" → NOT project_context', () => {
+    const r = classify('How do you implement caching?');
+    assert.notEqual(r.interviewIntent.intent, 'project_context',
+      '"How do you implement caching?" must NOT be project_context — it is a generic how-to question');
+    assert.notEqual(r.interviewIntent.intent, 'project_deep_dive',
+      '"How do you implement caching?" must NOT be project_deep_dive');
+  });
+
+  test('"How do you debug a memory leak?" → NOT project_context', () => {
+    const r = classify('How do you debug a memory leak?');
+    assert.notEqual(r.interviewIntent.intent, 'project_context',
+      '"How do you debug a memory leak?" must NOT be project_context');
+  });
+});
+
+// ── Phase 15: D-01 — source availability must not change semantic intent ─────
+//
+// V1 requirement: "A question determines what context is needed. Available uploaded
+// sources determine what evidence can actually be retrieved." These tests verify that
+// entity-naming general questions stay general regardless of mode/source configuration.
+
+describe('Phase 15 D-01 — source availability does not change semantic intent', () => {
+  test('"How does garbage collection work in V8?" → mechanism_explanation (not project_context)', () => {
+    // "V8" is a JS engine (tech entity). No personal cue → must remain generic.
+    const r = classify('How does garbage collection work in V8?');
+    assert.notEqual(r.interviewIntent.intent, 'project_context',
+      '"V8" entity must not trigger project_context — no personal semantic cue present');
+    assert.notEqual(r.interviewIntent.intent, 'project_deep_dive',
+      'no personal cue → not project_deep_dive');
+    // Must stay general
+    const generalIntents = ['concept_explanation', 'mechanism_explanation', 'debugging'];
+    assert.ok(
+      generalIntents.includes(r.interviewIntent.intent),
+      `intent was ${r.interviewIntent.intent}; expected one of ${generalIntents.join(', ')}`,
+    );
+  });
+
+  test('"How would you handle a 10x increase in traffic?" → scalability (not project_context)', () => {
+    // No personal cue; "10x" + "traffic" match the scalability RE.
+    const r = classify('How would you handle a 10x increase in traffic?');
+    assert.equal(r.interviewIntent.intent, 'scalability',
+      `intent was ${r.interviewIntent.intent}; must be scalability after D-01 fix`);
+    assert.equal(r.interviewIntent.contextRequirements.projects, false,
+      'no personal cue → projects=false');
+    assert.equal(r.interviewIntent.contextRequirements.stories, false,
+      'no personal cue → stories=false');
+  });
+
+  test('"What is Kafka?" → concept_explanation (not project_context)', () => {
+    // Kafka is a generic tech name; no personal cue.
+    const r = classify('What is Kafka?');
+    assert.notEqual(r.interviewIntent.intent, 'project_context',
+      '"What is Kafka?" must not be project_context with no personal cue');
+  });
+
+  // Positive control: personal cue present → still gets personal intent
+  test('"Tell me about your Kafka project." → project_context (personal cue preserved)', () => {
+    const r = classify('Tell me about your Kafka project.');
+    assert.equal(r.interviewIntent.intent, 'project_context',
+      '"your" is a personal cue → project_context must be preserved');
+  });
+});
+
+// ── Phase 15: D-03 — coding_task derivation uses interviewIntent, not questionTypes ─
+//
+// Before Phase 15, engine-bridge derived codingTask from questionTypes.includes('CODING_TASK').
+// CODING_TASK_RE fires for DSA concept questions, but Phase 13 already resolved them to
+// concept_explanation/mechanism_explanation in interviewIntent.intent. The fix: derive
+// codingTask from interviewIntent.intent === 'coding_task'.
+// These tests verify the classifier side; engine-bridge tests verify the bridge side.
+
+describe('Phase 15 D-03 — classifier: coding intent must not bleed into concept questions', () => {
+  test('"What is a binary search tree?" → concept_explanation (CODING_TASK in questionTypes is OK; intent must be concept)', () => {
+    const r = classify('What is a binary search tree?');
+    // CODING_TASK may still appear in questionTypes (CODING_TASK_RE fires on "binary search")
+    // but the AUTHORITATIVE decision lives in interviewIntent.intent.
+    assert.equal(r.interviewIntent.intent, 'concept_explanation',
+      `intent was ${r.interviewIntent.intent}; DSA concept must NOT produce coding_task intent`);
+  });
+
+  test('"How does binary search work?" → mechanism_explanation (not coding_task)', () => {
+    const r = classify('How does binary search work?');
+    assert.notEqual(r.interviewIntent.intent, 'coding_task',
+      '"How does binary search work?" must be mechanism, not coding_task');
+  });
+
+  test('"Implement binary search." → coding_task (actual coding ask stays coding)', () => {
+    const r = classify('Implement binary search.');
+    assert.equal(r.interviewIntent.intent, 'coding_task',
+      '"Implement binary search." must produce coding_task intent');
+  });
+
+  test('"How did you solve the performance issue in your project?" → project_deep_dive (not coding_task)', () => {
+    const r = classify('How did you solve the performance issue in your project?');
+    assert.notEqual(r.interviewIntent.intent, 'coding_task',
+      'Personal project retrospective must not be coding_task');
+    assert.equal(r.interviewIntent.intent, 'project_deep_dive',
+      `intent was ${r.interviewIntent.intent}; must be project_deep_dive`);
   });
 });

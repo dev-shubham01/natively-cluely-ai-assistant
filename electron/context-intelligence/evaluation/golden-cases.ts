@@ -161,11 +161,20 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
     id: 'gc_012',
     question: 'What made you choose Kafka?',
     risk: 'high',
+    // Phase 15 (D-01 / D-02 fix): "made you choose" is now detected by
+    // PERSONAL_PAST_PROJECT_RE as a personal technology-decision cue, so
+    // D-01 allows the personal routing. The question produces USER_MOTIVATION
+    // (not USER_PROJECT) because MOTIVATION_RE fires first. USER_MOTIVATION's
+    // claim authority prohibits RESUME and is satisfied by PROFILE_FACT, so
+    // resume=false is correct post-fix (the probe-derived resume=true and
+    // documents=true from the pre-D-01 fallback path are removed).
+    // projects=true comes from the USER_MOTIVATION → projects mapping (line 1329).
+    notes: 'personal tech-decision ("made you choose") → technology_decision; USER_MOTIVATION claim → projects=true, stories=true; resume excluded per CLAIM_AUTHORITY',
     expected: {
       intent: 'technology_decision',
       strategy: 'justify_decision',
       behavior: 'QUESTION',
-      contextRequirements: { resume: true, projects: true, documents: true, stories: true },
+      contextRequirements: { projects: true, stories: true },
       storyBankActivated: true,
     },
   },
@@ -693,13 +702,18 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
     id: 'gc_052',
     question: 'How would you handle a 10x increase in traffic?',
     risk: 'high',
-    notes: 'Scalability boundary — "10x" matches scalability RE but PERSONAL_PROJECT fires first → project_context; must NOT be scalability',
+    // Phase 15 (D-01 fix): this question has no personal semantic cue ("would you handle"
+    // lacks "your", "did you", etc.) and is asking about a hypothetical scalability
+    // scenario. V1 requirement: question semantics determine intent, not source
+    // availability. "10x" + "traffic" matches the scalability RE → scalability intent.
+    // Prior expectation of project_context encoded the D-01 defect as ground truth.
+    notes: 'Scalability question — "10x" + "traffic" matches scalability RE; no personal cue → scalability (not project_context)',
     expected: {
-      intent: 'project_context',
-      strategy: 'describe_project',
+      intent: 'scalability',
+      strategy: 'analyze_scale',
       behavior: 'QUESTION',
-      contextRequirements: { resume: true, projects: true, documents: true, stories: true },
-      storyBankActivated: true,
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
     },
   },
 
@@ -1056,20 +1070,9 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
     },
   },
 
-  // debugging additional
-  {
-    id: 'gc_078',
-    question: 'How would you debug a race condition?',
-    risk: 'medium',
-    notes: 'Same question as gc_070 but without negative CR assertions — confirms debug intent triggers consistently',
-    expected: {
-      intent: 'debugging',
-      strategy: 'trace_bug',
-      behavior: 'QUESTION',
-      contextRequirements: { generalKnowledge: true },
-      storyBankActivated: false,
-    },
-  },
+  // gc_078 removed (Phase 15): exact duplicate of gc_070 (same question, same expected
+  // values, no additional signal). gc_070 is retained; it carries the richer negative
+  // CR assertions (stories: false, resume: false) that make it the more useful test.
 
   // ── Phase 12 → Phase 14 revised: personal debug question (gc_079) ──────────
   // Phase 14 (AG-003): "How did you debug X in your project?" is a specific
@@ -1284,6 +1287,131 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       strategy: 'implement_solution',
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 15: D-02 personal past-verb detection (gc_092–gc_097) ───────────────
+  // V1 requirement: "a project you built/designed/shipped…" is a personal project
+  // question. These lack "your" or "did you" so PERSONAL_RE did not match them;
+  // PERSONAL_PAST_PROJECT_RE (Phase 15) fixes the detection gap.
+  // Expected values derived from V1 spec, NOT from probing the implementation.
+  {
+    id: 'gc_092',
+    question: 'Tell me about a project you built.',
+    risk: 'high',
+    notes: 'D-02 fix: "you built" is a past-tense personal project cue → project_context; must NOT be concept_explanation',
+    expected: {
+      intent: 'project_context',
+      strategy: 'describe_project',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+  {
+    id: 'gc_093',
+    question: 'Tell me about a project you designed.',
+    risk: 'high',
+    notes: 'D-02 fix: "you designed" → project_context',
+    expected: {
+      intent: 'project_context',
+      strategy: 'describe_project',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+  {
+    id: 'gc_094',
+    question: 'Tell me about a project you worked on.',
+    risk: 'high',
+    notes: 'D-02 fix: "you worked on" → project_context',
+    expected: {
+      intent: 'project_context',
+      strategy: 'describe_project',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+  {
+    id: 'gc_095',
+    question: 'Tell me about a project you shipped.',
+    risk: 'high',
+    notes: 'D-02 fix: "you shipped" → project_context',
+    expected: {
+      intent: 'project_context',
+      strategy: 'describe_project',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: true, stories: true },
+      storyBankActivated: true,
+    },
+  },
+
+  // ── Phase 15: D-02 generic negative boundary (gc_096–gc_097) ─────────────────
+  // Present-tense "how do you X" questions must remain generic — "do you" in
+  // PERSONAL_RE DOES fire, but these have no PROJECT_RE match so they stay
+  // out of project_context. Verified by intent requirement, not probe.
+  {
+    id: 'gc_096',
+    question: 'How do you implement caching?',
+    risk: 'medium',
+    notes: 'D-02 negative boundary: present-tense generic ask; no project framing → NOT project_context',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { stories: false, projects: false },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_097',
+    question: 'How do you debug a memory leak?',
+    risk: 'medium',
+    notes: 'D-02 negative: generic debugging question with no project framing → debugging, not project_context',
+    expected: {
+      intent: 'debugging',
+      strategy: 'trace_bug',
+      behavior: 'QUESTION',
+      contextRequirements: { stories: false, projects: false },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 15: D-01 source-invariance cases (gc_098–gc_099) ───────────────────
+  // V1 requirement: source availability must NOT change semantic intent.
+  // These questions name a technical entity but have no personal semantic cue.
+  // After D-01 fix: same intent regardless of whether a résumé is in the mode.
+  {
+    id: 'gc_098',
+    question: 'How does garbage collection work in V8?',
+    risk: 'high',
+    notes: 'D-01 fix: "V8" is a tech entity; no personal cue → general intent, not project_context',
+    expected: {
+      intent: 'mechanism_explanation',
+      strategy: 'explain_mechanism',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true, resume: false, projects: false, stories: false },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_099',
+    question: 'How would you handle a race condition in concurrent code?',
+    risk: 'high',
+    // Phase 15 (D-01 fix): no personal cue, no entity-named project → GENERAL_TECHNICAL
+    // via d01Blocked path. The debugging RE (/debug|why is this failing|what's wrong/)
+    // does not match "race condition" handling — "how would you handle" is asking for a
+    // general technique, which maps to concept_explanation in the intent resolver.
+    // The main D-01 test: intent must NOT be project_context; concept_explanation ✓.
+    notes: 'D-01 fix: no personal cue → GENERAL_TECHNICAL → concept_explanation (not project_context). "how would you handle" is a technique question, not a debugging session.',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true, resume: false, projects: false, stories: false },
       storyBankActivated: false,
     },
   },

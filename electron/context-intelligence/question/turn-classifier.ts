@@ -101,6 +101,16 @@ const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
 // Emphatic uses ("did you build it yourself?") are questions about the user's
 // own work, so the personal claim is correct for them too.
 const PERSONAL_RE = /\b(your|your own|you have|have you|did you|do you|tell me about yourself|yourself|walk me through your|my|the candidate|candidate'?s?|the applicant|applicant'?s?)\b/;
+// Phase 15 (D-02): past-tense second-person work verbs that indicate a candidate
+// is being asked about their own project history. These lack "your"/"did you" yet
+// are plainly personal — "Tell me about a project you built." is a project question,
+// not a generic concept question. Restricted to past-tense forms or explicit
+// technology-choice constructions so that present-tense generic asks
+// ("How do you implement caching?") remain impersonal.
+// Phase 15 (D-02 / gc_012): "What made you choose Kafka?" / "you chose Redis" are
+// personal technology-decision cues; added as an alternative branch alongside
+// "made you [choice verb]" to detect the modal base-form construction.
+const PERSONAL_PAST_PROJECT_RE = /\byou\s+(?:built|designed|shipped|worked\s+on|created|developed|led|wrote|architected|maintained|deployed|launched|owned|implemented|fixed|solved|optimized|handled|debugged|investigated|diagnosed|chose|picked|adopted|selected)\b|\bmade you (?:choose|use|pick|adopt|go\s+with|select|prefer|decide\s+(?:on|to\s+use))\b/i;
 // FIRST person is personal too (2026-07-31): manual chat is the USER asking
 // about THEMSELF — "Do I have Kubernetes experience?", "Which required
 // languages do I not list?" — and a second/third-person-only pattern classified
@@ -497,6 +507,11 @@ export const isBareFollowUp = (raw: string): boolean => {
   // one. Anaphoric subjects ("how does that work?") retain the follow-up classification
   // because they reference a prior turn, not a concept.
   if (/\bhow does\b/.test(q) && /\bwork\b/.test(q) && !CONTEXT_ANAPHOR_RE.test(q)) return false;
+  // Phase 15 (gc_096): "How do you implement X?" is a direct technique question, not a
+  // bare follow-up. The 5-word limit was catching these because they start with "how"
+  // and are short. Without a non-anaphor subject guard, the question "How do you
+  // implement caching?" (5 words) incorrectly became follow_up_generic.
+  if (/\bhow do you\b/.test(q) && !CONTEXT_ANAPHOR_RE.test(q)) return false;
   return FOLLOW_UP_RE.test(q) && q.split(/\s+/).filter(Boolean).length <= FOLLOW_UP_MAX_WORDS;
 };
 
@@ -561,6 +576,15 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
     // entity rule would make this gate self-defeating.
     && !hasCapsOrIdentifierEntity(input.resolvedQuestion) && !DOCUMENT_RE.test(q);
 
+  // Phase 15 (D-01): track whether ANY clause carries a semantic personal indicator.
+  // The primary-source fallback below infers USER_PROJECT from source availability
+  // (RESUME being the mode's highest-priority source), which violates the contract
+  // that question semantics — not uploaded-source presence — determine intent.
+  // This flag gates the RESUME→USER_PROJECT path so entity-naming general questions
+  // ("How does garbage collection work in V8?") stay general even when a résumé
+  // exists in the mode.
+  let hasAnyPersonalCue = false;
+
   for (const clause of splitClauses(q)) {
     // ── deep-run 2 guards (2026-08-01) ──────────────────────────────────────
     // "Why did YOU refuse?" is about the ASSISTANT's own behaviour, not the
@@ -608,10 +632,13 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
     }
 
     const personal = !aboutAssistant && !salesClaimCue && (PERSONAL_RE.test(clause)
+      || PERSONAL_PAST_PROJECT_RE.test(clause)
       || (FIRST_PERSON_RE.test(clause)
         && !TECH_SELF_TALK_RE.test(clause)
         && !CODING_TASK_RE.test(clause)
         && !SYSTEM_DESIGN_RE.test(clause)));
+
+    if (personal) hasAnyPersonalCue = true;
 
     if (personal && PROJECT_RE.test(clause)) { types.add('PERSONAL_PROJECT'); noteClaim('USER_PROJECT', clause); }
     // "why did you choose/build X" asks for a REASON. Motivation is authoritative
@@ -898,10 +925,17 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
   // documented value exactly like "the"; and "explain/describe/compare the X"
   // is a document operation on X, not a concept definition ("Explain the
   // source-precedence decision" took the FAST path and fabricated one).
-  const definiteValueLookup = modeHoldsDocuments && !conceptComplement
-    && (/\b(what|which) (is|are|was|were) (the|our|its|this|that|default|current|active|latest)\b/.test(q)
-      || /^(explain|describe|compare)\b.*\bthe [\w-]/.test(q)
-      || /^compare\b/.test(q));
+  // Phase 15 (gc_G-03): METRIC_LOOKUP_RE questions ("peak transaction volume of the
+  // payments API") trigger conceptComplement because they match "the X of Y" — but
+  // they ARE definite value lookups, not concept definitions. Add as an alternative
+  // so conceptComplement never suppresses metric grounding.
+  const definiteValueLookup = modeHoldsDocuments && (
+    (!conceptComplement
+      && (/\b(what|which) (is|are|was|were) (the|our|its|this|that|default|current|active|latest)\b/.test(q)
+        || /^(explain|describe|compare)\b.*\bthe [\w-]/.test(q)
+        || /^compare\b/.test(q)))
+    || METRIC_LOOKUP_RE.test(q)
+  );
 
   // The fallback used to be sealed by ANY claim — including the
   // GENERAL_TECHNICAL claim the definition grammar just added — so a
@@ -948,6 +982,11 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
     if (docish) { types.add('DOCUMENT_FACT'); noteWholeQ('DOCUMENT_FACT'); }
   }
   const hasPrivateClaim2 = [...claims].some((c) => (CLAIM_AUTHORITY[c]?.authoritative ?? []).length > 0);
+  // Phase 15 (D-01 addendum): track whether D-01 suppressed the primary-source
+  // inference so the last-resort can route to GENERAL_TECHNICAL rather than
+  // DOCUMENT_FACT for questions that are entirely answerable from world knowledge.
+  // Declared before the block so it remains in scope for the last-resort.
+  let d01Blocked = false;
   if (!hasPrivateClaim2 && !techTask && !conceptOnly
       && (namesEntity || primaryClaimsIt || definiteValueLookup)) {
     const primary = primarySource;
@@ -962,7 +1001,15 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
       MEETING_TRANSCRIPT: 'MEETING_STATEMENT',
     };
     const inferred = primary ? claimForSource[primary] : undefined;
-    if (inferred) {
+    // Phase 15 (D-01): when the mode's primary source is RESUME, require a
+    // semantic personal cue before inferring USER_PROJECT. Source availability
+    // (RESUME being highest-priority) must not convert a generic entity-naming
+    // question into a personal/project question. PROFILE_FACT and CANDIDATE_FILE
+    // serve distinct mode roles and are not gated — only RESUME-primary technical-
+    // interview mode has the D-01 false-positive pattern.
+    const canInferFromPrimary = primary !== 'RESUME' || hasAnyPersonalCue;
+    if (!canInferFromPrimary) d01Blocked = true;
+    if (inferred && canInferFromPrimary) {
       claims.add(inferred);
       types.add(inferred === 'DOCUMENT_FACT' ? 'DOCUMENT_FACT'
         : inferred === 'MEETING_STATEMENT' ? 'MEETING_FACT'
@@ -995,9 +1042,26 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
   // heartbeat failure get detected?") previously became AMBIGUOUS → zero
   // retrieval → FULL → fabrication. Runs strictly AFTER the primary-source
   // fallback so entity/personal questions keep their richer claims.
+  //
+  // Phase 15 (D-01 addendum): when D-01 blocked the RESUME→USER_PROJECT inference
+  // (d01Blocked=true) and there is no definite-value-lookup marker, the question is
+  // semantically public knowledge — a generic "how does X work" or "how would you
+  // handle Y" question. Adding DOCUMENT_FACT here would set documents=true /
+  // generalKnowledge=false in contextRequirements for questions that are entirely
+  // answerable from world knowledge. Route those to GENERAL_TECHNICAL instead.
   if (claims.size === 0 && modeHoldsDocuments && !techTask && !isBareFollowUp(q)
       && /^(how|what|why|where|when|who|which|is|are|was|were|does|do|did|can|could|should|explain|describe|compare|define|list)\b/.test(q)) {
-    types.add('DOCUMENT_FACT'); noteWholeQ('DOCUMENT_FACT');
+    // Phase 15 (gc_099): "how would you handle/approach X?" with no context anaphor
+    // (no "this/it/that/these") is a general technique question answerable from world
+    // knowledge — not a document lookup. Route to GENERAL_TECHNICAL so generalKnowledge
+    // is set rather than documents. Questions WITH an anaphor ("how would you scale
+    // this system?") still point at a specific context artifact → keep DOCUMENT_FACT.
+    const howWouldYouGeneral = /\bhow would you\b/.test(q) && !CONTEXT_ANAPHOR_RE.test(q);
+    if (d01Blocked && !definiteValueLookup || howWouldYouGeneral) {
+      types.add('GENERAL_TECHNICAL'); noteWholeQ('GENERAL_TECHNICAL');
+    } else {
+      types.add('DOCUMENT_FACT'); noteWholeQ('DOCUMENT_FACT');
+    }
   }
 
   if (input.isFollowUp || isBareFollowUp(q)) types.add('FOLLOW_UP');

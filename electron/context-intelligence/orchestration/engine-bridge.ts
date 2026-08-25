@@ -271,8 +271,14 @@ export async function buildV3Prompt(input: BridgeInput): Promise<BridgeResult | 
     // return simply composes without one (today's behaviour).
     let personaBase: string | undefined;
     try {
+      // Phase 15 (D-03): derive codingTask from the authoritative semantic intent,
+      // not from raw questionTypes. questionTypes still carries CODING_TASK for
+      // DSA concept questions ("What is a binary search tree?") because CODING_TASK_RE
+      // matches the DSA noun — but Phase 13 already resolved those to concept_explanation
+      // in interviewIntent.intent. Reading questionTypes here bypassed that resolution
+      // and attached the full DSA implementation scaffolding to concept prompts.
       personaBase = input.personaBase?.({
-        codingTask: (result.decision.questionTypes as readonly string[]).includes('CODING_TASK'),
+        codingTask: result.decision.interviewIntent?.intent === 'coding_task',
       }) ?? undefined;
     } catch { personaBase = undefined; }
 

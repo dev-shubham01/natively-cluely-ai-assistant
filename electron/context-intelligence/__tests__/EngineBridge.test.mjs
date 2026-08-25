@@ -126,6 +126,61 @@ describe('realtime instructions stay presentation-only', () => {
   });
 });
 
+// ── Phase 15: D-03 — codingTask uses interviewIntent, not questionTypes ────────
+//
+// Engine bridge must derive codingTask from interviewIntent.intent === 'coding_task',
+// not from questionTypes.includes('CODING_TASK'). CODING_TASK_RE fires for DSA
+// concept questions, but Phase 13 resolved those to concept_explanation in
+// interviewIntent. Reading questionTypes bypassed that resolution.
+
+describe('Phase 15 D-03 — codingTask derived from interviewIntent.intent', () => {
+  // To verify, we need a personaBase that exposes the codingTask flag it receives.
+  const captured = { codingTask: null };
+  const capturingPersonaBase = (opts) => {
+    captured.codingTask = opts.codingTask;
+    return 'persona-base-text';
+  };
+
+  beforeEach(() => { enable(); captured.codingTask = null; });
+
+  test('DSA concept question → personaBase receives codingTask=false', async () => {
+    // "What is a binary search tree?" → intent=concept_explanation despite CODING_TASK in questionTypes
+    await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'What is a binary search tree?',
+      modeTemplateType: 'technical-interview',
+      personaBase: capturingPersonaBase,
+      scope: { sessionId: 'd03-concept' },
+    });
+    assert.strictEqual(captured.codingTask, false,
+      'concept_explanation intent must produce codingTask=false even when CODING_TASK is in questionTypes');
+  });
+
+  test('actual coding ask → personaBase receives codingTask=true', async () => {
+    await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'Implement binary search.',
+      modeTemplateType: 'technical-interview',
+      personaBase: capturingPersonaBase,
+      scope: { sessionId: 'd03-coding' },
+    });
+    assert.strictEqual(captured.codingTask, true,
+      'coding_task intent must produce codingTask=true');
+  });
+
+  test('project deep-dive → personaBase receives codingTask=false', async () => {
+    await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'How did you solve the performance issue in your project?',
+      modeTemplateType: 'technical-interview',
+      personaBase: capturingPersonaBase,
+      scope: { sessionId: 'd03-project' },
+    });
+    assert.strictEqual(captured.codingTask, false,
+      'project_deep_dive intent must NOT produce codingTask=true');
+  });
+});
+
 describe('the [V3] line exposes the real source state (2026-07-31)', () => {
   test('per-role profile counts and resolved/retrieved source identities are logged', async () => {
     enable();
