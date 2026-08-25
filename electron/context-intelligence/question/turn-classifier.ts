@@ -395,7 +395,7 @@ const HLD_SIGNALS_RE = /\b(?:distributed|scalable|microservic|load balanc|shard(
 // Extended experience framing — covers "tell me about / describe / walk me through a [difficulty-adj] X"
 // without requiring the canonical "a time when" form used by BEHAVIORAL_FRAMING_RE.
 // Defined here (before detectTypes) so behavioralFraming can reference it at line ~535.
-const EXPERIENCE_CHALLENGE_RE = /\b(?:tell (?:me|us) about|describe|walk (?:me|us) through)\s+(?:a|an)\s+(?:\w+\s+){0,2}(?:difficult|challenging|complex|hard|tough|tricky|critical|significant|notable)\b/i;
+const EXPERIENCE_CHALLENGE_RE = /\b(?:tell (?:me|us) about|describe|walk (?:me|us) through)\s+(?:a|an|the)\s+(?:\w+\s+){0,2}(?:difficult|challenging|complex|hard|hardest|tough|toughest|tricky|critical|significant|notable)\b/i;
 
 // Phase 10: technology decision — "why did you choose/use/go with [tech]?"
 //
@@ -1216,7 +1216,7 @@ const IB_HINT_RE = /\bthink about\b|\bwhat if you considered\b|\bwhat about [a-z
 const IB_TOPIC_CHANGE_RE = /\bforget (?:that|it)\b|\blet'?s (?:move on|change gears)\b|\bmoving on\b|\bnow,?\s+(?:what|let'?s|tell)|\bon a different note\b|\bnext question\b/i;
 
 const BEHAVIORAL_FRAMING_RE = /\btell (?:me|us) about a time\b|\bgive (?:me|us) an example of (?:a time|when)\b|\bwalk (?:me|us) through a (?:time|situation)\b/i;
-const INTRODUCTION_RE       = /\btell me about yourself\b|\bwalk me through your background\b|\bintroduce yourself\b/i;
+const INTRODUCTION_RE       = /\btell me (?:\w+ ){0,2}about yourself\b|\bwalk (?:me|us) through (?:your|my|the candidate'?s?) (?:\w+ )?background\b|\bintroduce yourself\b/i;
 const EXPERIENCE_TIME_RE    = /\bdescribe a (?:time|situation)\b/i;
 // Phase 14 (AG-003): extended with verbs representing specific technical execution
 // acts a candidate performed inside their own project. All require PERSONAL_PROJECT
@@ -1308,7 +1308,7 @@ export function buildInterviewIntent(
     intent = 'optimization';
   } else if (/\b(?:scale|10x|traffic (?:grows|increases)|handle load)\b/i.test(raw)) {
     intent = 'scalability';
-  } else if (/\b(?:debug|why is this (?:failing|broken)|what'?s wrong)\b/i.test(raw)) {
+  } else if (/\b(?:debug|why is (?:this|my) (?:code|function|method|script|test|loop|program|query|app|service|component)\b|why does (?:this|my) (?:code|function|method|script|test|loop|program|query|app|service|component)\b|what(?:'s| is) wrong with\b|find (?:the )?bugs?\b)\b/i.test(raw)) {
     intent = 'debugging';
   } else if (/\b(?:do you know|are you familiar with|have you heard of)\b/i.test(raw)) {
     intent = 'knowledge_check';

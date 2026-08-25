@@ -1402,11 +1402,201 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
     question: 'How would you handle a race condition in concurrent code?',
     risk: 'high',
     // Phase 15 (D-01 fix): no personal cue, no entity-named project → GENERAL_TECHNICAL
-    // via d01Blocked path. The debugging RE (/debug|why is this failing|what's wrong/)
-    // does not match "race condition" handling — "how would you handle" is asking for a
-    // general technique, which maps to concept_explanation in the intent resolver.
+    // via d01Blocked path. The debugging RE does not match "race condition" handling
+    // — "how would you handle" is asking for a general technique ("handle" not a
+    // code-type noun), which maps to concept_explanation in the intent resolver.
     // The main D-01 test: intent must NOT be project_context; concept_explanation ✓.
+    // Phase 16: debugging RE extended (D2 fix) but still does not match this form.
     notes: 'D-01 fix: no personal cue → GENERAL_TECHNICAL → concept_explanation (not project_context). "how would you handle" is a technique question, not a debugging session.',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true, resume: false, projects: false, stories: false },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 16: Classification Correctness (gc_100–gc_112) ─────────────────────
+  //
+  // Three confirmed defects fixed:
+  //   D1 – INTRODUCTION_RE too narrow (missed "us" variant + adjective before "background" + modifier in "tell me … about yourself")
+  //   D2 – DEBUGGING regex missed "why is this [code type]", "what is wrong with", "find the bug", "why does this [code type]"
+  //   D3 – EXPERIENCE_CHALLENGE_RE required "a/an" article; missed superlative "the hardest/toughest" form
+  //
+  // Requirement-derived: expected intent is defined from the V1 spec first,
+  // then verified against the fixed implementation.
+
+  // ── D1: INTRODUCTION_RE fixes (gc_100–gc_102) ────────────────────────────────
+  {
+    id: 'gc_100',
+    question: 'Walk me through your professional background.',
+    risk: 'high',
+    notes: 'Phase 16 D1: INTRODUCTION_RE now matches "walk me through your [adj] background"; previously → concept_explanation',
+    expected: {
+      intent: 'introduction',
+      strategy: 'introduce_self',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: false, stories: true },
+      storyBankActivated: true,
+    },
+  },
+  {
+    id: 'gc_101',
+    question: 'Walk us through your background.',
+    risk: 'high',
+    notes: 'Phase 16 D1: INTRODUCTION_RE "us" variant; previously matched only "walk me through"',
+    expected: {
+      intent: 'introduction',
+      strategy: 'introduce_self',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: false, stories: true },
+      storyBankActivated: true,
+    },
+  },
+  {
+    id: 'gc_102',
+    question: 'Tell me a little about yourself.',
+    risk: 'high',
+    notes: 'Phase 16 D1: INTRODUCTION_RE modifier slot before "about yourself"; previously → concept_explanation',
+    expected: {
+      intent: 'introduction',
+      strategy: 'introduce_self',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, projects: false, stories: true },
+      storyBankActivated: true,
+    },
+  },
+
+  // ── D2: DEBUGGING regex fixes (gc_103–gc_106) ────────────────────────────────
+  {
+    id: 'gc_103',
+    question: 'Why is this code throwing a null pointer exception?',
+    risk: 'high',
+    notes: 'Phase 16 D2: debugging RE now matches "why is this code [verb]"; previously → concept_explanation',
+    expected: {
+      intent: 'debugging',
+      strategy: 'trace_bug',
+      behavior: 'QUESTION',
+      contextRequirements: { code: true, resume: false, projects: false, stories: false },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_104',
+    question: 'What is wrong with this code?',
+    risk: 'high',
+    notes: 'Phase 16 D2: debugging RE matches "what is wrong with"; previously "what\'s" form only (apostrophe literal)',
+    expected: {
+      intent: 'debugging',
+      strategy: 'trace_bug',
+      behavior: 'QUESTION',
+      contextRequirements: { code: true, resume: false, projects: false, stories: false },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_105',
+    question: 'Find the bug in this code.',
+    risk: 'high',
+    notes: 'Phase 16 D2: debugging RE matches "find the bug"; previously → concept_explanation',
+    expected: {
+      intent: 'debugging',
+      strategy: 'trace_bug',
+      behavior: 'QUESTION',
+      contextRequirements: { code: true, resume: false, projects: false, stories: false },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_106',
+    question: 'Why does this loop run infinitely?',
+    risk: 'high',
+    notes: 'Phase 16 D2: debugging RE matches "why does this loop"; previously → concept_explanation',
+    expected: {
+      intent: 'debugging',
+      strategy: 'trace_bug',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: false, projects: false, stories: false },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── D3: EXPERIENCE_CHALLENGE_RE "the" article + superlative (gc_107–gc_108) ──
+  {
+    id: 'gc_107',
+    question: 'Describe the hardest bug you ever debugged.',
+    risk: 'high',
+    notes: 'Phase 16 D3: EXPERIENCE_CHALLENGE_RE now accepts "the" article and superlative "hardest"; previously → concept_explanation',
+    expected: {
+      intent: 'experience_question',
+      strategy: 'narrate_experience',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, stories: true, projects: false },
+      storyBankActivated: true,
+    },
+  },
+  {
+    id: 'gc_108',
+    question: 'Walk me through the most difficult decision you made.',
+    risk: 'high',
+    notes: 'Phase 16 D3: "the most difficult" — "most" absorbed by {0,2}-word slot; previously → concept_explanation',
+    expected: {
+      intent: 'experience_question',
+      strategy: 'narrate_experience',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, stories: true, projects: false },
+      storyBankActivated: true,
+    },
+  },
+
+  // ── Coverage: thin intents (gc_109–gc_110) ───────────────────────────────────
+  {
+    id: 'gc_109',
+    question: 'Describe a situation where you had to learn something new quickly.',
+    risk: 'medium',
+    notes: 'Phase 16 coverage: experience_question positive via EXPERIENCE_TIME_RE "describe a situation"',
+    expected: {
+      intent: 'experience_question',
+      strategy: 'narrate_experience',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, stories: true, projects: false },
+      storyBankActivated: true,
+    },
+  },
+  {
+    id: 'gc_110',
+    question: 'Can you walk me through your technical background?',
+    risk: 'medium',
+    notes: 'Phase 16 coverage: introduction positive — "technical background" adjective variant',
+    expected: {
+      intent: 'introduction',
+      strategy: 'introduce_self',
+      behavior: 'QUESTION',
+      contextRequirements: { resume: true, stories: true, projects: false },
+      storyBankActivated: true,
+    },
+  },
+
+  // ── Negative boundaries (gc_111–gc_112) ──────────────────────────────────────
+  {
+    id: 'gc_111',
+    question: 'How would you describe the background of a request in HTTP?',
+    risk: 'medium',
+    notes: 'Phase 16 negative: "background of a request" must NOT fire INTRODUCTION_RE; purely technical question',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true, resume: false, projects: false, stories: false },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_112',
+    question: 'How do you approach debugging a distributed system?',
+    risk: 'medium',
+    notes: 'Phase 16 negative: "debugging" (gerund) does not trigger the debug regex (requires bare "debug" verb); general approach → concept_explanation',
     expected: {
       intent: 'concept_explanation',
       strategy: 'define_concept',
