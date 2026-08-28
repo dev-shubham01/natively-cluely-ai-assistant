@@ -933,7 +933,20 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
     (!conceptComplement
       && (/\b(what|which) (is|are|was|were) (the|our|its|this|that|default|current|active|latest)\b/.test(q)
         || /^(explain|describe|compare)\b.*\bthe [\w-]/.test(q)
-        || /^compare\b/.test(q)))
+        || /^compare\b/.test(q)
+        // R-01c (2026-08-29): "What [value] is in the [document]?" — a value-in-container
+        // question whose VALUE_LOOKUP_RE noun names a private fact ("What price is in the
+        // pricing archive?"). Neither "what price is" nor "in the archive" individually
+        // matched the existing patterns, so the turn took the FAST path; retrieval was
+        // suppressed and the named file was never reached.
+        || (VALUE_LOOKUP_RE.test(q) && /\bin (the|this|that)\b/.test(q))
+        // R-02 (2026-08-29): "How long/many/much/often did the X last/take/happen?" — a
+        // past-tense factual question about a specific event. "How long did the incident
+        // last?" had no entity, no personal cue, and no "what/which is the" pattern, so
+        // d01Blocked=true with definiteValueLookup=false → GENERAL_TECHNICAL → FAST path
+        // → fabricated answer. Past-tense "did + definite-article" is the structural
+        // signal that this is a closed fact about a real occurrence, not world knowledge.
+        || /\bhow (long|many|much|often) did (the|this|that|it|they)\b/.test(q)))
     || METRIC_LOOKUP_RE.test(q)
   );
 
@@ -1007,7 +1020,23 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
     // question into a personal/project question. PROFILE_FACT and CANDIDATE_FILE
     // serve distinct mode roles and are not gated — only RESUME-primary technical-
     // interview mode has the D-01 false-positive pattern.
-    const canInferFromPrimary = primary !== 'RESUME' || hasAnyPersonalCue;
+    // R-01a (2026-08-29): entity-naming questions bypass D-01 when the question is NOT
+    // a general-concept shape. "How many registered users does SignalNest have?" names
+    // a private project entity (SignalNest is a non-generic capitalised word) and asks a
+    // factual metric — model knowledge cannot supply the answer. Only the CAPS-word signal
+    // is used (not the letter-digit identifier pattern), so "10x" / "10 million" — scale
+    // multipliers that are also letter-digit matches — do NOT trigger the bypass.
+    // "How does GC work in V8?" has a caps entity (V8) but GENERAL_TECH_RE=true ("how
+    // does…work"), so D-01 stays in effect for general-concept shapes even with an entity.
+    let hasCapsEntityBypass = false;
+    for (const m of String(input.resolvedQuestion).matchAll(/\b([A-Z][A-Za-z0-9-]{1,})\b/g)) {
+      const tok = m[1];
+      const idx = m.index ?? 0;
+      if (/(^|[.!?]\s*)$/.test(String(input.resolvedQuestion).slice(0, idx))) continue;
+      if (!GENERIC_TECH_CAPS.has(tok.toLowerCase())) { hasCapsEntityBypass = true; break; }
+    }
+    const canInferFromPrimary = primary !== 'RESUME' || hasAnyPersonalCue
+      || (hasCapsEntityBypass && !GENERAL_TECH_RE.test(q));
     if (!canInferFromPrimary) d01Blocked = true;
     if (inferred && canInferFromPrimary) {
       claims.add(inferred);

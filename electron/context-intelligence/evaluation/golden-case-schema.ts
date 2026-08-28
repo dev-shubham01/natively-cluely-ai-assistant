@@ -3,7 +3,7 @@
 // Type contracts for the Phase 11 golden dataset and evaluator.
 // No runtime logic — pure type definitions.
 
-import type { InterviewIntentType, InterviewerBehavior, StrategyId } from '../contracts/types';
+import type { InterviewIntentType, InterviewerBehavior, StrategyId, AnswerStructure } from '../contracts/types';
 
 export type GoldenRisk = 'high' | 'medium' | 'low';
 
@@ -29,6 +29,7 @@ export interface GoldenExpected {
   behavior:            InterviewerBehavior;
   contextRequirements: GoldenContextRequirements;
   storyBankActivated:  boolean;
+  structure?:          AnswerStructure;
 }
 
 export interface GoldenCase {
@@ -47,6 +48,7 @@ export type FailureCategory =
   | 'strategy_mismatch'
   | 'behavior_mismatch'
   | 'story_bank_mismatch'
+  | 'structure_mismatch'
   | 'cr_false_negative'
   | 'cr_false_positive';
 
@@ -56,6 +58,7 @@ export interface ActualClassification {
   behavior:            string;
   contextRequirements: Record<string, boolean>;
   storyBankActivated:  boolean;
+  structure?:          string;
 }
 
 export interface CaseEvaluationResult {

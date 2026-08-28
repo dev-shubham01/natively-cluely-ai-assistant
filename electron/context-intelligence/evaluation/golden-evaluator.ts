@@ -44,6 +44,8 @@ export function evaluateCase(gc: GoldenCase, actual: ActualClassification): Case
   if (actual.strategy !== gc.expected.strategy) failures.push('strategy_mismatch');
   if (actual.behavior !== gc.expected.behavior) failures.push('behavior_mismatch');
   if (actual.storyBankActivated !== gc.expected.storyBankActivated) failures.push('story_bank_mismatch');
+  if (gc.expected.structure !== undefined && actual.structure !== undefined
+    && actual.structure !== gc.expected.structure) failures.push('structure_mismatch');
 
   failures.push(...compareContextRequirements(gc.expected.contextRequirements, actual.contextRequirements));
 

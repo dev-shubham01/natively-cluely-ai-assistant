@@ -35,7 +35,7 @@ function runCase(gc) {
   const result = classifyTurn({ resolvedQuestion: gc.question, policy: POLICY, isFollowUp: false });
   const ii = result.interviewIntent;
   if (!ii) {
-    return { intent: '', strategy: '', behavior: '', contextRequirements: {}, storyBankActivated: false };
+    return { intent: '', strategy: '', behavior: '', contextRequirements: {}, storyBankActivated: false, structure: '' };
   }
   const strategy = selectStrategy(ii.intent, ii.interviewerBehavior);
   return {
@@ -44,6 +44,7 @@ function runCase(gc) {
     behavior:            ii.interviewerBehavior,
     contextRequirements: ii.contextRequirements,
     storyBankActivated:  ii.contextRequirements.stories,
+    structure:           ii.expectedAnswer?.structure ?? '',
   };
 }
 

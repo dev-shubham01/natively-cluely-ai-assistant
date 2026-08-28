@@ -24,6 +24,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -36,6 +37,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -48,6 +50,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -60,6 +63,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -72,6 +76,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
 
@@ -88,6 +93,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
   {
@@ -100,6 +106,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
   {
@@ -112,6 +119,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
   {
@@ -124,6 +132,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
 
@@ -142,6 +151,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'FOLLOW_UP',
       contextRequirements: { conversation: true, projects: true, stories: true },
       storyBankActivated: true,
+      structure:           'decision_rationale',
     },
   },
   {
@@ -155,6 +165,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'FOLLOW_UP',
       contextRequirements: { conversation: true, projects: true, stories: true },
       storyBankActivated: true,
+      structure:           'decision_rationale',
     },
   },
   {
@@ -176,6 +187,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { projects: true, stories: true },
       storyBankActivated: true,
+      structure:           'decision_rationale',
     },
   },
   {
@@ -188,6 +200,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { projects: true, stories: true },
       storyBankActivated: true,
+      structure:           'decision_rationale',
     },
   },
   {
@@ -200,6 +213,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { projects: true, stories: true },
       storyBankActivated: true,
+      structure:           'decision_rationale',
     },
   },
 
@@ -216,6 +230,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { projects: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -229,6 +244,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -242,6 +258,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
 
@@ -256,6 +273,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'comparison_table',
     },
   },
   {
@@ -269,6 +287,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { documents: true },
       storyBankActivated: false,
+      structure:           'comparison_table',
     },
   },
   {
@@ -281,6 +300,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'comparison_table',
     },
   },
 
@@ -298,6 +318,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'FOLLOW_UP',
       contextRequirements: { conversation: true, generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -310,6 +331,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -322,6 +344,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -334,6 +357,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -346,6 +370,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
 
@@ -361,6 +386,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -373,6 +399,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -385,6 +412,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -397,6 +425,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
 
@@ -412,6 +441,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -424,6 +454,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -436,6 +467,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
 
@@ -450,6 +482,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
   {
@@ -462,6 +495,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
   {
@@ -474,6 +508,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
 
@@ -490,6 +525,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { code: true },
       storyBankActivated: false,
+      structure:           'debugging_trace',
     },
   },
   {
@@ -502,6 +538,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'debugging_trace',
     },
   },
 
@@ -517,6 +554,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, stories: true },
       storyBankActivated: true,
+      structure:           'story_format',
     },
   },
   {
@@ -529,6 +567,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, stories: true },
       storyBankActivated: true,
+      structure:           'story_format',
     },
   },
   {
@@ -541,6 +580,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, stories: true },
       storyBankActivated: true,
+      structure:           'open_narrative',
     },
   },
   {
@@ -553,6 +593,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, documents: true, stories: true },
       storyBankActivated: true,
+      structure:           'experience_narrative',
     },
   },
 
@@ -567,6 +608,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'FOLLOW_UP',
       contextRequirements: { conversation: true },
       storyBankActivated: false,
+      structure:           'deepening_elaboration',
     },
   },
   {
@@ -579,6 +621,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'FOLLOW_UP',
       contextRequirements: { conversation: true },
       storyBankActivated: false,
+      structure:           'deepening_elaboration',
     },
   },
 
@@ -596,6 +639,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'DEEPENING',
       contextRequirements: { conversation: true },
       storyBankActivated: false,
+      structure:           'deepening_elaboration',
     },
   },
   {
@@ -609,6 +653,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'CORRECTION',
       contextRequirements: { conversation: true },
       storyBankActivated: false,
+      structure:           'clarification_response',
     },
   },
   {
@@ -622,6 +667,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'CLARIFICATION',
       contextRequirements: { conversation: true, generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'clarification_response',
     },
   },
 
@@ -640,6 +686,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, documents: true, stories: true },
       storyBankActivated: true,
+      structure:           'experience_narrative',
     },
   },
   {
@@ -653,6 +700,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, documents: true, stories: true },
       storyBankActivated: true,
+      structure:           'experience_narrative',
     },
   },
   {
@@ -666,6 +714,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, documents: true, stories: true },
       storyBankActivated: true,
+      structure:           'experience_narrative',
     },
   },
 
@@ -684,6 +733,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { documents: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -696,6 +746,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { documents: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -714,6 +765,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
 
@@ -730,6 +782,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
   {
@@ -743,6 +796,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { code: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
   {
@@ -756,6 +810,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { documents: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
   {
@@ -769,6 +824,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { documents: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
 
@@ -787,6 +843,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { documents: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -799,6 +856,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -812,6 +870,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -825,6 +884,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
 
@@ -843,6 +903,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'PUSHBACK',
       contextRequirements: { conversation: true },
       storyBankActivated: false,
+      structure:           'pushback_response',
     },
   },
   {
@@ -856,6 +917,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'PUSHBACK',
       contextRequirements: { conversation: true },
       storyBankActivated: false,
+      structure:           'pushback_response',
     },
   },
   {
@@ -869,6 +931,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
 
@@ -886,6 +949,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
 
@@ -901,6 +965,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
   {
@@ -914,6 +979,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
 
@@ -932,6 +998,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true, stories: false, resume: false, code: false },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -945,6 +1012,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true, stories: false, resume: false },
       storyBankActivated: false,
+      structure:           'system_breakdown',
     },
   },
   {
@@ -958,6 +1026,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true, stories: false, resume: false },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -971,6 +1040,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true, stories: false, resume: false },
       storyBankActivated: false,
+      structure:           'debugging_trace',
     },
   },
   {
@@ -984,6 +1054,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true, stories: false, resume: false },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
 
@@ -1000,6 +1071,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'comparison_table',
     },
   },
   {
@@ -1012,6 +1084,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'comparison_table',
     },
   },
 
@@ -1026,6 +1099,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, stories: true },
       storyBankActivated: true,
+      structure:           'story_format',
     },
   },
   {
@@ -1038,6 +1112,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, stories: true },
       storyBankActivated: true,
+      structure:           'story_format',
     },
   },
 
@@ -1052,6 +1127,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, stories: true },
       storyBankActivated: true,
+      structure:           'story_format',
     },
   },
 
@@ -1067,6 +1143,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
 
@@ -1095,6 +1172,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, documents: true, stories: true },
       storyBankActivated: true,
+      structure:           'experience_narrative',
     },
   },
 
@@ -1111,6 +1189,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'DEEPENING',
       contextRequirements: { conversation: true },
       storyBankActivated: false,
+      structure:           'deepening_elaboration',
     },
   },
   {
@@ -1124,6 +1203,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'DEEPENING',
       contextRequirements: { conversation: true },
       storyBankActivated: false,
+      structure:           'deepening_elaboration',
     },
   },
   {
@@ -1137,6 +1217,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'FOLLOW_UP',
       contextRequirements: { conversation: true },
       storyBankActivated: false,
+      structure:           'deepening_elaboration',
     },
   },
 
@@ -1151,6 +1232,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'comparison_table',
     },
   },
   {
@@ -1164,6 +1246,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { documents: true },
       storyBankActivated: false,
+      structure:           'comparison_table',
     },
   },
 
@@ -1183,6 +1266,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { projects: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
 
@@ -1203,6 +1287,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
 
@@ -1223,6 +1308,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
 
@@ -1243,6 +1329,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, documents: true, stories: true },
       storyBankActivated: true,
+      structure:           'experience_narrative',
     },
   },
 
@@ -1262,6 +1349,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, documents: true, stories: true },
       storyBankActivated: true,
+      structure:           'experience_narrative',
     },
   },
   {
@@ -1275,6 +1363,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, documents: true, stories: true },
       storyBankActivated: true,
+      structure:           'experience_narrative',
     },
   },
   {
@@ -1288,6 +1377,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
 
@@ -1307,6 +1397,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, stories: true },
       storyBankActivated: true,
+      structure:           'experience_narrative',
     },
   },
   {
@@ -1320,6 +1411,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, stories: true },
       storyBankActivated: true,
+      structure:           'experience_narrative',
     },
   },
   {
@@ -1333,6 +1425,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, stories: true },
       storyBankActivated: true,
+      structure:           'experience_narrative',
     },
   },
   {
@@ -1346,6 +1439,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: true, stories: true },
       storyBankActivated: true,
+      structure:           'experience_narrative',
     },
   },
 
@@ -1364,6 +1458,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { stories: false, projects: false },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -1377,6 +1472,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { stories: false, projects: false },
       storyBankActivated: false,
+      structure:           'debugging_trace',
     },
   },
 
@@ -1395,6 +1491,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true, resume: false, projects: false, stories: false },
       storyBankActivated: false,
+      structure:           'implementation_walkthrough',
     },
   },
   {
@@ -1414,6 +1511,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true, resume: false, projects: false, stories: false },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
 
@@ -1439,6 +1537,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: false, stories: true },
       storyBankActivated: true,
+      structure:           'open_narrative',
     },
   },
   {
@@ -1452,6 +1551,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: false, stories: true },
       storyBankActivated: true,
+      structure:           'open_narrative',
     },
   },
   {
@@ -1465,6 +1565,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, projects: false, stories: true },
       storyBankActivated: true,
+      structure:           'open_narrative',
     },
   },
 
@@ -1480,6 +1581,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { code: true, resume: false, projects: false, stories: false },
       storyBankActivated: false,
+      structure:           'debugging_trace',
     },
   },
   {
@@ -1493,6 +1595,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { code: true, resume: false, projects: false, stories: false },
       storyBankActivated: false,
+      structure:           'debugging_trace',
     },
   },
   {
@@ -1506,6 +1609,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { code: true, resume: false, projects: false, stories: false },
       storyBankActivated: false,
+      structure:           'debugging_trace',
     },
   },
   {
@@ -1519,6 +1623,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: false, projects: false, stories: false },
       storyBankActivated: false,
+      structure:           'debugging_trace',
     },
   },
 
@@ -1534,6 +1639,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, stories: true, projects: false },
       storyBankActivated: true,
+      structure:           'story_format',
     },
   },
   {
@@ -1547,6 +1653,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, stories: true, projects: false },
       storyBankActivated: true,
+      structure:           'story_format',
     },
   },
 
@@ -1562,6 +1669,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, stories: true, projects: false },
       storyBankActivated: true,
+      structure:           'story_format',
     },
   },
   {
@@ -1575,6 +1683,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { resume: true, stories: true, projects: false },
       storyBankActivated: true,
+      structure:           'open_narrative',
     },
   },
 
@@ -1590,6 +1699,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true, resume: false, projects: false, stories: false },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -1603,6 +1713,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true, resume: false, projects: false, stories: false },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
 
@@ -1618,6 +1729,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: false, resume: false, projects: false, stories: false },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
   {
@@ -1631,6 +1743,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: false, resume: false, projects: false, stories: false },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
 
@@ -1646,6 +1759,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       behavior: 'QUESTION',
       contextRequirements: { generalKnowledge: true, resume: false, projects: false, stories: false },
       storyBankActivated: false,
+      structure:           'direct_definition',
     },
   },
 ] as const;
