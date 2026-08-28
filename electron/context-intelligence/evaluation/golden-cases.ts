@@ -1605,4 +1605,47 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       storyBankActivated: false,
     },
   },
+
+  // ── Phase 16 Gap 12 — knowledge_check "comfortable" trigger (gc_113–gc_114) ──
+  {
+    id: 'gc_113',
+    question: 'Are you comfortable with Docker?',
+    risk: 'high',
+    notes: 'Phase 16 Gap 12 positive: "are you comfortable with X?" is a familiarity check → knowledge_check; previously fell through to concept_explanation',
+    expected: {
+      intent: 'knowledge_check',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: false, resume: false, projects: false, stories: false },
+      storyBankActivated: false,
+    },
+  },
+  {
+    id: 'gc_114',
+    question: 'Are you comfortable with Redis?',
+    risk: 'medium',
+    notes: 'Phase 16 Gap 12 second positive: database-domain "comfortable" question → knowledge_check',
+    expected: {
+      intent: 'knowledge_check',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: false, resume: false, projects: false, stories: false },
+      storyBankActivated: false,
+    },
+  },
+
+  // ── Phase 16 Gap 11 — general_cs domain (gc_115) ─────────────────────────
+  {
+    id: 'gc_115',
+    question: 'What is a hash map?',
+    risk: 'medium',
+    notes: 'Phase 16 Gap 11: generic CS concept with no specific technology domain → concept_explanation with generalKnowledge=true; domain=general_cs (verified by Phase16 Section E tests)',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true, resume: false, projects: false, stories: false },
+      storyBankActivated: false,
+    },
+  },
 ] as const;

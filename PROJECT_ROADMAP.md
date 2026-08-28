@@ -332,3 +332,488 @@ The tool is finished when:
 | **The `premium` submodule may come back**, and Phase 0.4 stubs its import. | Stub behind a clearly-named shim rather than deleting the call sites, so restoring it is a one-file change. |
 | **Test baselines are environment-flaky** (~51–56 failures, count varies; `checkAnswerRelevance — corpus regression pin` is the known flake). | Always diff failing test *names* against `baseline-2026-08-18.txt`, never counts. |
 | **Losing work to another `git reset`.** | Commit early and often, on a branch, and never leave a day's work untracked. This already cost one evening's session and nearly cost the system-design contract permanently. |
+
+---
+
+---
+
+## Interview Intelligence Implementation Roadmap
+
+This section documents the interview intelligence layers built in `electron/context-intelligence/`. The phases below are **distinct from the platform roadmap's Phase 0–8** above: they are implementation phases for the classification, retrieval, strategy, and evaluation layers, executed between 2026-08-18 and 2026-08-25.
+
+---
+
+### Current Status
+
+| Field | Value |
+| --- | --- |
+| Highest completed phase | Phase 16 (Classification Correctness) |
+| V1 classification layer | VERIFIED — all 18 intents source-invariant |
+| Golden dataset | 112 cases (gc_001–gc_112) |
+| Phase 16 suite | 378/378 |
+| Full suite | 8,003 pass / 544 fail (all failures pre-existing; none introduced by Phases 15–16) |
+| V1 declared COMPLETE | Phase 14 (2026-08-24) |
+| V1 declared VERIFIED | Phase 16 (2026-08-25) |
+| Recommended next phase | Phase 17 (Prompt Composition Evaluation) |
+
+---
+
+### Architecture
+
+The module is layered in six tiers. Data flows strictly downward; no tier imports from a tier below it.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  BRIDGE  (orchestration/engine-bridge.ts)                               │
+│  BridgeInput → resolves mode, scope, flags → calls Orchestrator         │
+├─────────────────────────────────────────────────────────────────────────┤
+│  CLASSIFICATION  (question/turn-classifier.ts)                          │
+│  Question string → QuestionType[], ClaimRequirement[]                   │
+│                 → InterviewIntent (18 intents, 17 domains, 8 behaviors) │
+│                 → AnswerStrategy  (19 strategies via registry)          │
+├─────────────────────────────────────────────────────────────────────────┤
+│  POLICIES  (policies/)                                                  │
+│  ModePolicy  — grounding policy, source authority, answer rules         │
+│  ProviderScopePolicy  — data-scope enforcement per provider             │
+├─────────────────────────────────────────────────────────────────────────┤
+│  RETRIEVAL  (retrieval/)                                                │
+│  CompositeRetrievalPort                                                 │
+│    ├── ProfileRetrievalPort   RESUME, JOB_DESCRIPTION                  │
+│    ├── ModeRetrievalPort      REFERENCE_FILE                            │
+│    ├── StoryBankPort          user stories                              │
+│    ├── MeetingRetrievalPort   MEETING_TRANSCRIPT                        │
+│    └── LegacyRetrievalPort   backward-compat adapter                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│  GENERATION  (generation/)                                              │
+│  PromptComposer (composePrompt)  — single canonical composition site    │
+│  ContextPacker                   — token-budget context assembly        │
+├─────────────────────────────────────────────────────────────────────────┤
+│  EVALUATION  (evaluation/)                                              │
+│  GoldenCases (112 cases), GoldenEvaluator, golden-case-schema           │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Single-turn data flow:**
+```
+BridgeInput (surface, question, modeId, attachedFiles, scope, …)
+  └→ EngineBridge
+        └→ Orchestrator
+              ├── TurnClassifier → QuestionType[], InterviewIntent, AnswerStrategy
+              ├── ModePolicyRegistry → ModePolicy (grounding, source authority)
+              ├── CompositeRetrievalPort → EvidenceItem[]
+              └→ PromptComposer (personaBase + governance + evidence)
+                    └→ LLM → answer
+```
+
+**Canonical contract types** (`contracts/types.ts`):
+
+| Type | Values |
+| --- | --- |
+| `SourceType` | 10: RESUME, JOB_DESCRIPTION, PROFILE_FACT, REFERENCE_FILE, PROJECT_FILE, CODING_SAMPLE, CANDIDATE_FILE, MEETING_TRANSCRIPT, CONVERSATION_STATE, SCREEN_CONTEXT |
+| `ClaimType` | 15: USER_EMPLOYMENT/PROJECT/SKILL/EDUCATION/MOTIVATION, JOB_RESPONSIBILITY/REQUIRED_SKILL/PREFERRED_SKILL, DOCUMENT_FACT, MEETING_STATEMENT/DECISION, SCREEN_FACT, GENERAL_TECHNICAL/INDUSTRY, RECOMMENDATION |
+| `QuestionType` | 17: PERSONAL_EXPERIENCE/PROJECT/SKILL, JOB_REQUIREMENT/ROLE_ALIGNMENT, DOCUMENT_FACT/EXPLANATION, MEETING_FACT, SCREEN_SPECIFIC, GENERAL_TECHNICAL/INDUSTRY, CODING_TASK, SYSTEM_DESIGN, MIXED, FOLLOW_UP, AMBIGUOUS, META_REQUEST |
+| `InterviewIntentType` | 18: concept_explanation, mechanism_explanation, technology_decision, comparison, tradeoff, coding_task, debugging, optimization, system_design, lld, project_context, project_deep_dive, experience_question, behavioral, introduction, scalability, knowledge_check, follow_up_generic |
+| `InterviewDomain` | 17: javascript, typescript, react, frontend, backend, node, database, networking, os, general_cs, algorithms, data_structures, system_design, security, testing, devops, behavioral, project_specific, unknown |
+| `StrategyId` | 19: define_concept, explain_mechanism, justify_decision, analyze_options, implement_solution, trace_bug, optimize_approach, design_system, design_classes, describe_project, narrate_experience, tell_behavioral_story, introduce_self, analyze_scale, continue_thread, defend_position, acknowledge_correction, restate_clearly, deepen_explanation |
+| `GroundingPolicy` | 4: STRICT_SOURCE_ONLY, SOURCE_FIRST, OPEN_KNOWLEDGE, ASK_BEFORE_FALLBACK |
+| `InterviewerBehavior` | 8: QUESTION, FOLLOW_UP, DEEPENING, PUSHBACK, CORRECTION, CLARIFICATION, HINT, TOPIC_CHANGE |
+
+---
+
+### Phase 2 — Interview Intent Classification
+
+**Status:** COMPLETE · **Commit:** `bb5cfb95`
+
+**Objective:** Replace ad-hoc boolean flags (`codingTask`/`dsaTask`/`systemDesignTask`) with a typed, exhaustive discriminator for interview intent.
+
+**Implemented:**
+- `InterviewIntent` interface and all supporting types in `contracts/types.ts`
+- 18 `InterviewIntentType` values, 17 `InterviewDomain` values, 11 `QuestionStyle` values, 8 `InterviewerBehavior` values
+- `ContextRequirements` (7 boolean fields: conversation, resume, projects, code, documents, stories, generalKnowledge)
+- `ExpectedAnswer` shape (depth, structure, includeExample, includeTradeoffs, includeCode, includeComplexity)
+- `DEFAULT_INTERVIEW_INTENT` backward-compat fallback
+- `engine-bridge.ts` updated: derives `interviewIntent` from `questionTypes`
+- Fix: coding contract `dsaTask !== false` default bug — `undefined` was selecting the DSA narrative for every coding turn
+- Fix: two conversation-state bugs restored after git reset (`isLikelyAnswerToPendingQuestion`, `clarificationRootQuestion`)
+
+**Key files:** `contracts/types.ts`, `question/turn-classifier.ts`, `orchestration/engine-bridge.ts`
+
+**Tests:** TurnClassifier.test.mjs (Phase 2 classification section)
+
+**Validation:** Covered by automated tests; physical execution on macOS.
+
+---
+
+### Phase 3 — Context Requirements Derivation
+
+**Status:** COMPLETE · **Commit:** `85f2dd42` (combined Phase 3/4 commit)
+
+**Objective:** Wire the first set of `ContextRequirements` boolean fields from classifier output.
+
+**Implemented:**
+- `conversation`, `resume`, `projects`, `code`, `documents` populated from question-type signals in `turn-classifier.ts`
+- Initial topic-chain structure for multi-turn continuity
+
+**Key files:** `question/turn-classifier.ts`
+
+---
+
+### Phase 4 — Topic Chain and Round State
+
+**Status:** COMPLETE · **Commits:** `85f2dd42`, `0c30aa86`
+
+**Objective:** Put interview conversation state in code so cross-turn context survives without relying on the model context window.
+
+**Implemented:**
+- `ChainTurn` interface: question, answerSummary (≤280 chars), intent, domain, interviewerBehavior
+- Topic chain capped at `CHAIN_CAP = 6` turns; oldest evicted on overflow
+- Chain resets on topic/domain shift (prevents context bleed across unrelated questions)
+
+**Key files:** `contracts/types.ts` (ChainTurn), topic-chain logic in `question/`
+
+**Tests:** TopicChain.test.mjs (471 lines)
+
+---
+
+### Phase 5 — Context Requirements: Complete Wiring
+
+**Status:** COMPLETE · **Commit:** `0daca003`
+
+**Objective:** Wire all 7 `ContextRequirements` fields and add systematic matrix test coverage.
+
+**Implemented:**
+- All 7 fields derived from classifier signals: conversation, resume, projects, code, documents, stories (partial), generalKnowledge
+- `Phase5ContextRequirements.test.mjs`: systematic ContextRequirements matrix — each intent × each field × representative question
+
+**Key files:** `question/turn-classifier.ts`
+
+**Tests:** Phase5ContextRequirements.test.mjs (444 lines)
+
+---
+
+### Phase 6 — Answer Strategy Registry
+
+**Status:** COMPLETE · **Commit:** `0efee714`
+
+**Objective:** Select a construction-approach strategy per turn so the prompt-composer knows *how* to build the answer (step order, framing, depth), not just what topic to address.
+
+**Implemented:**
+- `AnswerStrategy` interface: id, triggerIntents, behaviorOverrides, promptSection, steps
+- 19 strategies total:
+  - 4 **override strategies** (`override-strategies.ts`): `defend_position`, `acknowledge_correction`, `restate_clearly`, `deepen_explanation` — fire on PUSHBACK/CORRECTION/CLARIFICATION/DEEPENING regardless of intent (Stage 1 scan)
+  - 15 **intent strategies** (`intent-strategies.ts`): one per intent type (Stage 2 lookup)
+- `STRATEGY_REGISTRY` (`registry.ts`): invariant-validated at module load — duplicate id, duplicate intent, forbidden override behavior all throw at startup
+- `selectStrategy()` (`selector.ts`): Stage 1 = override scan, Stage 2 = intent lookup
+- `prompt-composer.ts`: emits `answerStrategy.promptSection` in `<answer_strategy>` block
+- Registry invariant: exactly 19 strategies enforced; any addition or removal throws
+
+**Key files:** `strategies/override-strategies.ts`, `strategies/intent-strategies.ts`, `strategies/registry.ts`, `strategies/selector.ts`, `generation/prompt-composer.ts`
+
+**Tests:** Phase6Strategy.test.mjs (366 lines)
+
+---
+
+### Phase 7 — Story Bank Port
+
+**Status:** COMPLETE · **Commit:** `f517b0bd`
+
+**Objective:** Connect the story retrieval path and promote `stories` to a first-class `ContextRequirements` field.
+
+**Implemented:**
+- `StoryBankPort` (`retrieval/story-bank-port.ts`): retrieves user story evidence from a dedicated store
+- `CompositeRetrievalPort` (`retrieval/composite-retrieval-port.ts`): orchestrates all retrieval ports in priority order; returns merged, deduplicated `EvidenceItem[]`
+- `stories: boolean` wired fully in `ContextRequirements`
+- `storyBankActivated` field observable through the golden-case evaluator
+- 48/48 Phase 7 tests pass
+
+**Key files:** `retrieval/story-bank-port.ts`, `retrieval/composite-retrieval-port.ts`, `contracts/types.ts`
+
+**Tests:** Phase7StoryBank.test.mjs (598 lines, 48 tests)
+
+---
+
+### Phase 8 — Wiring Consolidation and Immutability
+
+**Status:** COMPLETE · **Commit:** `63bf1809`
+
+**Objective:** Ensure all Phase 2–7 types and interfaces are correctly threaded through the full pipeline; make the `TurnDecision` immutable to prevent downstream mutation.
+
+**Implemented:**
+- Full audit of engine-bridge → orchestrator → composer wiring
+- `TurnDecision` now carries `interviewIntent` and `answerStrategy` as typed fields (not raw strings)
+- `freezeTurnDecision()` deep-freezes the entire decision object at the orchestrator exit point; mutation at any downstream site becomes a runtime error
+  - *Why:* five independent source-decision sites were found drifting in the pre-V3 stack; freezing makes the invariant enforceable rather than conventional
+
+**Key files:** `orchestration/engine-bridge.ts`, `orchestration/orchestrator.ts`, `contracts/types.ts`
+
+---
+
+### Phase 9 — Strategy Quality Assurance
+
+**Status:** COMPLETE · **Commit:** `0f2317ed`
+
+**Objective:** Verify strategy selection produces semantically appropriate strategies — not just structurally valid ones.
+
+**Implemented:**
+- For each of the 18 intent types: at least one representative question → expected strategy asserted
+- For each of the 4 override behaviors (PUSHBACK, CORRECTION, CLARIFICATION, DEEPENING): override strategy verified
+- Strategy `promptSection` content validated (non-empty, meaningful steps, not just structural)
+- All 9 assertions pass for every strategy
+
+**Tests:** Phase9StrategyQuality.test.mjs (292 lines)
+
+---
+
+### Phase 10 — Observability and Retrieval Hardening
+
+**Status:** COMPLETE · **Commit:** `10c62749`
+
+**Objective:** Make the pipeline's decisions observable and harden retrieval against stale-version and scope violations.
+
+**Implemented:**
+- `EvidenceProvenance` type (9 values): PROFILE_RESUME, PROFILE_JOB_DESCRIPTION, PROFILE_FACT, MODE_REFERENCE_FILE, LIVE_STT, IMPORTED_TRANSCRIPT, TEST_TRANSCRIPT, MEETING_NOTE, MANUAL_CHAT, PRIOR_ASSISTANT_MESSAGE — stamped by each retrieval port at the only layer that knows which store it read from
+- `retrievedVersionId` on `RetrievalCandidate`: makes stale-version collision assertions possible (the active version and the retrieved version are now separately recorded)
+- `answerabilityScore` carried through the `RetrievalCandidate` shape
+- `recordLegacyTurn` in `observability/legacy-trace.ts`
+- Profile source routing and scope-enforcement improvements
+
+**Key files:** `contracts/types.ts`, `observability/legacy-trace.ts`, `retrieval/`
+
+**Tests:** EvidenceProvenance2026_08_01.test.mjs, ProfileRetrievalPort2026_07_31.test.mjs
+
+---
+
+### Phase 11 — Evaluation Layer
+
+**Status:** COMPLETE · **Commit:** `2b763b94`
+
+**Objective:** Build a deterministic evaluation harness so answer-quality regressions are detectable without running live transcripts.
+
+**Implemented:**
+- `evaluation/golden-case-schema.ts`: `GoldenCase` type (id, question, risk level, expected fields)
+- `evaluation/golden-cases.ts`: 46 initial golden cases across all 18 intent types
+- `evaluation/golden-evaluator.ts`: runs every golden case against the live classifier; reports pass/fail per expected field; returns structured results
+- `GoldenDataset.test.mjs`: golden evaluator wired into the test suite
+- `ObservabilityRegression.test.mjs`: 16 seed cases
+- 49 new tests pass at Phase 11 completion
+
+**Key files:** `evaluation/`, `__tests__/GoldenDataset.test.mjs`
+
+**Tests:** GoldenDataset.test.mjs (46 cases × multi-field assertions), ObservabilityRegression.test.mjs (16)
+
+---
+
+### Phase 12 — Hardening and Regression Armor
+
+**Status:** COMPLETE · **Commit:** `2b3f0979`
+
+**Objective:** Expand golden coverage to 85 cases, add strategy reachability invariants, and lock observability output shape.
+
+**Implemented:**
+- Golden dataset expanded from 46 to 85 cases; boundary and high-risk cases added per intent
+- `StrategyReachability.test.mjs` (20 tests): every strategy must be reachable from at least one intent; every intent must map to a strategy — prevents dead-code strategy accumulation
+- `ObservabilityRegression.test.mjs` expanded to 16 locked cases: observability output shape is now a regression boundary
+- 124/124 new tests pass
+
+**Tests:** StrategyReachability.test.mjs (20), ObservabilityRegression.test.mjs (16)
+
+---
+
+### Phase 13 — Golden Dataset Completion
+
+**Status:** COMPLETE · **Commit:** `722faf53`
+
+**Objective:** Bring the golden dataset to full coverage across all 18 intent types with representative and high-risk boundary cases.
+
+**Implemented:**
+- Golden dataset expanded from 85 to 99 cases (gc_001–gc_099)
+- High-risk boundary cases for each intent type: cases that are plausible misclassifications (e.g., concept_explanation vs. knowledge_check, project_deep_dive vs. project_context)
+- All 18 intent types covered with multiple representative questions
+
+**Key files:** `evaluation/golden-cases.ts`
+
+**Tests:** GoldenDataset.test.mjs (99 cases)
+
+---
+
+### Phase 14 — V1 Closure
+
+**Status:** COMPLETE · **Commit:** `4432d09d`
+
+**Objective:** Fix the last behavioral defect (AG-003) and declare the V1 interview intent classification layer complete.
+
+**Defect fixed:**
+- `PROJECT_DEEP_RE` extended with action verbs: handle, solve, approach, debug, troubleshoot, optimize, implement, fix, resolve, investigate, diagnose
+- CODING_TASK branch guards against PERSONAL_PROJECT + PROJECT_DEEP_RE co-occurrence — "How did you solve X in your project?" reaches `project_deep_dive`, not `coding_task`
+- gc_079 revised: `project_context` → `project_deep_dive` (semantically correct)
+- gc_088–gc_091 lock the boundary and solve-conflict behavior
+
+**Test results:** 1,116/1,118 pass (2 pre-existing FlagAndAdapter failures — Electron runtime requirement only)
+
+**V1 architecture layers (all wired at Phase 14):**
+
+| Layer | File |
+| --- | --- |
+| Turn classifier | `question/turn-classifier.ts` |
+| InterviewIntent + ContextRequirements | `contracts/types.ts` |
+| StrategyRegistry (19 strategies) | `strategies/` |
+| Strategy selector | `strategies/selector.ts` |
+| Composite retrieval | `retrieval/composite-retrieval-port.ts` |
+| StoryBankPort | `retrieval/story-bank-port.ts` |
+| Prompt composer | `generation/prompt-composer.ts` |
+| Context packer | `generation/context-packer.ts` |
+| Engine bridge | `orchestration/engine-bridge.ts` |
+| Orchestrator | `orchestration/orchestrator.ts` |
+| Evaluation harness | `evaluation/` |
+
+**V1 DECLARED COMPLETE at Phase 14.**
+
+---
+
+### Phase 15 — V1 Correctness Remediation
+
+**Status:** COMPLETE · **Commit:** `0610acb7`
+
+**Objective:** Fix three root-cause defects found by requirement-first analysis (D-01, D-02, D-03). These were defects against the *intended architecture*, not probe-derived patches.
+
+**Defects fixed:**
+
+**D-01: Source-availability routing confusion**
+- `hasAnyPersonalCue` flag gates the RESUME-primary fallback — questions with no personal cue no longer infer USER_PROJECT
+- `d01Blocked = true` when fallback is suppressed; routes generic questions to `GENERAL_TECHNICAL` in last-resort
+- `howWouldYouGeneral`: `/\bhow would you\b/.test(q) && !CONTEXT_ANAPHOR_RE.test(q)` — questions without a context anaphor ("this"/"it"/"that") → `GENERAL_TECHNICAL`; questions WITH an anaphor ("how would you scale *this* system?") → `DOCUMENT_FACT` (preserved)
+
+**D-02: Weak personal-project language detection**
+- `PERSONAL_PAST_PROJECT_RE` extended with past-tense decision verbs: chose, picked, adopted, selected, and the "made you [choice verb]" modal construction
+
+**D-03: Classifier/persona split-brain**
+- `engine-bridge.ts` now derives `codingTask` from `interviewIntent.intent` (the Phase 13 typed layer), not raw `questionTypes` strings
+
+**Supporting fixes:**
+- `METRIC_LOOKUP_RE` added to `definiteValueLookup`: metric questions ("peak transaction volume of the payments API") bypass `conceptComplement` suppression so they always route to grounded retrieval
+- `isBareFollowUp` exception: "how do you X?" (5 words, no anaphor) is not treated as a bare follow-up
+
+**Golden cases updated:**
+- gc_012: `USER_MOTIVATION` (projects=true, stories=true, resume=false per CLAIM_AUTHORITY)
+- gc_099: `concept_explanation`/`define_concept` (generalKnowledge=true, not DOCUMENT_FACT)
+
+**New test file:** `Phase15SourceInvariance.test.mjs` (28 tests) — source availability must not change semantic intent
+
+**Phase 15 suite:** 360/360 · **Full suite:** 8,003 pass / 544 fail (all pre-existing)
+
+**V1 VERIFIED — architecture matches implementation at Phase 15.**
+
+---
+
+### Phase 16 — Classification Correctness
+
+**Status:** COMPLETE · **Commits:** `accd1611`, `831da4ca`
+
+**Objective:** Fix three defects where narrow regex patterns missed common real-world phrasings; verify all 18 intents are source-invariant.
+
+**Defects fixed:**
+
+**D1: INTRODUCTION_RE too narrow**
+- Added: "walk me/us through your [adjective] background" — covers "professional", "career", "technical" modifiers and the "us" pronoun
+- Added: "tell me a little about yourself" — modifier before "about yourself"
+
+**D2: DEBUGGING regex incomplete**
+- Added: "why is/does this/my [code-type noun]" — covers function, method, script, test, loop, program, query, app, service, component
+- Added: "what is wrong with" — expanded form of "what's wrong"
+- Added: "find the bug" / "find bugs"
+
+**D3: EXPERIENCE_CHALLENGE_RE missing superlatives**
+- Added "the" to article alternation (superlatives use "the", not "a/an")
+- Added "hardest" and "toughest" to adjective list (only base forms "hard"/"tough" were present)
+
+**Golden cases:** 13 new cases (gc_100–gc_112): introduction variants, debugging patterns, superlative experience questions, and negative boundaries
+
+**Source-invariance matrix:** All 18 intents verified stable with and without attached documents
+
+**New test file:** `Phase16ClassificationCorrectness.test.mjs` (34 tests):
+- Section A: all 18 intents source-invariant
+- Section B: D1 introduction fix positive + negative
+- Section C: D2 debugging fix positive + negative
+- Section D: D3 superlative experience positive + negative
+
+**Phase 16 suite:** 378/378 · 0 new regressions
+
+---
+
+### Interview Coverage Matrix
+
+| Category | Question Type | Status | Intent(s) |
+| --- | --- | --- | --- |
+| **Concept & Knowledge** | Concept definition ("What is X?") | ✅ SUPPORTED | concept_explanation |
+| | Mechanism ("How does X work?") | ✅ SUPPORTED | mechanism_explanation |
+| | Knowledge check ("What would you use for X?") | ✅ SUPPORTED | knowledge_check |
+| **Problem Solving** | Coding task ("Write / implement X") | ✅ SUPPORTED | coding_task |
+| | Debugging ("Why is this failing?") | ✅ SUPPORTED | debugging |
+| | Optimization ("How would you optimize X?") | ✅ SUPPORTED | optimization |
+| **Design** | System design / HLD | ✅ SUPPORTED | system_design |
+| | Low-level design / OOP | ✅ SUPPORTED | lld |
+| | Scalability analysis | ✅ SUPPORTED | scalability |
+| **Decision & Tradeoff** | Technology decision | ✅ SUPPORTED | technology_decision |
+| | Comparison ("X vs Y") | ✅ SUPPORTED | comparison |
+| | Tradeoff analysis | ✅ SUPPORTED | tradeoff |
+| **Project & Experience** | Project context | ✅ SUPPORTED | project_context |
+| | Project deep-dive | ✅ SUPPORTED | project_deep_dive |
+| | Experience question | ✅ SUPPORTED | experience_question |
+| **Personal / Behavioral** | Behavioral / STAR | ✅ SUPPORTED | behavioral |
+| | Introduction ("Tell me about yourself") | ✅ SUPPORTED | introduction |
+| **Conversation State** | Generic follow-up | ✅ SUPPORTED | follow_up_generic |
+| | Pushback response | ✅ SUPPORTED | override: defend_position |
+| | Correction response | ✅ SUPPORTED | override: acknowledge_correction |
+| | Clarification | ✅ SUPPORTED | override: restate_clearly |
+| | Deepening elaboration | ✅ SUPPORTED | override: deepen_explanation |
+| **Grounding Policy** | Open-world (general knowledge) | ✅ SUPPORTED | OPEN_KNOWLEDGE |
+| | Source-first (resume / docs) | ✅ SUPPORTED | SOURCE_FIRST |
+| | Strict source only | ✅ SUPPORTED | STRICT_SOURCE_ONLY |
+| **Multi-turn** | Topic chain continuity (6-turn cap) | ✅ SUPPORTED | ChainTurn |
+| | Anaphor-aware routing | ✅ SUPPORTED | CONTEXT_ANAPHOR_RE |
+
+---
+
+### Known Limitations / Technical Debt
+
+1. **`general_cs` domain detection is approximate.** The domain classifier uses regex patterns; unusual phrasings in a general CS question may fall through to `unknown`. No eval case currently exercises the `unknown` domain path.
+
+2. **`d01Blocked` is not directly unit-testable.** The source-availability fallback suppression flag is internal to the classifier. Its behavior is covered by golden cases and source-invariance tests but is not independently observable through the public API.
+
+3. **Strategy prompt sections are not LLM-evaluated.** The 19 strategy `promptSection`/`steps` fields are verified structurally (non-empty, correct type) and heuristically (Phase9StrategyQuality.test.mjs) but not evaluated against actual LLM output for semantic quality.
+
+4. **FlagAndAdapter.test.mjs: 2 pre-existing failures.** These require the Electron runtime (IPC, native modules) and cannot be fixed in the Node test environment. They predate Phase 2 and are not regressions.
+
+5. **544 pre-existing full-suite failures.** All traced to native module ABI mismatches (better-sqlite3 under direct `node --test`), environment gaps (Electron-only IPC tests), or missing build artifacts. None originate in the context-intelligence layer.
+
+6. **`StoryBankPort` activates on intent, not on story existence.** If the story store is empty, `stories: true` in `ContextRequirements` is set (the intent warrants stories) but retrieval returns no evidence. The classifier does not know whether stories exist, only whether the intent warrants them.
+
+7. **No eval harness for full prompt composition.** `GoldenDataset.test.mjs` validates classification and strategy selection. It does not run `composePrompt()` → LLM and evaluate the resulting answer. Answer quality is not machine-verified.
+
+8. **`implementation_walkthrough` AnswerStructure not end-to-end tested.** This structure is assigned to debugging intents; the strategy steps exist but no eval case runs it through full prompt composition. Deferred from Phase 15.
+
+---
+
+### Recommended Next Phase — Phase 17: Prompt Composition Evaluation
+
+**Rationale:** The V1 classifier is verified (Phase 16). The next largest gap is that `composePrompt()` output is never machine-evaluated. A question can reach the correct intent, correct strategy, and correct retrieval path — and still produce a poorly-structured answer because the `promptSection` content is verified only structurally, not semantically.
+
+**Scope:**
+1. For each of the 18 intent types, run `composePrompt()` with a representative `TurnDecision` + empty evidence + known policy, and assert structural properties of the output:
+   - `<answer_strategy>` section present and contains the strategy's steps
+   - Evidence section absent when `generalKnowledge: true` and no evidence was retrieved
+   - `personaBase` section ordered before all governance sections
+   - No strategy section when intent is `follow_up_generic` with `OPEN_KNOWLEDGE`
+2. Add 18 composition golden cases to the test suite (one per intent)
+3. Add a reachability invariant: every `StrategyId` in the registry must appear in at least one composition test
+
+**Why Phase 17 before LLM-based answer quality eval:**
+- Composition invariants are deterministic, fast (no LLM calls), and already implied by the architecture but nowhere asserted
+- They close the gap between "strategy selected" and "strategy instructions actually reach the model in the correct position"
+- The composition test suite becomes a regression guard for future `prompt-composer.ts` changes
+
+**What this does NOT cover:** Actual answer quality (human voice, grounding, pacing) — that requires LLM calls, is non-deterministic, and needs human calibration against golden transcripts. That is a separate future phase.
+
+**Estimated tests:** ~50–60 new tests  
+**Key files to modify:** `generation/prompt-composer.ts`, new `__tests__/Phase17PromptComposition.test.mjs`  
+**Exit criteria:** Every strategy in the registry is verified to appear in the composed prompt for its canonical intent; `composePrompt()` with no evidence + generalKnowledge=true produces no evidence block.

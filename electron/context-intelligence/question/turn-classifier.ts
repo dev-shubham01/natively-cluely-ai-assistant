@@ -1310,7 +1310,10 @@ export function buildInterviewIntent(
     intent = 'scalability';
   } else if (/\b(?:debug|why is (?:this|my) (?:code|function|method|script|test|loop|program|query|app|service|component)\b|why does (?:this|my) (?:code|function|method|script|test|loop|program|query|app|service|component)\b|what(?:'s| is) wrong with\b|find (?:the )?bugs?\b)\b/i.test(raw)) {
     intent = 'debugging';
-  } else if (/\b(?:do you know|are you familiar with|have you heard of)\b/i.test(raw)) {
+  // Phase 16 (Gap 12): "are you comfortable with X?" is a familiarity check — the
+  // same semantic intent as "are you familiar with X?" — but previously routed to
+  // concept_explanation because only the three original trigger phrases were covered.
+  } else if (/\b(?:do you know|are you familiar with|have you heard of|are you comfortable with)\b/i.test(raw)) {
     intent = 'knowledge_check';
   } else if (cls.questionTypes.includes('FOLLOW_UP')) {
     intent = 'follow_up_generic';
@@ -1338,7 +1341,20 @@ export function buildInterviewIntent(
   if (/\b(?:security|auth\b|oauth|jwt|xss|csrf|encrypt)\b/i.test(raw)) domains.add('security');
   if (intent === 'behavioral' || intent === 'introduction' || intent === 'experience_question') domains.add('behavioral');
   if (cls.questionTypes.includes('PERSONAL_PROJECT') || cls.questionTypes.includes('PERSONAL_EXPERIENCE')) domains.add('project_specific');
-  if (domains.size === 0) domains.add('unknown');
+  // Phase 16 (Gap 11): concept_explanation and knowledge_check questions that name
+  // no specific technology/framework/OS/etc. are language-agnostic CS fundamentals.
+  // Assigning 'general_cs' (rather than 'unknown') aligns with DEFAULT_INTERVIEW_INTENT
+  // and gives downstream consumers a meaningful signal for general concept questions
+  // (e.g. "What is eventual consistency?", "What is a race condition?").
+  // All other intent types that match no domain keep 'unknown' — they may be
+  // out-of-scope or domain-ambiguous questions not covered by CS fundamentals.
+  if (domains.size === 0) {
+    if (intent === 'concept_explanation' || intent === 'knowledge_check') {
+      domains.add('general_cs');
+    } else {
+      domains.add('unknown');
+    }
+  }
 
   // ── 4. QuestionStyle ──────────────────────────────────────────────────────
   const trimmed = raw.replace(/^(can|could|would|will|do|does|did|should|is|are)\s+you\s+/i, '');

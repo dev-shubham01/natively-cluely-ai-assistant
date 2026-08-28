@@ -299,3 +299,90 @@ describe('Phase 16 — D: D3 EXPERIENCE_CHALLENGE_RE superlative fix', () => {
     assert.equal(r2.cr.stories, true);
   });
 });
+
+// ── E. Gap 11 — general_cs domain for generic CS concepts ──────────────────
+describe('Phase 16 — E: Gap 11 — general_cs domain for concept_explanation / knowledge_check', () => {
+
+  function classifyWithDomain(question, { hasAttachedDocuments = false } = {}) {
+    const result = classifyTurn({ resolvedQuestion: question, policy: POLICY, isFollowUp: false, hasAttachedDocuments });
+    const ii = result.interviewIntent;
+    return { intent: ii?.intent, cr: ii?.contextRequirements ?? {}, domains: ii?.domain ?? [] };
+  }
+
+  test('generic CS concept with no specific tech → general_cs domain', () => {
+    const cases = [
+      'What is eventual consistency?',
+      'What is a hash map?',
+      'Explain the concept of immutability.',
+      'What is a race condition?',
+    ];
+    for (const q of cases) {
+      const r = classifyWithDomain(q);
+      assert.equal(r.intent, 'concept_explanation', `"${q}" → expected concept_explanation, got ${r.intent}`);
+      assert.ok(r.domains.includes('general_cs'), `"${q}" → expected domain general_cs, got ${JSON.stringify(r.domains)}`);
+    }
+  });
+
+  test('technology-specific concept keeps its specific domain (not general_cs)', () => {
+    const jsResult = classifyWithDomain('What is a Promise in JavaScript?');
+    assert.equal(jsResult.intent, 'concept_explanation');
+    assert.ok(!jsResult.domains.includes('general_cs'), 'JS concept must not get general_cs domain');
+    assert.ok(jsResult.domains.length > 0 && !jsResult.domains.includes('unknown'), 'JS concept must have a specific domain');
+
+    const osResult = classifyWithDomain('What is a deadlock?');
+    assert.equal(osResult.intent, 'concept_explanation');
+    assert.ok(!osResult.domains.includes('general_cs'), 'OS concept (deadlock) must not get general_cs domain');
+  });
+
+  test('knowledge_check with no specific tech domain → general_cs domain', () => {
+    const r = classifyWithDomain('Are you familiar with data structures?');
+    assert.equal(r.intent, 'knowledge_check', 'expected knowledge_check intent');
+    assert.ok(r.domains.includes('general_cs'), `expected general_cs domain, got ${JSON.stringify(r.domains)}`);
+  });
+
+  test('non-concept intent with no specific tech keeps unknown (not general_cs)', () => {
+    const r = classifyWithDomain('Walk me through a challenging project you worked on.');
+    assert.notEqual(r.intent, 'concept_explanation', 'should not be concept_explanation');
+    assert.ok(!r.domains.includes('general_cs'), `non-concept intent must not receive general_cs domain, got ${JSON.stringify(r.domains)}`);
+  });
+});
+
+// ── F. Gap 12 — knowledge_check "comfortable" trigger ──────────────────────
+describe('Phase 16 — F: Gap 12 — knowledge_check "are you comfortable with" trigger', () => {
+
+  test('"are you comfortable with X?" → knowledge_check', () => {
+    const cases = [
+      'Are you comfortable with Docker?',
+      'Are you comfortable with Redis?',
+      'Are you comfortable with microservices?',
+      'Are you comfortable with Kubernetes?',
+    ];
+    for (const q of cases) {
+      const r = classify(q);
+      assert.equal(r.intent, 'knowledge_check', `"${q}" → expected knowledge_check, got ${r.intent}`);
+    }
+  });
+
+  test('knowledge_check from "comfortable" is source-invariant', () => {
+    assertSourceInvariant(test, 'Are you comfortable with Docker?', 'knowledge_check');
+    assertSourceInvariant(test, 'Are you comfortable with Redis?', 'knowledge_check');
+  });
+
+  test('knowledge_check has generalKnowledge=false, resume=false, stories=false', () => {
+    const r = classify('Are you comfortable with Docker?');
+    assert.equal(r.cr.generalKnowledge, false, 'knowledge_check must not set generalKnowledge=true');
+    assert.equal(r.cr.stories, false, 'knowledge_check must not set stories=true');
+    assert.equal(r.cr.resume, false, 'knowledge_check must not set resume=true');
+  });
+
+  test('plain concept questions are NOT reclassified as knowledge_check', () => {
+    assert.equal(classify('What does Docker do?').intent, 'concept_explanation', '"What does Docker do?" must not become knowledge_check');
+    assert.equal(classify('What is Redis?').intent, 'concept_explanation', '"What is Redis?" must not become knowledge_check');
+    assert.equal(classify('Explain how Kubernetes schedules pods.').intent, 'concept_explanation');
+  });
+
+  test('"are you comfortable with system design" is intercepted by SYSTEM_DESIGN_RE first', () => {
+    assert.equal(classify('Are you comfortable with system design?').intent, 'system_design',
+      '"Are you comfortable with system design?" must route to system_design (SYSTEM_DESIGN_RE wins over knowledge_check cascade)');
+  });
+});
