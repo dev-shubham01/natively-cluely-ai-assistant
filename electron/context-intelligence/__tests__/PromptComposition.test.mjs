@@ -789,3 +789,147 @@ describe('Phase 8 P. existing regression invariants', () => {
     assert.equal(typeof composePrompt, 'function');
   });
 });
+
+// ── Phase 17 Q. Remaining intent strategies — prompt-composition coverage ─────
+//
+// Verifies the 9 intent strategies not yet covered by Sections A–J:
+//   justify_decision, analyze_options, trace_bug, optimize_approach, design_classes,
+//   narrate_experience, introduce_self, analyze_scale, continue_thread.
+//
+// Each test uses the actual strategy from the registry and verifies that the
+// correct promptSection text appears in the system prompt. Strategy IDs must
+// never appear in the rendered output. Trigger questions are the same as those
+// verified by StrategyReachability.test.mjs.
+
+describe('Phase 17 Q. remaining intent strategies — prompt-composition coverage', () => {
+  test('justify_decision renders correct promptSection', () => {
+    const d = decision('Why did you go with Kubernetes?');
+    assert.equal(d.answerStrategy?.id, 'justify_decision',
+      `expected justify_decision, got ${d.answerStrategy?.id}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_strategy'), `sections: ${c.sections.join(',')}`);
+    assert.match(c.system, /State the choice and the primary reason/);
+    assert.match(c.system, /Steps:/);
+    assert.ok(!c.system.includes('justify_decision'), 'strategy id must not appear in prompt');
+  });
+
+  test('analyze_options renders correct promptSection', () => {
+    const d = decision('What are the tradeoffs between microservices and monolith?');
+    assert.equal(d.answerStrategy?.id, 'analyze_options',
+      `expected analyze_options, got ${d.answerStrategy?.id}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_strategy'));
+    assert.match(c.system, /dimensions that genuinely differentiate/);
+    assert.match(c.system, /Steps:/);
+    assert.ok(!c.system.includes('analyze_options'), 'strategy id must not appear in prompt');
+  });
+
+  test('trace_bug renders correct promptSection', () => {
+    const d = decision('Debug this function.');
+    assert.equal(d.answerStrategy?.id, 'trace_bug',
+      `expected trace_bug, got ${d.answerStrategy?.id}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_strategy'));
+    assert.match(c.system, /Do not jump to the first guess/);
+    assert.match(c.system, /Steps:/);
+    assert.ok(!c.system.includes('trace_bug'), 'strategy id must not appear in prompt');
+  });
+
+  test('optimize_approach renders correct promptSection', () => {
+    const d = decision('How would you optimize this query?');
+    assert.equal(d.answerStrategy?.id, 'optimize_approach',
+      `expected optimize_approach, got ${d.answerStrategy?.id}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_strategy'));
+    assert.match(c.system, /Profile before optimizing/);
+    assert.match(c.system, /Steps:/);
+    assert.ok(!c.system.includes('optimize_approach'), 'strategy id must not appear in prompt');
+  });
+
+  test('design_classes renders correct promptSection', () => {
+    const d = decision('Design the classes for a parking lot.');
+    assert.equal(d.answerStrategy?.id, 'design_classes',
+      `expected design_classes, got ${d.answerStrategy?.id}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_strategy'));
+    assert.match(c.system, /core entities from the requirements/);
+    assert.match(c.system, /Steps:/);
+    assert.ok(!c.system.includes('design_classes'), 'strategy id must not appear in prompt');
+  });
+
+  test('narrate_experience renders correct promptSection', () => {
+    const d = decision('Tell me about a difficult technical problem you solved.');
+    assert.equal(d.answerStrategy?.id, 'narrate_experience',
+      `expected narrate_experience, got ${d.answerStrategy?.id}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_strategy'));
+    assert.match(c.system, /not a form submission/);
+    assert.match(c.system, /Steps:/);
+    assert.ok(!c.system.includes('narrate_experience'), 'strategy id must not appear in prompt');
+  });
+
+  test('introduce_self renders correct promptSection', () => {
+    const d = decision('Tell me about yourself.');
+    assert.equal(d.answerStrategy?.id, 'introduce_self',
+      `expected introduce_self, got ${d.answerStrategy?.id}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_strategy'));
+    assert.match(c.system, /not a resume recitation/);
+    assert.match(c.system, /Steps:/);
+    assert.ok(!c.system.includes('introduce_self'), 'strategy id must not appear in prompt');
+  });
+
+  test('analyze_scale renders correct promptSection', () => {
+    const d = decision('How would you scale this to handle millions of users?');
+    assert.equal(d.answerStrategy?.id, 'analyze_scale',
+      `expected analyze_scale, got ${d.answerStrategy?.id}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_strategy'));
+    assert.match(c.system, /Do not just list what would break/);
+    assert.match(c.system, /Steps:/);
+    assert.ok(!c.system.includes('analyze_scale'), 'strategy id must not appear in prompt');
+  });
+
+  test('continue_thread renders correct promptSection (synthetic strategy)', () => {
+    // Uses the synthetic override pattern (same as G/H/I) to avoid classifier
+    // dependency — the rendering path is independent of how the strategy was selected.
+    const base = decision('What is a closure?');
+    const continueStrategy = STRATEGY_REGISTRY.get('continue_thread');
+    assert.ok(continueStrategy, 'continue_thread must be in registry');
+    const d = { ...base, answerStrategy: continueStrategy };
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_strategy'));
+    assert.match(c.system, /Do not restart the topic/);
+    assert.match(c.system, /Steps:/);
+    assert.ok(!c.system.includes('continue_thread'), 'strategy id must not appear in prompt');
+  });
+});
+
+// ── Phase 17 R. CORRECTION override — acknowledge_correction ─────────────────
+//
+// Completes the 4-override coverage:
+//   G (PUSHBACK → defend_position), H (CLARIFICATION → restate_clearly),
+//   I (DEEPENING → deepen_explanation), R (CORRECTION → acknowledge_correction).
+
+describe('Phase 17 R. CORRECTION override — acknowledge_correction', () => {
+  test('acknowledge_correction renders correct instructions and does not expose strategy id', () => {
+    const base = decision('What is a closure?');
+    const correctionStrategy = STRATEGY_REGISTRY.get('acknowledge_correction');
+    assert.ok(correctionStrategy, 'acknowledge_correction must be in registry');
+    const d = { ...base, answerStrategy: correctionStrategy };
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_strategy'), `sections: ${c.sections.join(',')}`);
+    assert.match(c.system, /Acknowledge the correction immediately/);
+    assert.match(c.system, /Steps:/);
+    assert.ok(!c.system.includes('acknowledge_correction'), 'strategy id must not appear in prompt');
+    // Intent-strategy text (define_concept) must NOT appear when override is active
+    assert.ok(!c.system.includes('one-sentence definition'),
+      'define_concept text must not appear when CORRECTION override is active');
+  });
+
+  test('acknowledge_correction registry entry declares CORRECTION as its behavior override', () => {
+    const s = STRATEGY_REGISTRY.get('acknowledge_correction');
+    assert.ok(s, 'acknowledge_correction must be registered');
+    assert.deepEqual(s.behaviorOverrides, ['CORRECTION']);
+  });
+});
