@@ -933,3 +933,93 @@ describe('Phase 17 R. CORRECTION override — acknowledge_correction', () => {
     assert.deepEqual(s.behaviorOverrides, ['CORRECTION']);
   });
 });
+
+// ── Phase 20. Answer depth composition coverage ───────────────────────────────
+//
+// renderAnswerDepth() emits '# Answer depth' when:
+//   (a) depth === 'deep'   — system_design, lld, scalability, project_deep_dive
+//   (b) depth === 'brief'  — knowledge_check
+//   (c) a boolean flag (includeTradeoffs / includeCode / includeComplexity) is
+//       true AND answerStrategy is absent (a present strategy already instructs
+//       those behaviours — the flags are suppressed to avoid duplication).
+//
+// Prior test suite (K, L) only asserted ABSENCE. These tests assert PRESENCE.
+
+describe('Phase 20 A. depth=deep — answer_depth section fires for system_design and scalability', () => {
+  test('system_design produces answer_depth section with deep guidance', () => {
+    const d = decision('Design a URL shortener at scale.');
+    assert.equal(d.answerStrategy?.id, 'design_system',
+      `expected design_system, got ${d.answerStrategy?.id}`);
+    assert.equal(d.interviewIntent?.expectedAnswer?.depth, 'deep',
+      `expected depth=deep, got ${d.interviewIntent?.expectedAnswer?.depth}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_depth'),
+      `answer_depth must be in sections for system_design. sections: ${c.sections.join(',')}`);
+    assert.match(c.system, /# Answer depth/);
+    assert.match(c.system, /warrants detailed treatment/);
+    // brief instruction must not bleed into a deep-treatment section
+    assert.ok(!c.system.includes('Keep the answer short'),
+      'deep guidance must not include brief instruction');
+  });
+
+  test('scalability intent produces answer_depth section with deep guidance', () => {
+    const d = decision('Scale this to 10M users.');
+    assert.equal(d.interviewIntent?.expectedAnswer?.depth, 'deep',
+      `expected depth=deep for scalability, got ${d.interviewIntent?.expectedAnswer?.depth}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_depth'),
+      `answer_depth must be in sections for scalability. sections: ${c.sections.join(',')}`);
+    assert.match(c.system, /# Answer depth/);
+    assert.match(c.system, /warrants detailed treatment/);
+  });
+});
+
+describe('Phase 20 B. depth=brief — answer_depth section fires for knowledge_check', () => {
+  test('knowledge_check produces answer_depth section with brief guidance', () => {
+    const d = decision('Are you familiar with Kubernetes?');
+    assert.equal(d.interviewIntent?.intent, 'knowledge_check',
+      `expected knowledge_check, got ${d.interviewIntent?.intent}`);
+    assert.equal(d.interviewIntent?.expectedAnswer?.depth, 'brief',
+      `expected depth=brief, got ${d.interviewIntent?.expectedAnswer?.depth}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_depth'),
+      `answer_depth must be in sections for knowledge_check. sections: ${c.sections.join(',')}`);
+    assert.match(c.system, /# Answer depth/);
+    assert.match(c.system, /Keep the answer short/);
+    // deep instruction must not bleed into a brief-treatment section
+    assert.ok(!c.system.includes('warrants detailed treatment'),
+      'brief guidance must not include deep instruction');
+  });
+});
+
+describe('Phase 20 C. answer_depth section ordering', () => {
+  test('answer_depth appears after answer_strategy in sections', () => {
+    const d = decision('Design a URL shortener at scale.');
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    const stratIdx = c.sections.indexOf('answer_strategy');
+    const depthIdx = c.sections.indexOf('answer_depth');
+    assert.ok(stratIdx !== -1, `answer_strategy must be present. sections: ${c.sections.join(',')}`);
+    assert.ok(depthIdx !== -1, `answer_depth must be present. sections: ${c.sections.join(',')}`);
+    assert.ok(depthIdx > stratIdx,
+      `answer_depth (${depthIdx}) must appear after answer_strategy (${stratIdx}). sections: ${c.sections.join(',')}`);
+  });
+});
+
+describe('Phase 20 D. flag guidance renders when answerStrategy is absent', () => {
+  // When a strategy IS present it already instructs tradeoff/code/complexity
+  // behaviours, so renderAnswerDepth suppresses the flag lines. Only when the
+  // strategy is absent do those lines surface. This tests that unique path.
+  test('includeTradeoffs emits tradeoff guidance line when no strategy is present', () => {
+    // "Compare the tradeoffs…" routes to comparison intent with includeTradeoffs=true.
+    const base = decision('What are the tradeoffs between SQL and NoSQL?');
+    assert.equal(base.interviewIntent?.expectedAnswer?.includeTradeoffs, true,
+      'comparison question must have includeTradeoffs=true');
+    // Remove the strategy: the flag-path now renders instead of being suppressed.
+    const d = { ...base, answerStrategy: undefined };
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_depth'),
+      `answer_depth must fire when includeTradeoffs=true and no strategy. sections: ${c.sections.join(',')}`);
+    assert.match(c.system, /# Answer depth/);
+    assert.match(c.system, /Address tradeoffs explicitly/);
+  });
+});
