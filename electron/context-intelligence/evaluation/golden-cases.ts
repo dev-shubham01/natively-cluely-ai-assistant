@@ -1762,4 +1762,34 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       structure:           'direct_definition',
     },
   },
+
+  // ── Phase 19 — retrieval-routing coverage (gc_116–gc_117) ───────────────────
+  {
+    id: 'gc_116',
+    question: 'What is DOC-CODE-471 associated with?',
+    risk: 'high',
+    notes: 'Phase 19 P-02: 3+-segment coded identifier as subject → definiteValueLookup=true → documents=true; TCP-IP / SHA-256 (1 segment) must NOT fire (verified by AllFilesStressRetrieval regression guard)',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { documents: true, generalKnowledge: false },
+      storyBankActivated: false,
+      structure:           'direct_definition',
+    },
+  },
+  {
+    id: 'gc_117',
+    question: 'What does the design doc say about the caching layer?',
+    risk: 'high',
+    notes: 'Phase 19 P-01: "what does the [doc] say" with deictic determiner → definiteValueLookup=true → documents=true; "What does oxygen do?" (no determiner) must NOT fire',
+    expected: {
+      intent: 'concept_explanation',
+      strategy: 'define_concept',
+      behavior: 'QUESTION',
+      contextRequirements: { documents: true, generalKnowledge: false },
+      storyBankActivated: false,
+      structure:           'direct_definition',
+    },
+  },
 ] as const;

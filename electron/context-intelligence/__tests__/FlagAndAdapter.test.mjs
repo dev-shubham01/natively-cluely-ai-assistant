@@ -7,10 +7,12 @@
 // The adapter tests encode the measured requirement: a superseded version is
 // REJECTED, not ranked lower (54.8% stale-version rate on semantic ranking).
 
-import { test, describe } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import fs from 'node:fs';
+import os from 'node:os';
 
 const base = path.resolve(process.cwd(), 'dist-electron/electron/context-intelligence');
 const flagMod = await import(pathToFileURL(path.join(base, 'contracts/flag.js')).href);
@@ -290,6 +292,16 @@ describe('legacy adapter — scope isolation', () => {
 
 describe('the persisted opt-in', () => {
   const { readPersistedSetting, writePersistedSetting } = flagMod;
+
+  let tmpDir;
+  before(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'natively-flag-test-'));
+    process.env.NATIVELY_TEST_USERDATA = tmpDir;
+  });
+  after(() => {
+    delete process.env.NATIVELY_TEST_USERDATA;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 
   test('reads back what was written, and clearing returns to the default', () => {
     writePersistedSetting(true);

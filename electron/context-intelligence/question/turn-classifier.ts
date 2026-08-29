@@ -929,6 +929,14 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
   // payments API") trigger conceptComplement because they match "the X of Y" — but
   // they ARE definite value lookups, not concept definitions. Add as an alternative
   // so conceptComplement never suppresses metric grounding.
+  // P-02 helper (Phase 19): 3+-segment hyphenated coded ID (DOC-CODE-471, QF-2026-0514).
+  // Uses raw question text because q is lowercased and the all-caps filter would never
+  // match on normalised text ("doc-code-471" !== "DOC-CODE-471").
+  // TCP-IP / SHA-256 each have exactly 1 extra segment → {2,} requires ≥2 → never match.
+  const hasCodedId = (() => {
+    const m = /\b([A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+){2,})\b/.exec(input.resolvedQuestion);
+    return m ? /\d/.test(m[1]) || m[1] === m[1].toUpperCase() : false;
+  })();
   const definiteValueLookup = modeHoldsDocuments && (
     (!conceptComplement
       && (/\b(what|which) (is|are|was|were) (the|our|its|this|that|default|current|active|latest)\b/.test(q)
@@ -946,7 +954,19 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
         // d01Blocked=true with definiteValueLookup=false → GENERAL_TECHNICAL → FAST path
         // → fabricated answer. Past-tense "did + definite-article" is the structural
         // signal that this is a closed fact about a real occurrence, not world knowledge.
-        || /\bhow (long|many|much|often) did (the|this|that|it|they)\b/.test(q)))
+        || /\bhow (long|many|much|often) did (the|this|that|it|they)\b/.test(q)
+        // P-02 (Phase 19): "What is/was/are [DOC-CODE-471]?" — coded identifier as subject.
+        // hasCodedId: ≥3-segment hyphenated token with a digit or all-caps segments.
+        || (/^what (is|are|was|were)\b/.test(q) && hasCodedId)
+        // P-01 (Phase 19): "What does the/this/that/our [doc] say/show/state about X?"
+        // The deictic determiner signals a specific referent (not world-knowledge).
+        // "What does oxygen do?" has no determiner → does NOT fire.
+        || (/\bwhat does (?:the|this|that|our)\b/.test(q)
+            && /\b(?:say|show|state|indicate|describe|contain|mention)\b/.test(q))))
+    // P-03 (Phase 19): "Who owns/handles/is responsible for the follow-up?" — ownership lookup.
+    // Placed outside the !conceptComplement guard: ownership predicates never form
+    // the "the X of/between/to" complement shape that guard targets.
+    || /\bwho (?:owns?|is responsible for|handles?|is assigned to|leads?)\b/.test(q)
     || METRIC_LOOKUP_RE.test(q)
   );
 

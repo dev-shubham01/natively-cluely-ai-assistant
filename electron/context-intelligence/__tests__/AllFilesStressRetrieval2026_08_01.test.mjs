@@ -147,7 +147,7 @@ describe('stress: last-page questions recover the extremal chunk', () => {
       retrieve: async () => midPages,
     });
     const { attempts } = await port.retrieve({
-      decision: decisionFor('What was revenue last quarter?'),
+      decision: decisionFor('What was the revenue last quarter?'),
     });
     assert.equal(attempts.length, 1, attempts.map((a) => a.strategy).join(','));
   });
