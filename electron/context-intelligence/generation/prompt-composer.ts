@@ -442,6 +442,20 @@ function followUpGuidance(d: Readonly<TurnDecision>, fallbackUsed: string | unde
       + 'general explanation instead, still decline — general knowledge is not enabled in this mode — but say '
       + 'which setting restricts it.';
   }
+  // Phase 21: pacing guidance derived from follow-up likelihood.
+  // 'high' intents (coding, design, concept) typically draw follow-up questions from the interviewer.
+  // 'low' intents (introduction, knowledge_check) rarely do.
+  // 'medium' → silent; no guidance is added.
+  const likelihood = d.interviewIntent?.followUpLikelihood;
+  if (likelihood === 'high') {
+    return '# Pacing\nThis type of question typically draws follow-up questions — give a thorough but '
+      + 'navigable answer, leaving clear entry points for the interviewer to drill deeper rather than '
+      + 'exhausting every angle preemptively.';
+  }
+  if (likelihood === 'low') {
+    return '# Pacing\nA brief, direct answer is appropriate here. The interviewer is unlikely to dig '
+      + 'deeper on this — do not expand unnecessarily.';
+  }
   return '';
 }
 

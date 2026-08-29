@@ -1023,3 +1023,59 @@ describe('Phase 20 D. flag guidance renders when answerStrategy is absent', () =
     assert.match(c.system, /Address tradeoffs explicitly/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 21 — followUpLikelihood pacing guidance wired into follow_up section
+// ---------------------------------------------------------------------------
+
+describe('Phase 21 A. system_design (high) emits pacing section', () => {
+  test('follow_up section present and contains elaboration-readiness guidance', () => {
+    const d = decision('Design a URL shortener at scale.');
+    assert.equal(d.interviewIntent?.followUpLikelihood, 'high',
+      `expected followUpLikelihood=high, got ${d.interviewIntent?.followUpLikelihood}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('follow_up'),
+      `follow_up must be in sections for system_design. sections: ${c.sections.join(',')}`);
+    assert.match(c.system, /# Pacing/);
+    assert.match(c.system, /follow-up questions/);
+  });
+});
+
+describe('Phase 21 B. knowledge_check (low) emits pacing section', () => {
+  test('follow_up section present and contains brief-answer guidance', () => {
+    const d = decision('Are you familiar with Kubernetes?');
+    assert.equal(d.interviewIntent?.followUpLikelihood, 'low',
+      `expected followUpLikelihood=low, got ${d.interviewIntent?.followUpLikelihood}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('follow_up'),
+      `follow_up must be in sections for knowledge_check. sections: ${c.sections.join(',')}`);
+    assert.match(c.system, /# Pacing/);
+    assert.match(c.system, /brief, direct answer/);
+  });
+});
+
+describe('Phase 21 C. concept_explanation (high) emits pacing section', () => {
+  test('follow_up section present for second high-likelihood intent', () => {
+    const d = decision('What are closures?');
+    assert.equal(d.interviewIntent?.followUpLikelihood, 'high',
+      `expected followUpLikelihood=high, got ${d.interviewIntent?.followUpLikelihood}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('follow_up'),
+      `follow_up must be in sections for concept_explanation. sections: ${c.sections.join(',')}`);
+    assert.match(c.system, /# Pacing/);
+    assert.match(c.system, /follow-up questions/);
+  });
+});
+
+describe('Phase 21 D. behavioral (medium) — no pacing guidance emitted', () => {
+  test('follow_up section absent for medium-likelihood intent', () => {
+    const d = decision('Tell me about a time when you had to deliver under a tight deadline.');
+    assert.equal(d.interviewIntent?.followUpLikelihood, 'medium',
+      `expected followUpLikelihood=medium, got ${d.interviewIntent?.followUpLikelihood}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(!c.sections.includes('follow_up'),
+      `follow_up must NOT be in sections for behavioral/medium. sections: ${c.sections.join(',')}`);
+    assert.ok(!c.system.includes('# Pacing'),
+      'no Pacing heading must appear for medium likelihood');
+  });
+});
