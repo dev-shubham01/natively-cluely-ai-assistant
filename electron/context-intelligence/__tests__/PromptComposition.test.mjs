@@ -1079,3 +1079,147 @@ describe('Phase 21 D. behavioral (medium) — no pacing guidance emitted', () =>
       'no Pacing heading must appear for medium likelihood');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 22 — Prompt-quality assertions: strategy step content and
+// intent-level section combinations (deterministic, no API key required)
+// ---------------------------------------------------------------------------
+
+describe('Phase 22 A. behavioral — tell_behavioral_story steps and no pacing section', () => {
+  test('STAR structure rendered; follow_up absent for medium-likelihood intent', () => {
+    const d = decision('Tell me about a time you had to meet a tight deadline.');
+    assert.equal(d.interviewIntent?.intent, 'behavioral',
+      `expected behavioral, got ${d.interviewIntent?.intent}`);
+    assert.equal(d.answerStrategy?.id, 'tell_behavioral_story',
+      `expected tell_behavioral_story, got ${d.answerStrategy?.id}`);
+    assert.equal(d.interviewIntent?.followUpLikelihood, 'medium',
+      `expected medium, got ${d.interviewIntent?.followUpLikelihood}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    // answer_strategy section is rendered and contains STAR-format keywords
+    assert.ok(c.sections.includes('answer_strategy'),
+      `answer_strategy must be in sections. sections: ${c.sections.join(',')}`);
+    assert.match(c.system, /STAR/,            'system must mention STAR format');
+    assert.match(c.system, /Situation/,       'system must include Situation step');
+    assert.match(c.system, /\bAction\b/,      'system must include Action step');
+    assert.match(c.system, /\bResult\b/,      'system must include Result step');
+    assert.match(c.system, /[Rr]eflection/,   'system must include Reflection step');
+    // medium followUpLikelihood → no pacing section
+    assert.ok(!c.sections.includes('follow_up'),
+      `follow_up must NOT be present for medium-likelihood behavioral. sections: ${c.sections.join(',')}`);
+    assert.ok(!c.system.includes('# Pacing'),
+      'no Pacing heading for medium-likelihood behavioral');
+  });
+});
+
+describe('Phase 22 B. system_design — three high-value sections present and coherent', () => {
+  test('answer_strategy + answer_depth + follow_up all present; strategy includes requirements clarification', () => {
+    const d = decision('Design a URL shortener at scale.');
+    assert.equal(d.interviewIntent?.intent, 'system_design',
+      `expected system_design, got ${d.interviewIntent?.intent}`);
+    assert.equal(d.interviewIntent?.followUpLikelihood, 'high',
+      `expected high, got ${d.interviewIntent?.followUpLikelihood}`);
+    assert.equal(d.interviewIntent?.expectedAnswer?.depth, 'deep',
+      `expected deep, got ${d.interviewIntent?.expectedAnswer?.depth}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    // All three high-value sections must be present simultaneously
+    assert.ok(c.sections.includes('answer_strategy'),
+      `answer_strategy must be present. sections: ${c.sections.join(',')}`);
+    assert.ok(c.sections.includes('answer_depth'),
+      `answer_depth must be present for deep intent. sections: ${c.sections.join(',')}`);
+    assert.ok(c.sections.includes('follow_up'),
+      `follow_up must be present for high-likelihood intent. sections: ${c.sections.join(',')}`);
+    // System prompt content
+    assert.match(c.system, /clarify/i,
+      'system must instruct to clarify requirements (design_system strategy step)');
+    assert.match(c.system, /warrants detailed treatment/,
+      'system must include deep-treatment guidance (renderAnswerDepth)');
+    assert.match(c.system, /# Pacing/,
+      'system must include # Pacing heading (high-likelihood pacing)');
+    assert.match(c.system, /follow-up questions/,
+      'system must reference follow-up questions in pacing guidance');
+  });
+});
+
+describe('Phase 22 C. coding_task — implement_solution strategy includes complexity; no answer_depth for standard', () => {
+  test('complexity guidance present; answer_depth absent for standard-depth coding turn', () => {
+    const d = decision('Implement a function to detect a cycle in a linked list.');
+    assert.equal(d.interviewIntent?.intent, 'coding_task',
+      `expected coding_task, got ${d.interviewIntent?.intent}`);
+    assert.equal(d.answerStrategy?.id, 'implement_solution',
+      `expected implement_solution, got ${d.answerStrategy?.id}`);
+    assert.equal(d.interviewIntent?.followUpLikelihood, 'high',
+      `expected high, got ${d.interviewIntent?.followUpLikelihood}`);
+    assert.equal(d.interviewIntent?.expectedAnswer?.depth, 'standard',
+      `expected standard depth, got ${d.interviewIntent?.expectedAnswer?.depth}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(c.sections.includes('answer_strategy'),
+      `answer_strategy must be present. sections: ${c.sections.join(',')}`);
+    // implement_solution strategy must include complexity guidance
+    assert.match(c.system, /complexity/i,
+      'system must include complexity guidance for coding_task');
+    // standard depth → no answer_depth section
+    assert.ok(!c.sections.includes('answer_depth'),
+      `answer_depth must NOT be present for standard-depth coding_task. sections: ${c.sections.join(',')}`);
+    // high followUpLikelihood → follow_up (pacing) section present
+    assert.ok(c.sections.includes('follow_up'),
+      `follow_up must be present for high-likelihood coding_task. sections: ${c.sections.join(',')}`);
+  });
+});
+
+describe('Phase 22 D. knowledge_check — answer_depth (brief) and follow_up (low pacing) both present simultaneously', () => {
+  test('both depth and pacing sections present; strategy definition steps rendered', () => {
+    const d = decision('Are you familiar with Kubernetes?');
+    assert.equal(d.interviewIntent?.intent, 'knowledge_check',
+      `expected knowledge_check, got ${d.interviewIntent?.intent}`);
+    assert.equal(d.interviewIntent?.followUpLikelihood, 'low',
+      `expected low, got ${d.interviewIntent?.followUpLikelihood}`);
+    assert.equal(d.interviewIntent?.expectedAnswer?.depth, 'brief',
+      `expected brief, got ${d.interviewIntent?.expectedAnswer?.depth}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    // Both sections must be present simultaneously — this is the Phase 22 combination invariant
+    assert.ok(c.sections.includes('answer_depth'),
+      `answer_depth must be present for brief knowledge_check. sections: ${c.sections.join(',')}`);
+    assert.ok(c.sections.includes('follow_up'),
+      `follow_up must be present for low-likelihood knowledge_check. sections: ${c.sections.join(',')}`);
+    // Brief-depth guidance
+    assert.match(c.system, /Keep the answer short/,
+      'system must contain brief-depth instruction');
+    // Low-pacing guidance
+    assert.match(c.system, /brief, direct answer/,
+      'system must contain low-pacing instruction');
+    // define_concept strategy steps present (knowledge_check shares define_concept)
+    assert.match(c.system, /definition/i, 'system must include definition guidance');
+    assert.match(c.system, /intuition/i,  'system must include intuition guidance');
+    assert.match(c.system, /example/i,    'system must include example guidance');
+  });
+});
+
+describe('Phase 22 E. concept_explanation — define_concept steps present; answer_depth absent; follow_up present', () => {
+  test('standard depth has no answer_depth section; high likelihood adds pacing; definition steps present', () => {
+    const d = decision('What is a closure?');
+    assert.equal(d.interviewIntent?.intent, 'concept_explanation',
+      `expected concept_explanation, got ${d.interviewIntent?.intent}`);
+    assert.equal(d.answerStrategy?.id, 'define_concept',
+      `expected define_concept, got ${d.answerStrategy?.id}`);
+    assert.equal(d.interviewIntent?.followUpLikelihood, 'high',
+      `expected high, got ${d.interviewIntent?.followUpLikelihood}`);
+    assert.equal(d.interviewIntent?.expectedAnswer?.depth, 'standard',
+      `expected standard, got ${d.interviewIntent?.expectedAnswer?.depth}`);
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    // standard depth → NO answer_depth section
+    assert.ok(!c.sections.includes('answer_depth'),
+      `answer_depth must NOT be present for standard-depth concept_explanation. sections: ${c.sections.join(',')}`);
+    // high followUpLikelihood → follow_up (pacing) present
+    assert.ok(c.sections.includes('follow_up'),
+      `follow_up must be present for high-likelihood concept_explanation. sections: ${c.sections.join(',')}`);
+    assert.match(c.system, /follow-up questions/,
+      'system must reference follow-up questions in pacing guidance');
+    // define_concept strategy: definition → intuition → example
+    assert.match(c.system, /definition/i, 'system must include definition guidance');
+    assert.match(c.system, /intuition/i,  'system must include intuition guidance (core intuition)');
+    assert.match(c.system, /example/i,    'system must include example guidance');
+    // answer_strategy section itself is present
+    assert.ok(c.sections.includes('answer_strategy'),
+      `answer_strategy must be present. sections: ${c.sections.join(',')}`);
+  });
+});

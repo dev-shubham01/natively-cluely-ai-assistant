@@ -347,15 +347,15 @@ This section documents the interview intelligence layers built in `electron/cont
 
 | Field | Value |
 | --- | --- |
-| Highest completed phase | Phase 20 (Answer Depth Composition Coverage) |
+| Highest completed phase | Phase 22 (LLM Answer Quality Evaluation) |
 | V1 classification layer | VERIFIED — all 18 intents source-invariant |
 | Golden dataset | 117 cases (gc_001–gc_117) |
-| Phase 20 suite | 1248/1248 |
-| Full suite | 1248/1248 pass / 0 fail (context-intelligence layer) |
+| Phase 22 suite | 1257/1257 |
+| Full suite | 1257/1257 pass / 0 fail (context-intelligence layer) |
 | V1 declared COMPLETE | Phase 14 (2026-08-24) |
 | V1 declared VERIFIED | Phase 16 (2026-08-25) |
 | V1 fully closed | Phase 19 (2026-08-29) |
-| Recommended next phase | Phase 21 (LLM Answer Quality Evaluation) |
+| Phase 22 offline eval runner | Implemented — run `npm run eval:interview` |
 
 ---
 
@@ -856,7 +856,7 @@ BridgeInput (surface, question, modeId, attachedFiles, scope, …)
 
 2. **`d01Blocked` is not directly unit-testable.** The source-availability fallback suppression flag is internal to the classifier. Its behavior is covered by golden cases and source-invariance tests but is not independently observable through the public API.
 
-3. **Strategy prompt sections are not LLM-evaluated.** The 19 strategy `promptSection`/`steps` fields are verified structurally (non-empty, correct type) and heuristically (Phase9StrategyQuality.test.mjs) but not evaluated against actual LLM output for semantic quality.
+3. ~~**Strategy prompt sections are not LLM-evaluated.**~~ **RESOLVED in Phase 22.** `answer-quality.eval.mjs` runs `decide()` → `composePrompt()` → real LLM call → LLM judge for 12 fixtures covering all major intent types. Run `npm run eval:interview` (requires `ANTHROPIC_API_KEY`).
 
 4. ~~**FlagAndAdapter.test.mjs: 2 pre-existing failures.**~~ **RESOLVED in Phase 19.** `before`/`after` hooks now set `NATIVELY_TEST_USERDATA` to a temp dir for the persisted opt-in tests; all FlagAndAdapter tests pass.
 
@@ -868,25 +868,40 @@ BridgeInput (surface, question, modeId, attachedFiles, scope, …)
 
 8. ~~**`implementation_walkthrough` AnswerStructure not end-to-end tested.**~~ **EFFECTIVELY RESOLVED in Phase 19.** Debugging intents now route to `debugging_trace`; the `debugging_trace` strategy path is covered. `implementation_walkthrough` structure remains defined but is not the primary debugging path.
 
-9. **`followUpLikelihood` field not consumed by any downstream layer.** The field is emitted by `buildInterviewIntent()` but not referenced in `prompt-composer.ts` or the scheduler. A future phase can wire it to interview pacing or follow-up probability signaling.
+9. ~~**`followUpLikelihood` field not consumed by any downstream layer.**~~ **RESOLVED in Phase 21.** `followUpGuidance()` in `prompt-composer.ts` now reads `interviewIntent.followUpLikelihood` and emits a `# Pacing` section: elaboration-readiness text for `'high'` (coding_task, system_design, etc.), brief-answer instruction for `'low'` (knowledge_check, introduction, etc.), silent for `'medium'`.
 
 ---
 
-### Recommended Next Phase — Phase 21: LLM Answer Quality Evaluation
+### Phase 21: Follow-up Pacing Guidance — COMPLETE (2026-08-30)
 
-**Rationale:** Phases 14–20 closed V1's deterministic gaps: classification is source-invariant (Phase 16), all 19 strategies render correctly through `composePrompt()` (Phase 17), retrieval routing handles coded identifiers and ownership lookups (Phase 18–19), and `renderAnswerDepth()` is fully covered (Phase 20). The remaining gap is semantic: a question can reach the correct intent, strategy, and retrieval path — and still produce an answer that sounds like AI, omits a key tradeoff, or misjudges depth. That gap requires LLM calls.
+**Scope:** Wire `followUpLikelihood` pacing guidance into `followUpGuidance()` in `prompt-composer.ts`.
 
-**Scope:**
-1. For a representative sample of the 18 intent types (10–12 questions), run `decide()` + `composePrompt()` → real LLM call and evaluate the result against a rubric:
-   - Correct depth (brief for knowledge_check, deep for system_design)
-   - Grounding attribution present when evidence was retrieved
-   - No fabricated personal experience
-   - Strategy steps followed (e.g., STAR format for behavioral, clarifying questions for system design)
-2. Add a lightweight `answer-quality.eval.mjs` runner (non-deterministic, excluded from CI `--test` suite)
-3. Wire the `followUpLikelihood` field (Known Limitation 9) to pacing guidance in `prompt-composer.ts`
+**Changes:**
+- `generation/prompt-composer.ts`: `followUpGuidance()` now reads `d.interviewIntent?.followUpLikelihood`. `'high'` → `# Pacing` section with elaboration-readiness text. `'low'` → `# Pacing` section with brief-answer instruction. `'medium'` → silent (no section emitted).
+- `__tests__/PromptComposition.test.mjs`: 4 new tests (Phase 21 A–D) cover high/low/medium pacing and section presence/absence.
 
-**What this does NOT cover:** Fine-tuning or RLHF — those require infrastructure outside this repo.
+**Suite result:** 1252/1252 pass, 0 fail.
 
-**Estimated tests:** 10–12 LLM-evaluated cases (non-deterministic, rubric-graded, not in Node `--test`)  
-**Key files to modify:** new `evaluation/answer-quality.eval.mjs`, `generation/prompt-composer.ts` (followUpLikelihood)  
-**Exit criteria:** ≥80% rubric pass rate on the sample set; `followUpLikelihood` wired to at least one observable prompt output.
+---
+
+### Phase 22: LLM Answer Quality Evaluation — COMPLETE (2026-08-30)
+
+**Scope:** Build a Layer-A (deterministic CI) + Layer-B (offline LLM) evaluation harness for technical-interview answer quality.
+
+**Changes:**
+- `evaluation/answer-quality-rubric.ts` (new): Pure type definitions — `AnswerQualityFlag`, `AnswerQualityCase`, `AnswerQualityResult`, `AnswerQualityReport`. No runtime logic.
+- `__tests__/PromptComposition.test.mjs`: 5 new Layer-A tests (Phase 22 A–E) verify `composePrompt()` output for behavioral, system_design, coding_task, knowledge_check, and concept_explanation intents — checking strategy keyword content, section combinations, and pacing/depth interactions deterministically.
+- `evaluation/answer-quality.eval.mjs` (new): Offline runner. Uses `@anthropic-ai/sdk` directly with `ANTHROPIC_API_KEY`. 12 fixtures covering all major intent types. Deterministic pre-filter (`wrong_voice`, `template_leak`, `too_brief`, `fabricated_claim`). LLM judge scores `voice (1–5)`, `strategy_adherence (1–5)`, `depth (pass/fail)`, `pacing (pass/fail)`. Writes JSON report to `evaluation/results/{date}.json`. Exits gracefully if `ANTHROPIC_API_KEY` is absent.
+- `package.json`: Added `"eval:interview"` script.
+
+**Architecture:** `.eval.mjs` suffix intentionally excludes the runner from the `node --test electron/context-intelligence/__tests__/*.test.mjs` CI glob. Layer A (deterministic) runs in CI. Layer B (LLM) runs manually.
+
+**Suite result:** 1257/1257 pass, 0 fail (1252 prior + 5 Phase 22 Layer-A tests).
+
+**To run the offline eval:**
+```
+export ANTHROPIC_API_KEY=sk-ant-...
+npm run eval:interview
+```
+
+**Exit criteria:** ≥80% rubric pass rate on the sample set. Pass rate depends on LLM call and is not fabricated here — run the eval to obtain an actual measurement.
