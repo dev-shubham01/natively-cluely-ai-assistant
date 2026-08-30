@@ -664,7 +664,10 @@ describe('Phase 8 N. prompt injection — strategy text from registry, not evide
 // ── O. Prompt size — Phase 8 sections are bounded ────────────────────────────
 
 describe('Phase 8 O. prompt size — new sections are bounded', () => {
-  test('answer_strategy adds < 800 chars to system prompt', () => {
+  test('answer_strategy adds < 1100 chars to system prompt', () => {
+    // Bound updated from 800→1100 in Phase 23: define_concept and explain_mechanism
+    // now include a ~150-char voice register note appended after the steps. The upper
+    // bound still guards against runaway strategy text growth.
     const withStrategy = decision('What are closures?');
     assert.ok(withStrategy.answerStrategy !== undefined, 'decision must have a strategy');
     const cWith = composePrompt({
@@ -676,8 +679,8 @@ describe('Phase 8 O. prompt size — new sections are bounded', () => {
     });
     const systemGrowth = cWith.system.length - cWithout.system.length;
     assert.ok(systemGrowth > 0, 'answer_strategy must add content to the system prompt');
-    assert.ok(systemGrowth < 800,
-      `system growth ${systemGrowth} chars must be < 800 (strategy text is bounded by registry constants)`);
+    assert.ok(systemGrowth < 1100,
+      `system growth ${systemGrowth} chars must be < 1100 (strategy text is bounded by registry constants)`);
   });
 
   test('without storyBank evidence, user message does not grow from Phase 8', () => {
@@ -1221,5 +1224,94 @@ describe('Phase 22 E. concept_explanation — define_concept steps present; answ
     // answer_strategy section itself is present
     assert.ok(c.sections.includes('answer_strategy'),
       `answer_strategy must be present. sections: ${c.sections.join(',')}`);
+  });
+});
+
+// ── Phase 23 A+B. PERMANENT_RULES — voice/register and heading prohibition ───
+//
+// These tests verify that the three Phase 23 rules are present in every composed
+// prompt, regardless of intent or mode. They are pure content assertions on the
+// PERMANENT_RULES string joined into the system prompt.
+
+describe('Phase 23 A. candidate voice framing is present in every composed system prompt', () => {
+  test('system prompt contains live-interview / candidate framing rule', () => {
+    const d = decision('What is a closure?');
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.match(c.system, /live technical interview/i,
+      'PERMANENT_RULES must include live-interview framing');
+    assert.match(c.system, /candidate/i,
+      'PERMANENT_RULES must reference the candidate role');
+  });
+
+  test('system prompt contains prohibition on formal definition openings', () => {
+    const d = decision('How does garbage collection work?');
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.match(c.system, /formal definition opening/i,
+      'PERMANENT_RULES must prohibit formal definition openings');
+  });
+
+  test('voice framing applies to system_design questions', () => {
+    const d = decision('Design a URL shortener at scale.');
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.match(c.system, /candidate/i,
+      'candidate framing must appear for system_design intent');
+    assert.match(c.system, /live technical interview/i,
+      'live-interview framing must appear for system_design intent');
+  });
+});
+
+describe('Phase 23 A2. explanation-strategy voice note — define_concept and explain_mechanism only', () => {
+  test('concept_explanation system prompt contains explanation-strategy voice note', () => {
+    const d = decision('What is a closure?');
+    assert.equal(d.answerStrategy?.id, 'define_concept',
+      'expected define_concept strategy');
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.match(c.system, /\[Term\] is a \[noun phrase\]/,
+      'system must include the voice note prohibiting [Term] is a [noun phrase] opening for define_concept');
+  });
+
+  test('mechanism_explanation system prompt contains explanation-strategy voice note', () => {
+    const d = decision('How does garbage collection work in JavaScript?');
+    assert.equal(d.answerStrategy?.id, 'explain_mechanism',
+      'expected explain_mechanism strategy');
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.match(c.system, /\[Term\] is a \[noun phrase\]/,
+      'system must include the voice note for explain_mechanism');
+  });
+
+  test('coding_task system prompt does NOT contain explanation-strategy voice note', () => {
+    const d = decision('Implement a binary search function.');
+    assert.equal(d.answerStrategy?.id, 'implement_solution',
+      'expected implement_solution strategy');
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(!c.system.includes('[Term] is a [noun phrase]'),
+      'voice note must NOT appear for coding_task / implement_solution');
+  });
+
+  test('system_design system prompt does NOT contain explanation-strategy voice note', () => {
+    const d = decision('Design a URL shortener at scale.');
+    assert.equal(d.answerStrategy?.id, 'design_system',
+      'expected design_system strategy');
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.ok(!c.system.includes('[Term] is a [noun phrase]'),
+      'voice note must NOT appear for system_design / design_system');
+  });
+});
+
+describe('Phase 23 B. markdown heading prohibition in every composed system prompt', () => {
+  test('system prompt prohibits markdown headings for concept_explanation', () => {
+    const d = decision('What is a closure?');
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.match(c.system, /markdown headings/i,
+      'PERMANENT_RULES must prohibit markdown headings');
+    assert.match(c.system, /#, ##, or ###/,
+      'PERMANENT_RULES must name the specific heading patterns that are banned');
+  });
+
+  test('system prompt prohibits markdown headings for system_design (primary regression target)', () => {
+    const d = decision('Design a URL shortener at scale.');
+    const c = composePrompt({ decision: d, policy: MODE_POLICIES['technical-interview'], evidence: [] });
+    assert.match(c.system, /markdown headings/i,
+      'heading prohibition must be present for system_design intent');
   });
 });

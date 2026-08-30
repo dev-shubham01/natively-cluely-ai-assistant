@@ -1357,7 +1357,11 @@ export function buildInterviewIntent(
     intent = 'optimization';
   } else if (/\b(?:scale|10x|traffic (?:grows|increases)|handle load)\b/i.test(raw)) {
     intent = 'scalability';
-  } else if (/\b(?:debug|why is (?:this|my) (?:code|function|method|script|test|loop|program|query|app|service|component)\b|why does (?:this|my) (?:code|function|method|script|test|loop|program|query|app|service|component)\b|what(?:'s| is) wrong with\b|find (?:the )?bugs?\b)\b/i.test(raw)) {
+  // Phase 23: widened "why is my" pattern to allow 1-2 intervening words so that
+  // "Why is my React component re-rendering?" matches rather than falling through to
+  // concept_explanation. The {0,2} limit keeps false-positive risk small — only
+  // words in the explicit noun list after the qualifier count as debugging triggers.
+  } else if (/\b(?:debug|why is (?:this|my) (?:\w+ ){0,2}(?:code|function|method|script|test|loop|program|query|app|service|component)\b|why does (?:this|my) (?:\w+ ){0,2}(?:code|function|method|script|test|loop|program|query|app|service|component)\b|what(?:'s| is) wrong with\b|find (?:the )?bugs?\b)\b/i.test(raw)) {
     intent = 'debugging';
   // Phase 16 (Gap 12): "are you comfortable with X?" is a familiarity check — the
   // same semantic intent as "are you familiar with X?" — but previously routed to

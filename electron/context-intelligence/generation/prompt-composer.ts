@@ -129,6 +129,13 @@ const PERMANENT_RULES = [
   'Distinguish direct evidence, inference, and general knowledge.',
   'Do not expose internal retrieval reasoning to the user.',
   'Produce one natural, speakable answer.',
+  // Phase 23: voice-register fix. Measured: answers opened with "A closure is a function
+  // that..." (textbook register) and used ### headings (document structure). Both fail the
+  // judge's voice rubric. The two rules below and the heading rule at the end address this.
+  'Speak as the candidate answering in a live technical interview — conversational and direct, '
+    + 'not as a textbook entry, reference document, or AI assistant response.',
+  'Avoid formal definition openings ("A closure is a function that...", "Garbage collection '
+    + 'is a mechanism..."). Lead with the intuition or use-case instead.',
   // §20, measured: 7.1% of answers opened with attribution boilerplate
   // ("According to the provided documentation...") and 14.3% ran past 120 words,
   // which is unusable when the point is to say it out loud mid-conversation.
@@ -137,6 +144,11 @@ const PERMANENT_RULES = [
     + 'name a source only when the source itself is the point.',
   'Keep it short enough to say out loud: aim for two to four sentences unless the question '
     + 'genuinely requires a list or code.',
+  // Phase 23: prevent markdown headings in spoken answers. system_design and scalability
+  // strategies use structured steps that models interpret as license for ### Section output.
+  // Code blocks, bullets, and numbered lists remain allowed for technical content.
+  'Do not use markdown headings (lines starting with #, ##, or ###). Structure the answer '
+    + 'as natural spoken text, short lists, or code blocks — not a formatted document.',
 ].join('\n- ');
 
 function authorityRules(d: Readonly<TurnDecision>): string {
@@ -501,11 +513,23 @@ function privacyWithholdingNotice(scopes: readonly string[] | undefined, hasEvid
 // Evidence content cannot influence strategy text — it comes exclusively from
 // the registry constants in strategies/.
 
+// Phase 23: define_concept step 1 ("State a precise technical definition in one
+// sentence") and explain_mechanism step 1 ("State what the thing does in one
+// sentence") produce formal textbook openings that override the PERMANENT_RULES
+// register instruction. A targeted voice note appended to the strategy rendering
+// counters this without changing the strategy registry contract or step order.
+const EXPLANATION_STRATEGIES = new Set(['define_concept', 'explain_mechanism']);
+
 function renderAnswerStrategy(d: Readonly<TurnDecision>): string {
   const s = d.answerStrategy;
   if (!s) return '';
   const steps = s.steps.map((step, i) => `${i + 1}. ${step}`).join('\n');
-  return `# Answer approach\n${s.promptSection}\n\nSteps:\n${steps}`;
+  const voiceNote = EXPLANATION_STRATEGIES.has(s.id)
+    ? '\n\nVoice: step 1 must sound like a candidate speaking — avoid the '
+      + '"[Term] is a [noun phrase]" opening. Start with what it does, a concrete '
+      + 'framing, or how you think about it.'
+    : '';
+  return `# Answer approach\n${s.promptSection}\n\nSteps:\n${steps}${voiceNote}`;
 }
 
 /**

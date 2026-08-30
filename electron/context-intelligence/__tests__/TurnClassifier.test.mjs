@@ -1238,3 +1238,29 @@ describe('Phase 15 D-03 — classifier: coding intent must not bleed into concep
       `intent was ${r.interviewIntent.intent}; must be project_deep_dive`);
   });
 });
+
+// ── Phase 23 D. debugging regex — widened to allow 1-2 qualifying words ────────
+//
+// The debugging regex previously required the noun type to immediately follow
+// "my" or "this". "Why is my React component..." failed because "React" appeared
+// between "my" and "component". The fix allows up to 2 intervening words.
+
+describe('Phase 23 D — debugging regex: qualifier words between "my" and noun type', () => {
+  test('"Why is my React component re-rendering too many times?" → debugging', () => {
+    const r = classify('Why is my React component re-rendering too many times?');
+    assert.equal(r.interviewIntent.intent, 'debugging',
+      `intent was ${r.interviewIntent.intent}; "my React component" must now route to debugging`);
+  });
+
+  test('"Why is my async function not resolving?" → debugging (one qualifier)', () => {
+    const r = classify('Why is my async function not resolving?');
+    assert.equal(r.interviewIntent.intent, 'debugging',
+      `intent was ${r.interviewIntent.intent}; "my async function" must route to debugging`);
+  });
+
+  test('"Why is my entire system crashing?" → NOT debugging (system not in noun list)', () => {
+    const r = classify('Why is my entire system crashing?');
+    assert.notEqual(r.interviewIntent.intent, 'debugging',
+      '"system" is not in the debugging noun list — must not become debugging');
+  });
+});
