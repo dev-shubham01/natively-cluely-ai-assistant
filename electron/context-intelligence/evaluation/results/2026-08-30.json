@@ -1,0 +1,228 @@
+{
+  "date": "2026-08-30T15:05:39.285Z",
+  "model": "gemini-3.1-flash-lite",
+  "judgeModel": "gemini-3.1-flash-lite",
+  "totalCases": 12,
+  "passed": 10,
+  "failed": 2,
+  "skipped": 0,
+  "passRate": 0.8333333333333334,
+  "results": [
+    {
+      "caseId": "aq_001",
+      "question": "What is a closure?",
+      "actualIntent": "concept_explanation",
+      "actualFollowUpLikelihood": "high",
+      "answer": "A closure is a function that remembers the variables from its lexical scope even after that outer scope has finished executing. It essentially bundles a function together with its surrounding environment, allowing you to create private state or factory functions.\n\nFor example, if you have a function that returns an inner function incrementing a counter, that inner function maintains access to the `count` variable defined in the outer scope:\n\n```javascript\nfunction createCounter() {\n  let count = 0;\n  return () => ++count;\n}\nconst counter = createCounter();\nconsole.log(counter()); // 1\nconsole.log(counter()); // 2\n```\n\nThe main thing to watch out for is memory usage; because the closure keeps a reference to its outer scope, those variables won't be garbage collected as long as the closure itself exists, which can lead to memory leaks if you aren't careful with long-lived functions.",
+      "scores": {
+        "voice": 4,
+        "strategy_adherence": 5,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "all pass"
+    },
+    {
+      "caseId": "aq_002",
+      "question": "How does garbage collection work in JavaScript?",
+      "actualIntent": "mechanism_explanation",
+      "actualFollowUpLikelihood": "high",
+      "answer": "Garbage collection in JavaScript works by automatically reclaiming memory that is no longer reachable by your application, preventing memory leaks by periodically scanning for objects that can't be accessed from the root.\n\nThe most common mechanism is the \"mark-and-sweep\" algorithm. It starts by identifying the \"roots\"—usually the global object and the currently executing stack—and traverses all references from those roots to mark every object it can reach. Once the traversal is complete, the collector sweeps through the heap and deallocates any memory occupied by objects that weren't marked, effectively cleaning up unreachable data.\n\nThe key design choice here is the focus on reachability rather than just reference counting; this allows the engine to handle circular references, where two objects point to each other but are otherwise isolated from the rest of the app. A practical gotcha to keep in mind is that while this process is automatic, you can still inadvertently hold onto memory by keeping references in global variables or forgotten event listeners, which keeps those objects \"reachable\" and prevents the collector from reclaiming them.",
+      "scores": {
+        "voice": 3,
+        "strategy_adherence": 5,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "FAIL",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "all pass"
+    },
+    {
+      "caseId": "aq_003",
+      "question": "Implement a function to detect a cycle in a linked list.",
+      "actualIntent": "coding_task",
+      "actualFollowUpLikelihood": "high",
+      "answer": "To detect a cycle, I’ll use Floyd’s Cycle-Finding algorithm, often called the \"tortoise and the hare\" approach. The key insight is that if a cycle exists, a fast pointer moving two steps at a time will eventually \"lap\" a slow pointer moving one step at a time, causing them to meet at the same node.\n\nThe naive approach would be to store every visited node in a hash set to check for duplicates, but that requires O(n) extra space. Using two pointers allows us to solve this with constant space.\n\n```python\ndef has_cycle(head):\n    slow = head\n    fast = head\n    \n    while fast and fast.next:\n        slow = slow.next\n        fast = fast.next.next\n        \n        if slow == fast:\n            return True\n            \n    return False\n```\n\nThe time complexity is O(n), where n is the number of nodes in the list, because the fast pointer will traverse the list at most twice. The space complexity is O(1) since we only store two pointer references. This handles edge cases like an empty list or a single-node list without a cycle by returning `False` immediately when the `while` loop condition fails.",
+      "scores": {
+        "voice": 4,
+        "strategy_adherence": 4,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "The answer followed all steps well, though it skipped explicitly asking for clarification on input/output requirements (e.g., whether the input is guaranteed to be a valid linked list node or could be None)."
+    },
+    {
+      "caseId": "aq_004",
+      "question": "Design a URL shortener at scale.",
+      "actualIntent": "system_design",
+      "actualFollowUpLikelihood": "high",
+      "answer": "To design a URL shortener at scale, I’d start by assuming we need to handle high read-to-write ratios, as most shortened links are clicked far more often than they are created. I’d aim for a system that can support millions of redirects per day with sub-100ms latency.\n\nAt a high level, the architecture consists of a client, a load balancer, a set of application servers, and a persistent storage layer. When a user submits a long URL, the service generates a unique, short alias—usually a 6-to-8 character string—and stores the mapping in a database.\n\nFor the data model, a simple key-value pair works best:\n*   `short_url` (Primary Key)\n*   `long_url`\n*   `created_at`\n\nI’d use a distributed NoSQL database like Cassandra or DynamoDB for this. They handle high-volume writes and reads horizontally, which is critical as our dataset grows. For the short alias generation, I’d avoid random strings to prevent collisions; instead, I’d use a base62 encoding of a distributed counter (like a Snowflake ID) or a dedicated service that issues unique, sequential integers.\n\nTo handle the scale:\n*   **Caching:** This is the most important piece. I’d put a Redis cluster in front of the database. Since read traffic is likely skewed toward \"hot\" links, caching the most popular mappings will absorb the vast majority of requests and keep the database load manageable.\n*   **Sharding:** If the database becomes a bottleneck, I’d shard the data based on the hash of the short URL to distribute the load evenly across nodes.\n*   **Load Balancing:** I’d use a standard round-robin approach at the entry point to distribute traffic across the application servers.\n\nThe biggest failure mode here is a cache miss during a traffic spike, which would hammer the database. To mitigate this, I’d implement a \"read-through\" cache strategy and ensure the database has read replicas. \n\nThe main tradeoff is consistency versus availability. Because we are just mapping URLs, eventual consistency is perfectly acceptable—if a new link takes a few milliseconds to propagate to all replicas, it won't break the user experience. Does that high-level flow make sense, or would you like to dive deeper into how we generate the unique IDs or handle cache invalidation?",
+      "scores": {
+        "voice": 5,
+        "strategy_adherence": 4,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "The answer follows the strategy well, though it skips a formal explicit section for scale estimation (it mentions scale qualitatively). It is otherwise excellent and hits all required points."
+    },
+    {
+      "caseId": "aq_005",
+      "question": "How does the JavaScript event loop work?",
+      "actualIntent": "mechanism_explanation",
+      "actualFollowUpLikelihood": "high",
+      "answer": "The event loop is the mechanism that allows JavaScript to handle asynchronous operations despite being single-threaded by offloading tasks to the browser or Node.js environment and queuing their results.\n\nWhen you execute code, the engine pushes synchronous tasks onto the call stack. If it encounters an asynchronous operation—like a `setTimeout` or a fetch request—it hands that task off to the Web APIs or C++ APIs. Once those APIs finish, they push the associated callback into a task queue. The event loop constantly monitors the call stack; only when the stack is completely empty does it take the first item from the queue and push it onto the stack for execution.\n\nThe key components here are the call stack, the task queues (which include both macrotasks and microtasks), and the event loop itself. A critical design choice is that microtasks, like Promise resolutions, are processed immediately after the current operation finishes and before the event loop moves to the next macrotask. \n\nA common gotcha is that if you have a long-running synchronous task on the stack, it blocks the event loop entirely, preventing any queued callbacks or UI updates from running until that task completes.",
+      "scores": {
+        "voice": 3,
+        "strategy_adherence": 5,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "FAIL",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "all pass"
+    },
+    {
+      "caseId": "aq_006",
+      "question": "What is Kubernetes?",
+      "actualIntent": "concept_explanation",
+      "actualFollowUpLikelihood": "high",
+      "answer": "You can think of Kubernetes as a platform that automates the deployment, scaling, and management of containerized applications across a cluster of machines. It solves the operational complexity of manually tracking where containers run and ensuring they stay healthy, effectively acting as the \"brain\" that keeps your desired state in sync with the actual state of your infrastructure.\n\nFor example, if you define a deployment with three replicas of a web server, Kubernetes monitors those pods and automatically restarts or reschedules them if one crashes or the underlying node fails. One important thing to keep in mind is that it’s not a PaaS; it’s highly configurable and powerful, but that comes with a steep learning curve regarding networking, storage, and security configuration.",
+      "scores": {
+        "voice": 4,
+        "strategy_adherence": 5,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "all pass"
+    },
+    {
+      "caseId": "aq_007",
+      "question": "What are the tradeoffs between SQL and NoSQL databases?",
+      "actualIntent": "tradeoff",
+      "actualFollowUpLikelihood": "high",
+      "answer": "The main trade-offs really boil down to how you handle data structure, scaling, and consistency. \n\nSQL databases are built around rigid schemas and ACID compliance, which makes them the clear winner when your data relationships are complex and you absolutely cannot afford to lose a transaction, like in financial systems. The downside is that they scale vertically, meaning you eventually hit a ceiling where you have to buy a bigger server rather than just adding more nodes.\n\nNoSQL databases, on the other hand, prioritize horizontal scalability and flexibility. Because they’re schema-less, they handle unstructured data or rapid iterations much better, and you can scale them out across clusters easily. You sacrifice strict consistency for that performance—often settling for \"eventual consistency\"—which can make application logic a bit more complex when you need to ensure data is perfectly synced across nodes.\n\nIn short, use SQL if your data model is stable and consistency is non-negotiable. Go with NoSQL if you’re dealing with massive, unpredictable datasets where write throughput and horizontal scaling are your biggest bottlenecks. If you're building something where the schema is going to change weekly or you're expecting massive spikes in traffic, the overhead of managing a relational schema might become a liability, but if you're building a system where data integrity is the primary concern, the eventual consistency of NoSQL is usually a risk you don't want to take.",
+      "scores": {
+        "voice": 5,
+        "strategy_adherence": 5,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "all pass"
+    },
+    {
+      "caseId": "aq_008",
+      "question": "A React component re-renders on every keystroke even though its props have not changed. Walk me through how you would debug this.",
+      "actualIntent": "debugging",
+      "actualFollowUpLikelihood": "medium",
+      "answer": "It sounds like the component is re-rendering because its parent is re-rendering, or because it's consuming a context value that updates frequently. To debug this, I’d start by checking the React DevTools Profiler to confirm exactly which component is triggering the update and why.\n\nMy top three hypotheses are:\n\n1. **Unstable prop references:** You might be passing an object or function literal as a prop, like `onClick={() => {}}` or `style={{ color: 'red' }}`, which creates a new reference on every render. I’d check this by wrapping those props in `useCallback` or `useMemo` in the parent.\n2. **Context Provider updates:** If the component consumes a context, any change to the provider's value object will trigger a re-render. I’d verify this by temporarily commenting out the `useContext` hook to see if the re-renders stop.\n3. **Parent state management:** The parent might be updating its own state on every keystroke, causing a cascade. I’d look at the parent's `useState` or `useReducer` logic to see if it’s tied to the input's `onChange` event.\n\nIf it turns out to be an unstable prop, the fix is to memoize the value or function so the reference remains stable across renders. I’d verify this by checking the \"Why did this render?\" log in the React DevTools; if the props are now marked as equal, the re-render should stop. To prevent this from recurring, I’d add a `React.memo` wrapper to the child component and use ESLint rules like `react-hooks/exhaustive-deps` to catch missing dependencies that might lead to unstable references.",
+      "scores": {
+        "voice": 4,
+        "strategy_adherence": 4,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "The answer follows the strategy well, though it skips a formal restatement of symptoms (it assumes the prompt's premise) and combines the diagnostic/fix steps slightly. Overall, it is a very strong, practical response."
+    },
+    {
+      "caseId": "aq_009",
+      "question": "How would you scale a social media feed to 100 million daily active users?",
+      "actualIntent": "system_design",
+      "actualFollowUpLikelihood": "high",
+      "answer": "To scale a feed to 100 million daily active users, the core challenge is balancing the \"fan-out\" cost of pushing updates to followers against the latency of pulling them on demand. I’d start by categorizing users into two groups: \"active\" users who get their feeds pre-computed in a cache, and \"celebrity\" accounts where we use a pull-based approach to avoid massive write amplification during a post.\n\nFor the architecture, I’d use a distributed message queue to handle the fan-out process asynchronously. When a user posts, the system writes the post to a primary database and triggers a background job to inject that post ID into the pre-computed feed caches (like Redis) of all their followers. \n\nTo handle the scale:\n* Data Partitioning: I’d shard the feed caches by UserID to distribute the memory load across a cluster.\n* Read Optimization: For the \"celebrity\" problem, I’d avoid the fan-out entirely for accounts with millions of followers; instead, I’d have the client merge the celebrity’s posts with the user’s cached feed at read-time.\n* Storage: I’d use a wide-column store like Cassandra for the source-of-truth post storage, as it handles high-write throughput and horizontal scaling better than a traditional relational database.\n\nThe biggest tradeoff here is consistency versus availability. By using asynchronous fan-out, a user might not see a friend's post for a few seconds, but the system remains highly responsive. If a cache node fails, we fall back to the primary database to rebuild the feed, which is slower but ensures the user eventually sees their content. Does that high-level approach align with the latency requirements you’re thinking of, or should we dive deeper into the specific sharding strategy for the cache?",
+      "scores": {
+        "voice": 4,
+        "strategy_adherence": 4,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "The answer follows the strategy well, though it skips explicit estimation of scale (Step 2) and formal API contracts (Step 4), focusing instead on the core architectural patterns. The pacing is excellent for a high-likelihood follow-up scenario."
+    },
+    {
+      "caseId": "aq_010",
+      "question": "What are the tradeoffs of using TypeScript over JavaScript?",
+      "actualIntent": "tradeoff",
+      "actualFollowUpLikelihood": "high",
+      "answer": "The main trade-off comes down to developer velocity versus upfront configuration. TypeScript gives you static type checking and better IDE tooling, which catches common bugs like undefined properties or type mismatches before you even run the code. In contrast, JavaScript lets you move faster initially because you don't have to define interfaces or manage a build step, but you trade that speed for a higher risk of runtime errors as the codebase grows.\n\nIf you're working on a large-scale application or a team, TypeScript is usually the winner because the type definitions act as living documentation and make refactoring much safer. However, for small prototypes, scripts, or quick experiments, the overhead of setting up the compiler and maintaining type definitions can feel like unnecessary friction.\n\nUltimately, I'd recommend TypeScript for any project that needs to be maintained long-term, but I’d stick with plain JavaScript if the goal is to get a proof-of-concept running in under an hour. Are you leaning toward one for a specific project right now?",
+      "scores": {
+        "voice": 5,
+        "strategy_adherence": 5,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "all pass"
+    },
+    {
+      "caseId": "aq_011",
+      "question": "Design a parking lot with object-oriented classes.",
+      "actualIntent": "lld",
+      "actualFollowUpLikelihood": "high",
+      "answer": "To design a parking lot, I’d break it down into three core entities: the `ParkingLot` itself, the `ParkingSpot`, and the `Vehicle`. \n\nThe `ParkingLot` acts as the manager, holding a collection of spots and handling the entry and exit logic. The `ParkingSpot` is responsible for knowing its own size and availability, while the `Vehicle` simply carries its type. I prefer composition here—the lot is composed of spots, rather than inheriting from them.\n\nHere is how the interface signatures would look:\n\n```java\ninterface Vehicle {\n    VehicleType getType();\n}\n\nclass ParkingSpot {\n    private final SpotSize size;\n    private boolean isOccupied;\n    \n    public boolean canFit(Vehicle v) { ... }\n    public void park(Vehicle v) { ... }\n    public void removeVehicle() { ... }\n}\n\nclass ParkingLot {\n    private List<ParkingSpot> spots;\n    \n    public Optional<ParkingSpot> findSpot(Vehicle v) { ... }\n    public void processEntry(Vehicle v) { ... }\n    public void processExit(Vehicle v) { ... }\n}\n```\n\nIn a primary use case, when a vehicle arrives, the `ParkingLot` iterates through its `spots` to find one where `canFit(vehicle)` returns true and `isOccupied` is false. Once found, it marks the spot as occupied.\n\nFor extension points, this design is flexible: you could easily add a `PricingStrategy` interface to handle different rate calculations without touching the `ParkingLot` logic, or introduce a `Level` class if you need to manage a multi-story structure. I’d lean toward the Strategy pattern here to keep the pricing logic decoupled from the core parking operations. \n\nDoes that structure align with the scale you're looking for, or should we dive deeper into how we handle concurrency when multiple vehicles arrive at once?",
+      "scores": {
+        "voice": 5,
+        "strategy_adherence": 5,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "all pass"
+    },
+    {
+      "caseId": "aq_012",
+      "question": "How would you optimize a slow database query?",
+      "actualIntent": "optimization",
+      "actualFollowUpLikelihood": "medium",
+      "answer": "I’d start by running an `EXPLAIN` plan to see exactly where the execution is stalling—usually, it’s a full table scan where an index should be used or a nested loop join that’s ballooning in complexity. If the query is currently $O(N)$ or worse, the theoretical goal is to reach $O(\\log N)$ by ensuring we’re hitting a B-tree index or a covering index that satisfies the query without touching the heap.\n\nMy first step is always to add the necessary indexes on the columns used in `WHERE`, `JOIN`, and `ORDER BY` clauses, which is a high-impact, low-risk change. If that doesn't bring it down to the required latency, I’d look at rewriting the query to avoid expensive operations like `SELECT *` or unnecessary subqueries that force the engine to process more data than needed. Only if the system is still struggling would I consider more complex strategies like denormalization or introducing a caching layer, as those significantly increase maintenance overhead and data consistency risks.",
+      "scores": {
+        "voice": 5,
+        "strategy_adherence": 5,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "all pass"
+    }
+  ]
+}
