@@ -227,8 +227,15 @@ export async function buildV3Prompt(input: BridgeInput): Promise<BridgeResult | 
     // Caller-supplied conversationSummary bypasses the gate (backward compat).
     let convoSummary: string | undefined = input.conversationSummary;
     if (!convoSummary) {
+      // Phase 4: also open the gate for design-oriented QUESTION turns whose
+      // interviewerBehavior is QUESTION (so contextRequirements.conversation=false)
+      // but whose intent is one of the long-form design intents. Without this,
+      // established interview context (e.g. "we have 100M users") is invisible to
+      // subsequent design sub-questions in the same thread.
+      const DESIGN_INTENTS = new Set(['system_design', 'lld', 'scalability']);
       const conversationGateOpen =
-        result.decision.interviewIntent?.contextRequirements.conversation ?? false;
+        (result.decision.interviewIntent?.contextRequirements.conversation ?? false) ||
+        DESIGN_INTENTS.has(result.decision.interviewIntent?.intent ?? '');
       if (conversationGateOpen && preOrchState) {
         const chain = preOrchState.topicChain ?? [];
         if (chain.length > 0) {

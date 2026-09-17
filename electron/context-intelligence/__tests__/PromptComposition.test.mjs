@@ -664,10 +664,12 @@ describe('Phase 8 N. prompt injection — strategy text from registry, not evide
 // ── O. Prompt size — Phase 8 sections are bounded ────────────────────────────
 
 describe('Phase 8 O. prompt size — new sections are bounded', () => {
-  test('answer_strategy adds < 1100 chars to system prompt', () => {
+  test('answer_strategy adds < 1500 chars to system prompt', () => {
     // Bound updated from 800→1100 in Phase 23: define_concept and explain_mechanism
-    // now include a ~150-char voice register note appended after the steps. The upper
-    // bound still guards against runaway strategy text growth.
+    // now include a ~150-char voice register note appended after the steps.
+    // Bound updated from 1100→1500 in Phase 24: voice note extended from step-1
+    // scope to whole-answer scope, adding ~280 chars (measured growth: ~1248).
+    // The upper bound still guards against runaway strategy text growth.
     const withStrategy = decision('What are closures?');
     assert.ok(withStrategy.answerStrategy !== undefined, 'decision must have a strategy');
     const cWith = composePrompt({
@@ -679,8 +681,8 @@ describe('Phase 8 O. prompt size — new sections are bounded', () => {
     });
     const systemGrowth = cWith.system.length - cWithout.system.length;
     assert.ok(systemGrowth > 0, 'answer_strategy must add content to the system prompt');
-    assert.ok(systemGrowth < 1100,
-      `system growth ${systemGrowth} chars must be < 1100 (strategy text is bounded by registry constants)`);
+    assert.ok(systemGrowth < 1500,
+      `system growth ${systemGrowth} chars must be < 1500 (strategy text is bounded by registry constants)`);
   });
 
   test('without storyBank evidence, user message does not grow from Phase 8', () => {

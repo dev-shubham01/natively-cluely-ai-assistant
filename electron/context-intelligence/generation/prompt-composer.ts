@@ -518,6 +518,12 @@ function privacyWithholdingNotice(scopes: readonly string[] | undefined, hasEvid
 // sentence") produce formal textbook openings that override the PERMANENT_RULES
 // register instruction. A targeted voice note appended to the strategy rendering
 // counters this without changing the strategy registry contract or step order.
+// Phase 24: extended the voice note from step-1 scope to whole-answer scope.
+// Root cause: steps 2-5 of explain_mechanism produced documentation-register prose
+// (voice=3) because "Walk through the process in logical order using concrete
+// specifics" has no voice guidance. Adding first-person framing cues for the
+// walkthrough steps is evidence-backed (voice=4/5 answers all use "I'd", "I'd
+// expect" etc.) and does not change strategy steps or semantic content.
 const EXPLANATION_STRATEGIES = new Set(['define_concept', 'explain_mechanism']);
 
 function renderAnswerStrategy(d: Readonly<TurnDecision>): string {
@@ -525,9 +531,12 @@ function renderAnswerStrategy(d: Readonly<TurnDecision>): string {
   if (!s) return '';
   const steps = s.steps.map((step, i) => `${i + 1}. ${step}`).join('\n');
   const voiceNote = EXPLANATION_STRATEGIES.has(s.id)
-    ? '\n\nVoice: step 1 must sound like a candidate speaking — avoid the '
-      + '"[Term] is a [noun phrase]" opening. Start with what it does, a concrete '
-      + 'framing, or how you think about it.'
+    ? '\n\nVoice: the whole answer should sound like a candidate speaking in a live '
+      + 'interview, not a reference entry. Step 1: avoid the "[Term] is a [noun phrase]" '
+      + 'opening — lead with the intuition or a concrete framing ("I think of it as...", '
+      + '"the way it works is..."). For the walkthrough steps: use first-person framing '
+      + 'where natural ("I\'d expect", "what trips people up here is", "the tricky part '
+      + 'is") rather than continuous third-person technical exposition.'
     : '';
   return `# Answer approach\n${s.promptSection}\n\nSteps:\n${steps}${voiceNote}`;
 }

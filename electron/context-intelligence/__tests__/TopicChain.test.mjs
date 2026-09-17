@@ -469,3 +469,71 @@ describe('Test N — pre-orchestration timing: prior chain is used, not post-adv
     );
   });
 });
+
+// ── O: Design-intent QUESTION turns receive conversation context ──────────────
+//
+// system_design / lld / scalability QUESTION turns must see the existing
+// topicChain even though interviewerBehavior=QUESTION sets conversation=false.
+// The intent-gated extension in engine-bridge opens the gate for these intents.
+// concept_explanation QUESTION turns must remain gated OFF (Test J still holds).
+
+describe('Test O — design-intent QUESTION turns inject chain; concept_explanation does not', () => {
+  beforeEach(enable);
+
+  test('system_design QUESTION turn after prior questions receives conversation section', async () => {
+    const sid = 'test-o-system-design';
+    // Turn 1: establish design context
+    await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'Design a URL shortener.',
+      modeTemplateType: 'technical-interview',
+      scope: { sessionId: sid },
+    });
+
+    // Turn 2: constraint-setting question (QUESTION behavior, no follow-up signal)
+    await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'Assume we have 100 million users.',
+      modeTemplateType: 'technical-interview',
+      scope: { sessionId: sid },
+    });
+
+    // Turn 3: design sub-question with QUESTION behavior but scalability intent
+    // ("scale" keyword → intent=scalability; behavior=QUESTION → conversation=false normally)
+    const r = await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'How would you scale the read path to handle that load?',
+      modeTemplateType: 'technical-interview',
+      scope: { sessionId: sid },
+    });
+
+    assert.ok(r, 'expected a prompt');
+    assert.match(r.user, /Conversation so far/,
+      'scalability-intent QUESTION must open the conversation gate (intent override)');
+    assert.match(r.user, /URL shortener|100 million/i,
+      'pre-orchestration chain must contain prior design context');
+  });
+
+  test('concept_explanation QUESTION turn still has no conversation section (Test J preserved)', async () => {
+    const sid = 'test-o-concept-explanation';
+    // Turn 1: establish prior state
+    await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'What is a mutex?',
+      modeTemplateType: 'technical-interview',
+      scope: { sessionId: sid },
+    });
+
+    // Turn 2: concept_explanation QUESTION — gate must remain closed
+    const r = await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'What is a semaphore?',
+      modeTemplateType: 'technical-interview',
+      scope: { sessionId: sid },
+    });
+
+    assert.ok(r, 'expected a prompt');
+    assert.ok(!r.user.includes('Conversation so far'),
+      'concept_explanation QUESTION must not inject chain (Test J behavior preserved)');
+  });
+});
