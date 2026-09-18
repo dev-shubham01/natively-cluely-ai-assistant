@@ -21,7 +21,7 @@ import { freezeTurnDecision } from '../contracts/types';
 import { resolveModePolicy, generalKnowledgeAllowed, type ModePolicy } from '../policies/mode-policy-registry';
 import { resolveAnswerPolicy, type AnswerPolicy } from '../policies/answer-policy';
 import { CLAIM_AUTHORITY } from '../policies/source-authority-policy';
-import { classifyTurn, isBareFollowUp } from '../question/turn-classifier';
+import { classifyTurn, isBareFollowUp, SECONDARY_DOC_RE } from '../question/turn-classifier';
 import { applyContextRequirementsGuard } from './context-requirements-guard';
 import { selectStrategy } from '../strategies/selector';
 import type { AnswerTrace, RetrievalAttemptTrace } from '../observability/answer-trace';
@@ -203,6 +203,10 @@ export function decide(req: AnswerRequest): Readonly<TurnDecision> {
     ? selectStrategy(cls.interviewIntent.intent, cls.interviewIntent.interviewerBehavior)
     : undefined;
 
+  // R6: precompute the secondary-document detection once from the full resolvedQuestion.
+  // The composer reads this field instead of re-running the regex via dynamic require().
+  const secondaryDocumentDetected = SECONDARY_DOC_RE.test(q.resolved);
+
   return freezeTurnDecision({
     requestId: req.requestId,
     requestSequence: req.requestSequence,
@@ -235,6 +239,7 @@ export function decide(req: AnswerRequest): Readonly<TurnDecision> {
     createdAt: 0,   // stamped by the caller; kept deterministic for tests
     interviewIntent: cls.interviewIntent,
     answerStrategy,
+    secondaryDocumentDetected,
   });
 }
 

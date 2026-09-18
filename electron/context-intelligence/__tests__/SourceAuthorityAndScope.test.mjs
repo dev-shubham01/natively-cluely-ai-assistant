@@ -121,6 +121,7 @@ describe('TurnDecision immutability', () => {
         maximumAcceptedEvidence: 6, timeoutMs: 1200,
       },
       createdAt: 0,
+      secondaryDocumentDetected: false,
     });
 
     assert.throws(() => { d.groundingPolicy = 'OPEN_KNOWLEDGE'; }, TypeError);

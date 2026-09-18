@@ -421,11 +421,7 @@ function weakEvidenceGuidance(
  * subject (or vice versa).
  */
 function secondarySourceGuidance(d: Readonly<TurnDecision>): string {
-  let SECONDARY_DOC_RE: RegExp | undefined;
-  try {
-    ({ SECONDARY_DOC_RE } = require('../question/turn-classifier'));
-  } catch { /* shared definition unavailable — skip the section */ }
-  if (!SECONDARY_DOC_RE?.test(d.resolvedQuestion)) return '';
+  if (!d.secondaryDocumentDetected) return '';
   return '# Source identity\nThe question asks about a SECONDARY or decoy source, distinct from the active '
     + 'subject. Answer that part ONLY from evidence whose source_name/status matches the request, and NAME '
     + 'that source explicitly. Never attribute the secondary source\'s facts to the active person or '

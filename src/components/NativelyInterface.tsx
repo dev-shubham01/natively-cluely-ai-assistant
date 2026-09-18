@@ -1001,6 +1001,13 @@ const NativelyInterface: React.FC<NativelyInterfaceProps> = ({
   const [conversationContext, setConversationContext] = useState<string>('');
   const [isManualRecording, setIsManualRecording] = useState(false);
   const isRecordingRef = useRef(false); // Ref to track recording state (avoids stale closure)
+  // Continuous Mic Mode — mic is treated as the interviewer's channel; silence
+  // after speech auto-triggers "What to answer?" with the captured text.
+  const [isContinuousMicMode, setIsContinuousMicMode] = useState(false);
+  const isContinuousMicModeRef = useRef(false);
+  const continuousMicBufferRef = useRef('');
+  const continuousMicSilenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleWhatToSayRef = useRef<(q?: string) => void>(() => {});
   const [manualTranscript, setManualTranscript] = useState('');
   const manualTranscriptRef = useRef<string>('');
   const [showTranscript, setShowTranscript] = useState(() => {
@@ -2144,6 +2151,18 @@ const NativelyInterface: React.FC<NativelyInterfaceProps> = ({
   useEffect(() => {
     isExpandedRef.current = isExpanded;
   }, [isExpanded]);
+
+  // Keep continuous-mic refs in sync with state.
+  useEffect(() => {
+    isContinuousMicModeRef.current = isContinuousMicMode;
+    if (!isContinuousMicMode) {
+      continuousMicBufferRef.current = '';
+      if (continuousMicSilenceTimerRef.current !== null) {
+        clearTimeout(continuousMicSilenceTimerRef.current);
+        continuousMicSilenceTimerRef.current = null;
+      }
+    }
+  }, [isContinuousMicMode]);
 
   // Live-track the OS "Reduce Motion" preference so toggling it applies without
   // an app restart. startTransition reads prefersReducedMotionRef synchronously.
@@ -3312,6 +3331,12 @@ const NativelyInterface: React.FC<NativelyInterfaceProps> = ({
       setRollingTranscript('');
       setIsInterviewerSpeaking(false);
       interviewerSpeakingRef.current = false;
+      // Clear continuous-mic buffer and silence timer on reset.
+      continuousMicBufferRef.current = '';
+      if (continuousMicSilenceTimerRef.current !== null) {
+        clearTimeout(continuousMicSilenceTimerRef.current);
+        continuousMicSilenceTimerRef.current = null;
+      }
       // Reset STT status to 'awaiting-audio' on session reset. The previous
       // session's 'connected' state must not carry over into a new meeting
       // before we've verified live audio is flowing on the new pipeline.
@@ -4461,6 +4486,47 @@ const NativelyInterface: React.FC<NativelyInterfaceProps> = ({
         // Ignore user mic transcripts when not recording
         // Only interviewer (system audio) transcripts should appear in chat
         if (transcript.speaker === 'user') {
+          // --- Continuous Mic Mode ---
+          // When enabled, mic audio is treated as the interviewer's channel.
+          // Partials update the rolling bar; silence after a final triggers
+          // "What to answer?" automatically with the accumulated question text.
+          if (isContinuousMicModeRef.current) {
+            if (!transcript.final) {
+              if (!interviewerSpeakingRef.current) {
+                interviewerSpeakingRef.current = true;
+                setIsInterviewerSpeaking(true);
+              }
+              applyRollingPartialPreview(transcript.text);
+              // Any new partial resets the silence timer.
+              if (continuousMicSilenceTimerRef.current !== null) {
+                clearTimeout(continuousMicSilenceTimerRef.current);
+                continuousMicSilenceTimerRef.current = null;
+              }
+            } else {
+              // Final mic transcript — commit to buffer and rolling bar.
+              flushRollingPartialPreview();
+              interviewerSpeakingRef.current = false;
+              setIsInterviewerSpeaking(false);
+              setRollingTranscript((prev) => mergeRollingTranscriptFinal(prev, transcript.text));
+              continuousMicBufferRef.current = continuousMicBufferRef.current
+                ? `${continuousMicBufferRef.current} ${transcript.text}`
+                : transcript.text;
+
+              // (Re)arm the silence timer — fires 2.5 s after the last word.
+              if (continuousMicSilenceTimerRef.current !== null) {
+                clearTimeout(continuousMicSilenceTimerRef.current);
+              }
+              continuousMicSilenceTimerRef.current = setTimeout(() => {
+                continuousMicSilenceTimerRef.current = null;
+                const question = continuousMicBufferRef.current.trim();
+                continuousMicBufferRef.current = '';
+                if (!question) return;
+                handleWhatToSayRef.current(question);
+              }, 2500);
+            }
+            return;
+          }
+          // --- End Continuous Mic Mode ---
           return; // Skip user mic input - only relevant when Answer button is active
         }
 
@@ -5041,6 +5107,11 @@ const NativelyInterface: React.FC<NativelyInterfaceProps> = ({
       setIsProcessing(false);
     }
   };
+
+  // Keep the continuous-mic auto-trigger ref current on every render so the
+  // setTimeout callback (which fires outside the closure) always calls the
+  // latest handleWhatToSay without capturing a stale version.
+  handleWhatToSayRef.current = (q?: string) => void handleWhatToSay(q);
 
   const handleFollowUp = async (intent: string = 'rephrase') => {
     const actionKey = `follow_up:${intent}`;
@@ -8667,6 +8738,32 @@ Provide only the answer, nothing else.`;
                         style={appearance.iconStyle}
                       >
                         <PointerOff className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Continuous Mic Mode Toggle — mic captures interviewer speech,
+                        auto-answers after 2.5 s of silence. Useful for in-person
+                        interviews where system audio loopback is unavailable. */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setIsContinuousMicMode((prev) => !prev)}
+                        title={
+                          isContinuousMicMode
+                            ? t('Continuous mic ON — mic captures interviewer, auto-answers on silence. Click to disable.')
+                            : t('Enable continuous mic mode — mic listens for interviewer questions and auto-answers')
+                        }
+                        className={`
+                          w-7 h-7 flex items-center justify-center rounded-lg
+                          interaction-base interaction-press
+                          ${
+                            isContinuousMicMode
+                              ? 'overlay-icon-surface overlay-icon-surface-hover text-emerald-400 opacity-100'
+                              : 'overlay-icon-surface overlay-icon-surface-hover overlay-text-interactive'
+                          }
+                        `}
+                        style={appearance.iconStyle}
+                      >
+                        <Mic className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>

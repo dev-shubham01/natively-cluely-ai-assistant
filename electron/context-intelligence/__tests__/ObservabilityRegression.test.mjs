@@ -54,6 +54,7 @@ const decisionStub = (over = {}) => ({
   claimRequirements: [],
   retrievalPlan: { path: 'FAST', shouldRetrieve: false, sourceTypes: [], queries: [], maximumAcceptedEvidence: 0 },
   groundingPolicy: 'OPEN_KNOWLEDGE',
+  secondaryDocumentDetected: false,
   ...over,
 });
 

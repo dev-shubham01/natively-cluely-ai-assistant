@@ -301,6 +301,10 @@ export interface TurnDecision {
    *  or selectStrategy() returns undefined (graceful degradation — prompt-composer omits
    *  the answer_strategy section). */
   answerStrategy?: AnswerStrategy;
+  /** True when the resolved question explicitly references a secondary/decoy document or
+   *  candidate. Computed once in decide() from the full resolvedQuestion; consumed by the
+   *  prompt composer to render the source-identity separation directive. */
+  secondaryDocumentDetected: boolean;
 }
 
 // ── Interview Intelligence V1 — Phase 2 types ───────────────────────────────
@@ -315,6 +319,17 @@ export type InterviewIntentType =
   | 'system_design' | 'lld' | 'project_context' | 'project_deep_dive'
   | 'experience_question' | 'behavioral' | 'introduction' | 'scalability'
   | 'knowledge_check' | 'follow_up_generic';
+
+/**
+ * Design-oriented intents that receive conversation-chain context even when
+ * InterviewIntent.contextRequirements.conversation is false. These represent
+ * long-form design threads where prior turn context is always relevant.
+ * Owned here alongside the InterviewIntentType taxonomy it constrains.
+ */
+export const DESIGN_INTENTS: ReadonlySet<InterviewIntentType> = new Set([
+  'system_design', 'lld', 'scalability',
+  'optimization', 'tradeoff', 'comparison',
+]);
 
 export type InterviewDomain =
   | 'javascript' | 'typescript' | 'react' | 'frontend' | 'backend' | 'node'
@@ -338,6 +353,16 @@ export interface ContextRequirements {
 
 export type AnswerDepth = 'brief' | 'standard' | 'deep';
 
+/**
+ * Deterministic answer-shape label produced by the turn classifier.
+ *
+ * Used by golden-dataset evaluation (structure_mismatch failure category) and
+ * the guarded [V3:intent] debug log. Not consumed by production prompt
+ * composition — current prompt structure is driven by AnswerStrategy, which
+ * provides the same coverage with richer per-step instructions. If a future
+ * intent has no corresponding AnswerStrategy (Stage 3 degradation), this field
+ * is a candidate fallback for composition.
+ */
 export type AnswerStructure =
   | 'direct_definition' | 'decision_rationale' | 'implementation_walkthrough'
   | 'story_format' | 'comparison_table' | 'system_breakdown' | 'debugging_trace'
@@ -346,6 +371,7 @@ export type AnswerStructure =
 
 export interface ExpectedAnswer {
   depth:             AnswerDepth;
+  /** Evaluation/observability only — see AnswerStructure. */
   structure:         AnswerStructure;
   includeTradeoffs:  boolean;
   includeCode:       boolean;

@@ -245,6 +245,7 @@ const decisionStub = () => ({
   claimRequirements: [{ claimType: 'DOCUMENT_FACT', authority: 'PRIVATE_SOURCE_REQUIRED', authoritativeSources: ['PROJECT_FILE'], prohibitedSources: [], fallback: 'GENERALIZE' }],
   retrievalPlan: { path: 'GROUNDED', shouldRetrieve: true, sourceTypes: ['PROJECT_FILE', 'CODING_SAMPLE'], queries: [], maximumAcceptedEvidence: 6 },
   groundingPolicy: 'SOURCE_FIRST',
+  secondaryDocumentDetected: false,
 });
 
 const evidenceStub = (over = {}) => ({

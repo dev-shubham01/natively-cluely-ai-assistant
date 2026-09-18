@@ -14,7 +14,7 @@
 // never "no answer".
 
 import { isContextIntelligenceV3Enabled } from '../contracts/flag';
-import { orchestrate, type AnswerRequest, type RetrievalPort } from './orchestrator';
+import { orchestrate, type AnswerRequest, type RetrievalPort, type OrchestratorResult } from './orchestrator';
 import { composePrompt } from '../generation/prompt-composer';
 import { resolveModePolicy, isModeId, type ModeId } from '../policies/mode-policy-registry';
 import { recordLegacyTurn } from '../observability/legacy-trace';
@@ -24,7 +24,8 @@ import {
   dataScopesForEvidence,
   isScopeDenied,
 } from '../policies/provider-scope-policy';
-import type { AnswerSurface, EvidenceScope } from '../contracts/types';
+import { DESIGN_INTENTS } from '../contracts/types';
+import type { AnswerSurface, EvidenceScope, EvidenceItem, InterviewIntent } from '../contracts/types';
 import type { ProviderDataScope } from '../../llm/ProviderRouter';
 
 export interface BridgeInput {
@@ -163,6 +164,182 @@ function formatTopicChain(chain: readonly import('../contracts/types').ChainTurn
 }
 
 /**
+ * Apply the outbound provider-data-scope filter over evidence and conversation
+ * summary in one consistent pass. Called after retrieval, before prompt packing.
+ *
+ * Why here — not inside the composer or after packing: the composer writes its
+ * grounding contracts (checked-absence, no-evidence notice) against the evidence
+ * it receives. Filtering downstream would leave a prompt whose contracts describe
+ * material the model can no longer see, which is a fabrication path.
+ *
+ * Policy is read live on every call — never cached — because esbuild inlines this
+ * module into every entry bundle and a cached copy would go stale across bundles.
+ *
+ * convoSummary maps to the transcript scope: it reaches the prompt as prose and is
+ * invisible to the evidence filter, so it is suppressed here when that scope is
+ * denied.
+ */
+function applyOutboundScopeFilter(
+  evidence: readonly EvidenceItem[],
+  convoSummary: string | undefined,
+) {
+  const scopePolicy    = readProviderScopePolicy();
+  const scopeFilter    = filterEvidenceByProviderScopes(evidence, scopePolicy);
+  const withheldScopes = new Set<ProviderDataScope>(scopeFilter.withheldScopes);
+
+  let filteredSummary = convoSummary;
+  if (filteredSummary && isScopeDenied('transcript', scopePolicy)) {
+    filteredSummary = undefined;
+    withheldScopes.add('transcript');
+  }
+
+  return { scopeFilter, withheldScopes, convoSummary: filteredSummary };
+}
+
+/**
+ * Safely invoke the caller-supplied persona factory.
+ * Returning null or throwing is treated as "no persona" — composition is
+ * byte-identical to a missing factory.
+ */
+function resolvePersona(
+  factory: BridgeInput['personaBase'],
+  isCodingTask: boolean,
+): string | undefined {
+  try {
+    return factory?.({ codingTask: isCodingTask }) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Evaluate the conversation-chain gate for the current turn and return the
+ * formatted topic-chain string when the gate is open and the chain is non-empty.
+ *
+ * Gate opens when contextRequirements.conversation is true, OR when the intent is
+ * one of the long-form design intents (DESIGN_INTENTS) and the behavior is not
+ * HINT. Returns undefined when the gate is closed or the chain is empty — callers
+ * treat undefined as complete exclusion from the prompt.
+ *
+ * Phase 4/5: design-oriented QUESTION turns whose interviewerBehavior is QUESTION
+ * (so contextRequirements.conversation=false) but whose intent is one of the
+ * long-form design intents open the gate so established interview context (e.g.
+ * "we have 100M users") is visible to subsequent design sub-questions.
+ * Phase 5 GAP-1: extended from 3 to 6 intents — optimization, tradeoff, and
+ * comparison commonly appear mid-design-thread and need the same chain access.
+ *
+ * Does not mutate preOrchState.
+ */
+function evaluateConversationGate(
+  interviewIntent: InterviewIntent | undefined,
+  preOrchState: import('../question/conversation-state').ConversationState | null,
+): string | undefined {
+  const intentIsDesign = !!interviewIntent && DESIGN_INTENTS.has(interviewIntent.intent);
+  const behaviorSuppresses = interviewIntent?.interviewerBehavior === 'HINT';
+  const conversationGateOpen =
+    (interviewIntent?.contextRequirements.conversation ?? false) ||
+    (intentIsDesign && !behaviorSuppresses);
+  if (conversationGateOpen && preOrchState) {
+    const chain = preOrchState.topicChain ?? [];
+    if (chain.length > 0) {
+      return formatTopicChain(chain);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Fire the Context Intelligence debug collector for the current turn.
+ *
+ * Observes the SAME objects the [V3] line reads — the production trace and
+ * frozen decision — never recomputing any of it. Level 'off' costs one
+ * function call.
+ *
+ * Returns the requestId when deferDebugCompletion=true so the transport can
+ * complete the record after generation; returns undefined otherwise.
+ * Any failure degrades to undefined — debug logging must never break an answer.
+ */
+function recordDebugTurn(
+  req: AnswerRequest,
+  input: BridgeInput,
+  result: OrchestratorResult,
+  modeId: string,
+  raw: string,
+  policyVersion: string,
+  scopeFilterEvidence: readonly EvidenceItem[],
+): string | undefined {
+  try {
+    const { getContextDebugLevel, getContentInclusionEnabled } = require('../debug/debug-config');
+    const level = getContextDebugLevel();
+    if (level === 'off') return undefined;
+
+    const { beginTurnCollector } = require('../debug/turn-collector');
+    const collector = beginTurnCollector({
+      sessionId: req.sessionId,
+      ...(req.scope.meetingId ? { meetingId: req.scope.meetingId } : {}),
+      turnId: `turn_${req.requestId}`,
+      requestId: req.requestId,
+      conversationGeneration: req.requestSequence,
+      modeId,
+      ...(input.modeUniqueId ? { modeUniqueId: input.modeUniqueId } : {}),
+      surface: `${input.surface}${input.pathTag ? `:${input.pathTag}` : ''}`,
+    }, { level, includeContent: getContentInclusionEnabled(level) });
+
+    collector.recordDecisionTrace({
+      trace: result.trace,
+      decision: result.decision,
+      modeName: input.modeName,
+      modeType: raw === 'general' && (input.modeName ?? 'General') !== 'General' ? 'custom' : 'default',
+      policyVersion,
+      extraAllowedSourceTypes: input.extraAllowedSourceTypes as readonly string[] | undefined,
+      documentSpecific: result.decision.claimRequirements
+        .some((c) => c.authority === 'PRIVATE_SOURCE_REQUIRED'),
+      propertyMatched: (result.trace.claimPlan ?? [])
+        .some((c) => c.support === 'DIRECT_EVIDENCE'),
+    });
+    const resolvedProfiles = input.resolvedProfileSources ?? [];
+    collector.recordAvailableSources({
+      modeAttachmentCount: input.attachedSourceCount ?? 0,
+      profileResumeCount: resolvedProfiles.filter((s) => s.role === 'profile_resume').length,
+      profileJobDescriptionCount: resolvedProfiles.filter((s) => s.role === 'profile_job_description').length,
+      profileFactCount: resolvedProfiles.filter((s) => s.role === 'profile_fact').length,
+    });
+    // Authorized sources = mode attachments PLUS resolved Profile
+    // Intelligence pools (deep-run 2, issue 14: profile turns logged
+    // authorizedSources: [] while the résumé/JD pools answered the turn).
+    const authorized = [
+      ...(input.debugSources ?? []),
+      ...resolvedProfiles.map((s) => ({ id: s.id, role: s.role })),
+    ];
+    if (authorized.length) collector.recordAuthorizedSources(authorized);
+    const rr = result.trace.referentResolution;
+    if (rr) {
+      collector.recordConversationState({
+        activePerson: rr.activePerson ?? null,
+        activeTopic: rr.activeTopic ?? null,
+        previousQuestion: rr.previousQuestion ?? null,
+        referentApplied: rr.applied,
+        referentReason: rr.reason ?? null,
+        referent: rr.referent ?? null,
+      });
+    }
+    // The FILTERED set: the debug record must show what the model was
+    // actually sent, and must not persist content the user's privacy
+    // setting withheld from a cloud provider.
+    collector.recordEvidenceItems(scopeFilterEvidence);
+
+    if (input.deferDebugCompletion) {
+      return req.requestId;   // the transport completes it
+    }
+    collector.recordAnswer('', false, 'answer_not_correlated_on_this_surface');
+    collector.complete();
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Build a V3 prompt for an engine surface, or null to keep legacy behaviour.
  *
  * Never throws. A defect in the new path must degrade to legacy, never break a
@@ -227,69 +404,24 @@ export async function buildV3Prompt(input: BridgeInput): Promise<BridgeResult | 
     // Caller-supplied conversationSummary bypasses the gate (backward compat).
     let convoSummary: string | undefined = input.conversationSummary;
     if (!convoSummary) {
-      // Phase 4/5: open the gate for design-oriented QUESTION turns whose
-      // interviewerBehavior is QUESTION (so contextRequirements.conversation=false)
-      // but whose intent is one of the long-form design intents. Without this,
-      // established interview context (e.g. "we have 100M users") is invisible to
-      // subsequent design sub-questions in the same thread.
-      // Phase 5 GAP-1: extended from 3 to 6 intents — optimization, tradeoff, and
-      // comparison commonly appear mid-design-thread ("what are the tradeoffs between
-      // PostgreSQL and Cassandra for this system?") and need the same chain access.
-      const DESIGN_INTENTS = new Set([
-        'system_design', 'lld', 'scalability',
-        'optimization', 'tradeoff', 'comparison',
-      ]);
-      const intentIsDesign = DESIGN_INTENTS.has(result.decision.interviewIntent?.intent ?? '');
-      const behaviorSuppresses = result.decision.interviewIntent?.interviewerBehavior === 'HINT';
-      const conversationGateOpen =
-        (result.decision.interviewIntent?.contextRequirements.conversation ?? false) ||
-        (intentIsDesign && !behaviorSuppresses);
-      if (conversationGateOpen && preOrchState) {
-        const chain = preOrchState.topicChain ?? [];
-        if (chain.length > 0) {
-          convoSummary = formatTopicChain(chain);
-        }
-      }
-      // conversation=false → convoSummary stays undefined → complete exclusion from prompt.
+      // conversation=false and non-design intent → evaluateConversationGate returns
+      // undefined → convoSummary stays undefined → complete exclusion from prompt.
+      convoSummary = evaluateConversationGate(result.decision.interviewIntent, preOrchState);
     }
 
     // ── Outbound provider-data-scope filter ─────────────────────────────────
-    // Settings > AI Providers > Privacy. Applied HERE — after retrieval, before
-    // packing — because the composer writes its instructions against the
-    // evidence it is handed. Filtering downstream of the composer would leave a
-    // prompt whose checked-absence and no-evidence contracts describe material
-    // the model can no longer see, which is a fabrication engine.
-    //
-    // The policy is read LIVE every turn: never cached here or anywhere, since
-    // esbuild inlines this module into every entry bundle and a cached copy
-    // would go stale outside the bundle that wrote it.
-    const scopePolicy = readProviderScopePolicy();
-    const scopeFilter = filterEvidenceByProviderScopes(result.evidence, scopePolicy);
-    const withheldScopes = new Set<ProviderDataScope>(scopeFilter.withheldScopes);
+    const { scopeFilter, withheldScopes, convoSummary: filteredConvoSummary } =
+      applyOutboundScopeFilter(result.evidence, convoSummary);
+    convoSummary = filteredConvoSummary;
 
-    // Conversation continuity is CONVERSATION_STATE data, which maps to the
-    // transcript scope. It reaches the prompt as prose rather than as an
-    // EvidenceItem, so the evidence filter above cannot see it — drop it here
-    // or the scope leaks through the one door the filter does not cover.
-    if (convoSummary && isScopeDenied('transcript', scopePolicy)) {
-      convoSummary = undefined;
-      withheldScopes.add('transcript');
-    }
-
-    // Persona resolution must never break a turn: a throwing factory or a null
-    // return simply composes without one (today's behaviour).
-    let personaBase: string | undefined;
-    try {
-      // Phase 15 (D-03): derive codingTask from the authoritative semantic intent,
-      // not from raw questionTypes. questionTypes still carries CODING_TASK for
-      // DSA concept questions ("What is a binary search tree?") because CODING_TASK_RE
-      // matches the DSA noun — but Phase 13 already resolved those to concept_explanation
-      // in interviewIntent.intent. Reading questionTypes here bypassed that resolution
-      // and attached the full DSA implementation scaffolding to concept prompts.
-      personaBase = input.personaBase?.({
-        codingTask: result.decision.interviewIntent?.intent === 'coding_task',
-      }) ?? undefined;
-    } catch { personaBase = undefined; }
+    // Phase 15 (D-03): derive codingTask from the authoritative semantic intent,
+    // not from raw questionTypes — questionTypes still carries CODING_TASK for
+    // DSA concept questions because CODING_TASK_RE matches DSA nouns, but Phase 13
+    // resolved those to concept_explanation in interviewIntent.intent.
+    const personaBase = resolvePersona(
+      input.personaBase,
+      result.decision.interviewIntent?.intent === 'coding_task',
+    );
 
     const composed = composePrompt({
       decision: result.decision,
@@ -388,77 +520,7 @@ export async function buildV3Prompt(input: BridgeInput): Promise<BridgeResult | 
     } catch { /* observability must never break an answer */ }
 
     // ── Context Intelligence debug collector (2026-08-01) ───────────────────
-    // Observes the SAME objects the [V3] line reads — the production trace and
-    // frozen decision — never recomputing any of it. Level 'off' costs one
-    // function call. Any failure here degrades to "no debug record".
-    let debugRequestId: string | undefined;
-    try {
-      const { getContextDebugLevel, getContentInclusionEnabled } = require('../debug/debug-config');
-      const level = getContextDebugLevel();
-      if (level !== 'off') {
-        const { beginTurnCollector } = require('../debug/turn-collector');
-        const collector = beginTurnCollector({
-          sessionId: req.sessionId,
-          ...(req.scope.meetingId ? { meetingId: req.scope.meetingId } : {}),
-          turnId: `turn_${req.requestId}`,
-          requestId: req.requestId,
-          conversationGeneration: req.requestSequence,
-          modeId,
-          ...(input.modeUniqueId ? { modeUniqueId: input.modeUniqueId } : {}),
-          surface: `${input.surface}${input.pathTag ? `:${input.pathTag}` : ''}`,
-        }, { level, includeContent: getContentInclusionEnabled(level) });
-
-        collector.recordDecisionTrace({
-          trace: result.trace,
-          decision: result.decision,
-          modeName: input.modeName,
-          modeType: raw === 'general' && (input.modeName ?? 'General') !== 'General' ? 'custom' : 'default',
-          policyVersion: policy.version,
-          extraAllowedSourceTypes: input.extraAllowedSourceTypes as readonly string[] | undefined,
-          documentSpecific: result.decision.claimRequirements
-            .some((c) => c.authority === 'PRIVATE_SOURCE_REQUIRED'),
-          propertyMatched: (result.trace.claimPlan ?? [])
-            .some((c) => c.support === 'DIRECT_EVIDENCE'),
-        });
-        const resolvedProfiles = input.resolvedProfileSources ?? [];
-        collector.recordAvailableSources({
-          modeAttachmentCount: input.attachedSourceCount ?? 0,
-          profileResumeCount: resolvedProfiles.filter((s) => s.role === 'profile_resume').length,
-          profileJobDescriptionCount: resolvedProfiles.filter((s) => s.role === 'profile_job_description').length,
-          profileFactCount: resolvedProfiles.filter((s) => s.role === 'profile_fact').length,
-        });
-        // Authorized sources = mode attachments PLUS resolved Profile
-        // Intelligence pools (deep-run 2, issue 14: profile turns logged
-        // authorizedSources: [] while the résumé/JD pools answered the turn).
-        const authorized = [
-          ...(input.debugSources ?? []),
-          ...resolvedProfiles.map((s) => ({ id: s.id, role: s.role })),
-        ];
-        if (authorized.length) collector.recordAuthorizedSources(authorized);
-        const rr = result.trace.referentResolution;
-        if (rr) {
-          collector.recordConversationState({
-            activePerson: rr.activePerson ?? null,
-            activeTopic: rr.activeTopic ?? null,
-            previousQuestion: rr.previousQuestion ?? null,
-            referentApplied: rr.applied,
-            referentReason: rr.reason ?? null,
-            referent: rr.referent ?? null,
-          });
-        }
-        // The FILTERED set: the debug record must show what the model was
-        // actually sent, and must not persist content the user's privacy
-        // setting withheld from a cloud provider.
-        collector.recordEvidenceItems(scopeFilter.evidence);
-
-        if (input.deferDebugCompletion) {
-          debugRequestId = req.requestId;   // the transport completes it
-        } else {
-          collector.recordAnswer('', false, 'answer_not_correlated_on_this_surface');
-          collector.complete();
-        }
-      }
-    } catch { /* debug logging must never break an answer */ }
+    const debugRequestId = recordDebugTurn(req, input, result, modeId, raw, policy.version, scopeFilter.evidence);
 
     try {
       recordLegacyTurn({
