@@ -52,14 +52,12 @@ export interface ConversationState {
    * scope change.
    */
   previousDecision?: PriorTurnDecision;
-  unresolvedReferences: string[];
   /**
    * Phase 4: semantically cohesive topic chain (V1 Interview Intelligence).
    * Resets on TOPIC_CHANGE behavior, domain shift, explicit section signal, or scope boundary.
    * Defaults to [] on old state objects that predate Phase 4.
    */
   topicChain: ChainTurn[];
-  chainDepth: number;
   updatedAt: number;
 }
 
@@ -168,9 +166,7 @@ export function emptyState(scope: EvidenceScope): ConversationState {
     activeEntities: [],
     previousEvidenceIds: [],
     previousSourceIds: [],
-    unresolvedReferences: [],
     topicChain: [],
-    chainDepth: 0,
     updatedAt: 0,
   };
 }
@@ -277,9 +273,7 @@ export function advance(prev: ConversationState | null, input: AdvanceInput): Co
     previousEvidenceIds: input.evidenceIds ?? [],
     previousSourceIds: input.sourceIds ?? [],
     previousDecision: input.decision ? boundDecision(input.decision) : base.previousDecision,
-    unresolvedReferences: [],
     topicChain: nextChain,
-    chainDepth: nextChain.length,
     updatedAt: input.at ?? 0,
   };
 }

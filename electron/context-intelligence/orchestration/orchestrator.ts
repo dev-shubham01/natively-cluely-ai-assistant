@@ -736,7 +736,6 @@ export async function orchestrate(
         requestId: decision.requestId,
         intent: ii.intent,
         domain: ii.domain,
-        questionStyle: ii.questionStyle,
         interviewerBehavior: ii.interviewerBehavior,
         contextRequirements: ii.contextRequirements,
         followUpLikelihood: ii.followUpLikelihood,

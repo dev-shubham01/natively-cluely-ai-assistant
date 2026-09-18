@@ -1,6 +1,6 @@
 // electron/context-intelligence/evaluation/answer-quality.eval.mjs
 //
-// Phase 22/23 — offline LLM answer-quality evaluation runner.
+// Offline LLM answer-quality evaluation runner.
 //
 // NOT a .test.mjs file — excluded from the node --test CI glob intentionally.
 // Run manually:  npm run eval:interview
@@ -159,7 +159,7 @@ const FIXTURES = [
   },
   {
     id: 'aq_005',
-    // Phase 23: replaced "Tell me about a time you had to meet a tight deadline."
+    // Replaced "Tell me about a time you had to meet a tight deadline."
     // (behavioral, requires personal evidence → noEvidenceNotice fires correctly but
     // makes the fixture ungradeable without mock evidence). Replaced with a mechanism
     // question that exercises explain_mechanism and needs no personal evidence.
@@ -171,7 +171,7 @@ const FIXTURES = [
   },
   {
     id: 'aq_006',
-    // Phase 23: replaced "Are you familiar with Kubernetes?" (knowledge_check with
+    // Replaced "Are you familiar with Kubernetes?" (knowledge_check with
     // personal familiarity claim → noEvidenceNotice fires, ungradeable without evidence).
     // Replaced with a pure knowledge question that routes to concept_explanation with
     // no personal-evidence requirement and exercises the define_concept strategy.
@@ -194,7 +194,7 @@ const FIXTURES = [
   },
   {
     id: 'aq_008',
-    // Phase 23: original "Why is my React component re-rendering too many times?"
+    // Original "Why is my React component re-rendering too many times?"
     // triggered AI-assistant response mode (voice=1). Rephrased to interviewer framing.
     // "What are common causes..." (second version) got strat=3 because TRACE_BUG is
     // procedural (symptom → hypotheses → diagnose → fix) but the question asked for
@@ -221,7 +221,7 @@ const FIXTURES = [
   },
   {
     id: 'aq_010',
-    // Phase 23: replaced "Tell me about yourself." (introduction → requires resume
+    // Replaced "Tell me about yourself." (introduction → requires resume
     // evidence for a meaningful self-intro; noEvidenceNotice fires correctly but makes
     // the fixture ungradeable). Replaced with a tradeoff question that exercises
     // analyze_options with no personal evidence requirement.
@@ -233,7 +233,7 @@ const FIXTURES = [
   },
   {
     id: 'aq_011',
-    // Phase 23: replaced "Walk me through a challenging technical project you have
+    // Replaced "Walk me through a challenging technical project you have
     // worked on." (experience_question → requires personal evidence; actual classifier
     // routing was experience_question via EXPERIENCE_CHALLENGE_RE, and the fixture's
     // expectedIntent 'project_context' was also wrong). Replaced with an LLD question
@@ -485,7 +485,7 @@ function grade(fixture, preFilterFlags, judgeScores) {
 async function run() {
   const client = new GoogleGenAI({ apiKey: API_KEY });
 
-  console.log(`\n[eval:interview] Phase 22/23 — LLM Answer Quality Evaluation`);
+  console.log(`\n[eval:interview] LLM Answer Quality Evaluation`);
   console.log(`Generation model: ${GENERATION_MODEL}`);
   console.log(`Judge model:      ${JUDGE_MODEL}`);
   console.log(`Fixtures:         ${FIXTURES.length}`);

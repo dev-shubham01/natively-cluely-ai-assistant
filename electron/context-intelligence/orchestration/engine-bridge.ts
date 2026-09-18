@@ -248,12 +248,6 @@ export async function buildV3Prompt(input: BridgeInput): Promise<BridgeResult | 
         const chain = preOrchState.topicChain ?? [];
         if (chain.length > 0) {
           convoSummary = formatTopicChain(chain);
-        } else if (preOrchState.previousQuestion) {
-          // Backward compat: pre-Phase-4 state has no chain yet.
-          convoSummary = `Previous question: ${preOrchState.previousQuestion}`
-            + (preOrchState.previousAnswerSummary
-              ? `\nPrevious answer (referent only, NOT evidence): ${preOrchState.previousAnswerSummary}`
-              : '');
         }
       }
       // conversation=false → convoSummary stays undefined → complete exclusion from prompt.

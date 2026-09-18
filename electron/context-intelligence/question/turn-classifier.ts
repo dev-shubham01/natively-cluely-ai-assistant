@@ -18,7 +18,7 @@
 
 import type {
   QuestionType, ClaimType, RetrievalPath, SourceType,
-  InterviewIntent, InterviewIntentType, InterviewDomain, QuestionStyle as IQuestionStyle,
+  InterviewIntent, InterviewIntentType, InterviewDomain,
   InterviewerBehavior, ContextRequirements, AnswerDepth, AnswerStructure, ExpectedAnswer,
 } from '../contracts/types';
 import type { ModePolicy } from '../policies/mode-policy-registry';
@@ -1409,24 +1409,6 @@ export function buildInterviewIntent(
     }
   }
 
-  // ── 4. QuestionStyle ──────────────────────────────────────────────────────
-  const trimmed = raw.replace(/^(can|could|would|will|do|does|did|should|is|are)\s+you\s+/i, '');
-  let questionStyle: IQuestionStyle;
-  if      (/^what\b/i.test(trimmed))                                           questionStyle = 'what';
-  else if (/^why\b/i.test(trimmed))                                             questionStyle = 'why';
-  else if (/^how\b/i.test(trimmed))                                             questionStyle = 'how';
-  else if (/^when\b/i.test(trimmed))                                            questionStyle = 'when';
-  else if (/^(?:compare|vs\.?|what'?s the difference)/i.test(trimmed))         questionStyle = 'compare';
-  else if (/^(?:but why|couldn'?t you|why not|are you sure)/i.test(trimmed))   questionStyle = 'challenge';
-  else if (/^(?:debug|why is this|what'?s wrong)/i.test(trimmed))              questionStyle = 'debug';
-  else if (/^design\b/i.test(trimmed))                                          questionStyle = 'design';
-  else if (/^(?:write|implement|code|build)\b/i.test(trimmed))                 questionStyle = 'implement';
-  else if (/^(?:optimize|improve|can you make)/i.test(trimmed))                 questionStyle = 'optimize';
-  else if (/^(?:explain|walk me through|describe)\b/i.test(trimmed))           questionStyle = 'explain';
-  else if (/^tell me about a time\b/i.test(trimmed))                           questionStyle = 'experience';
-  else if (/^(?:tell me about yourself|walk me through your background)\b/i.test(trimmed)) questionStyle = 'open';
-  else                                                                          questionStyle = 'what';
-
   // ── 5. ContextRequirements — derived from existing Classification signals ─
   const contextRequirements: ContextRequirements = {
     // Override behaviors (PUSHBACK/CORRECTION/CLARIFICATION/DEEPENING) are always
@@ -1496,10 +1478,9 @@ export function buildInterviewIntent(
 
   const includeCode       = intent === 'coding_task' || intent === 'optimization' || intent === 'debugging';
   const includeTradeoffs  = intent === 'tradeoff' || intent === 'technology_decision' || intent === 'comparison';
-  const includeExample    = depth !== 'brief' && intent !== 'behavioral' && intent !== 'introduction' && intent !== 'follow_up_generic';
   const includeComplexity = intent === 'coding_task' || intent === 'optimization';
 
-  const expectedAnswer: ExpectedAnswer = { depth, structure, includeExample, includeTradeoffs, includeCode, includeComplexity };
+  const expectedAnswer: ExpectedAnswer = { depth, structure, includeTradeoffs, includeCode, includeComplexity };
 
   // ── 7. followUpLikelihood ─────────────────────────────────────────────────
   const HIGH_LIKELIHOOD: ReadonlyArray<InterviewIntentType> = [
@@ -1510,7 +1491,7 @@ export function buildInterviewIntent(
   const followUpLikelihood: 'low' | 'medium' | 'high' =
     HIGH_LIKELIHOOD.includes(intent) ? 'high' : LOW_LIKELIHOOD.includes(intent) ? 'low' : 'medium';
 
-  return { intent, domain: [...domains], questionStyle, interviewerBehavior, contextRequirements, expectedAnswer, followUpLikelihood };
+  return { intent, domain: [...domains], interviewerBehavior, contextRequirements, expectedAnswer, followUpLikelihood };
 }
 
 // NOTE: this must stay consistent with CLAIM_AUTHORITY in

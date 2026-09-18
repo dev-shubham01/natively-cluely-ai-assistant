@@ -160,9 +160,6 @@ export interface RetrievalCandidate {
 
   semanticScore?: number;
   keywordScore?: number;
-  headingScore?: number;
-  entityScore?: number;
-  continuityScore?: number;
   rerankerScore?: number;
   /** Structural/answerability signal. Computed by the legacy retriever today and
    *  then DROPPED at the ModeRetrievedChunk boundary — carried through here. */
@@ -325,11 +322,6 @@ export type InterviewDomain =
   | 'data_structures' | 'system_design' | 'security' | 'testing' | 'devops'
   | 'behavioral' | 'project_specific' | 'unknown';
 
-export type QuestionStyle =
-  | 'what' | 'why' | 'how' | 'when' | 'compare' | 'challenge'
-  | 'debug' | 'design' | 'implement' | 'optimize' | 'explain'
-  | 'experience' | 'open';
-
 export type InterviewerBehavior =
   | 'QUESTION' | 'FOLLOW_UP' | 'DEEPENING' | 'PUSHBACK'
   | 'CORRECTION' | 'CLARIFICATION' | 'HINT' | 'TOPIC_CHANGE';
@@ -355,7 +347,6 @@ export type AnswerStructure =
 export interface ExpectedAnswer {
   depth:             AnswerDepth;
   structure:         AnswerStructure;
-  includeExample:    boolean;
   includeTradeoffs:  boolean;
   includeCode:       boolean;
   includeComplexity: boolean;
@@ -364,7 +355,6 @@ export interface ExpectedAnswer {
 export interface InterviewIntent {
   intent:              InterviewIntentType;
   domain:              InterviewDomain[];
-  questionStyle:       QuestionStyle;
   interviewerBehavior: InterviewerBehavior;
   contextRequirements: ContextRequirements;
   expectedAnswer:      ExpectedAnswer;
@@ -422,7 +412,6 @@ export interface ChainTurn {
 export const DEFAULT_INTERVIEW_INTENT: InterviewIntent = {
   intent: 'concept_explanation',
   domain: ['general_cs'],
-  questionStyle: 'what',
   interviewerBehavior: 'QUESTION',
   contextRequirements: {
     conversation: false, resume: false, projects: false,
@@ -430,7 +419,7 @@ export const DEFAULT_INTERVIEW_INTENT: InterviewIntent = {
   },
   expectedAnswer: {
     depth: 'standard', structure: 'direct_definition',
-    includeExample: false, includeTradeoffs: false,
+    includeTradeoffs: false,
     includeCode: false, includeComplexity: false,
   },
   followUpLikelihood: 'medium',

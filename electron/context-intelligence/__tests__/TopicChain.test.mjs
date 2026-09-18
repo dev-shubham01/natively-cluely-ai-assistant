@@ -70,7 +70,7 @@ describe('Test A — first turn creates a single chain entry', () => {
   test('emptyState has empty chain; first advance adds one entry', () => {
     const s0 = emptyState(m1);
     assert.deepEqual(s0.topicChain, []);
-    assert.equal(s0.chainDepth, 0);
+    assert.equal(s0.topicChain.length, 0);
 
     const s1 = advance(s0, {
       scope: m1,
@@ -79,7 +79,7 @@ describe('Test A — first turn creates a single chain entry', () => {
     });
 
     assert.equal(s1.topicChain.length, 1);
-    assert.equal(s1.chainDepth, 1);
+    assert.equal(s1.topicChain.length, 1);
     assert.equal(s1.topicChain[0].question, 'What is a binary search tree?');
     assert.deepEqual(s1.topicChain[0].domain, ['algorithms', 'data_structures']);
     assert.equal(s1.topicChain[0].interviewerBehavior, 'QUESTION');
@@ -102,7 +102,7 @@ describe('Test B — chain grows within same domain', () => {
       s = advance(s, { scope: m1, question: q, interviewIntent: algorithmIntent });
     }
     assert.equal(s.topicChain.length, 3);
-    assert.equal(s.chainDepth, 3);
+    assert.equal(s.topicChain.length, 3);
     assert.equal(s.topicChain[0].question, qs[0]);
     assert.equal(s.topicChain[2].question, qs[2]);
   });
@@ -121,7 +121,7 @@ describe('Test C — chain cap is enforced at CHAIN_CAP turns', () => {
       });
     }
     assert.equal(s.topicChain.length, CHAIN_CAP);
-    assert.equal(s.chainDepth, CHAIN_CAP);
+    assert.equal(s.topicChain.length, CHAIN_CAP);
     // First turn must have been evicted
     assert.ok(!s.topicChain.some((t) => t.question === 'Algorithm question 0'),
       'oldest turn must be evicted once cap is reached');
@@ -138,14 +138,14 @@ describe('Test D — TOPIC_CHANGE behavior resets the chain', () => {
     let s = emptyState(m1);
     s = advance(s, { scope: m1, question: 'What is a heap?', interviewIntent: algorithmIntent });
     s = advance(s, { scope: m1, question: 'How does heapify work?', interviewIntent: algorithmIntent });
-    assert.equal(s.chainDepth, 2);
+    assert.equal(s.topicChain.length, 2);
 
     s = advance(s, {
       scope: m1,
       question: "Let's move on to React.",
       interviewIntent: topicChangeIntent,
     });
-    assert.equal(s.chainDepth, 1, 'TOPIC_CHANGE must reset the chain before appending');
+    assert.equal(s.topicChain.length, 1, 'TOPIC_CHANGE must reset the chain before appending');
     assert.equal(s.topicChain[0].question, "Let's move on to React.");
     assert.ok(!s.topicChain.some((t) => t.question === 'What is a heap?'),
       'old algorithm turns must be gone after TOPIC_CHANGE');
@@ -158,7 +158,7 @@ describe('Test E — domain shift with no overlap resets chain', () => {
   test('react → algorithms (no overlap) → chain resets', () => {
     let s = emptyState(m1);
     s = advance(s, { scope: m1, question: 'What is a React hook?', interviewIntent: reactIntent });
-    assert.equal(s.chainDepth, 1);
+    assert.equal(s.topicChain.length, 1);
     assert.deepEqual(s.topicChain[0].domain, ['react', 'frontend']);
 
     s = advance(s, {
@@ -166,7 +166,7 @@ describe('Test E — domain shift with no overlap resets chain', () => {
       question: 'What is a binary search tree?',
       interviewIntent: algorithmIntent,
     });
-    assert.equal(s.chainDepth, 1, 'domain shift must reset chain before appending new turn');
+    assert.equal(s.topicChain.length, 1, 'domain shift must reset chain before appending new turn');
     assert.equal(s.topicChain[0].question, 'What is a binary search tree?');
     assert.ok(!s.topicChain.some((t) => t.question === 'What is a React hook?'),
       'React turn must be gone after domain shift');
@@ -186,7 +186,7 @@ describe('Test F — partial domain overlap continues the chain', () => {
       scope: m1, question: 'How does the virtual DOM work?',
       interviewIntent: makeIntent({ domain: ['react'] }),
     });
-    assert.equal(s.chainDepth, 2, 'react overlap must not reset the chain');
+    assert.equal(s.topicChain.length, 2, 'react overlap must not reset the chain');
     assert.equal(s.topicChain[0].question, 'What is JSX?');
     assert.equal(s.topicChain[1].question, 'How does the virtual DOM work?');
   });
@@ -201,7 +201,7 @@ describe('Test F — partial domain overlap continues the chain', () => {
       scope: m1, question: 'How does TypeScript handle generics?',
       interviewIntent: makeIntent({ domain: ['typescript', 'backend'] }),
     });
-    assert.equal(s.chainDepth, 2, 'typescript overlap must continue chain');
+    assert.equal(s.topicChain.length, 2, 'typescript overlap must continue chain');
   });
 });
 
@@ -218,7 +218,7 @@ describe('Test G — unknown domains are excluded from overlap detection', () =>
       scope: m1, question: 'Second question.',
       interviewIntent: makeIntent({ domain: ['unknown'] }),
     });
-    assert.equal(s.chainDepth, 2, 'unknown-only domains must not trigger a reset');
+    assert.equal(s.topicChain.length, 2, 'unknown-only domains must not trigger a reset');
   });
 
   test('[unknown] vs [algorithms] → no reset (prev side has no meaningful domain)', () => {
@@ -231,7 +231,7 @@ describe('Test G — unknown domains are excluded from overlap detection', () =>
       scope: m1, question: 'What is quicksort?',
       interviewIntent: algorithmIntent,
     });
-    assert.equal(s.chainDepth, 2, 'unknown prev domain must not trigger reset');
+    assert.equal(s.topicChain.length, 2, 'unknown prev domain must not trigger reset');
   });
 });
 
@@ -242,11 +242,11 @@ describe('Test H — scope / meeting boundary resets chain', () => {
     let s = emptyState(m1);
     s = advance(s, { scope: m1, question: 'What is a mutex?', interviewIntent: algorithmIntent });
     s = advance(s, { scope: m1, question: 'What is a semaphore?', interviewIntent: algorithmIntent });
-    assert.equal(s.chainDepth, 2);
+    assert.equal(s.topicChain.length, 2);
 
     // Scope change (meeting boundary)
     s = advance(s, { scope: m2, question: 'Tell me about your experience.', interviewIntent: makeIntent({ domain: ['behavioral'] }) });
-    assert.equal(s.chainDepth, 1, 'scope change must reset the chain');
+    assert.equal(s.topicChain.length, 1, 'scope change must reset the chain');
     assert.ok(!s.topicChain.some((t) => t.question === 'What is a mutex?'),
       'm1 chain must be gone after scope change to m2');
   });
@@ -259,14 +259,14 @@ describe('Test I — explicit section signal resets chain', () => {
     let s = emptyState(m1);
     s = advance(s, { scope: m1, question: 'What is a heap?', interviewIntent: algorithmIntent });
     s = advance(s, { scope: m1, question: 'How does heapify work?', interviewIntent: algorithmIntent });
-    assert.equal(s.chainDepth, 2);
+    assert.equal(s.topicChain.length, 2);
 
     s = advance(s, {
       scope: m1,
       question: 'Round 2: system design questions.',
       interviewIntent: algorithmIntent, // same domain but section signal fires first
     });
-    assert.equal(s.chainDepth, 1, 'explicit section signal must reset chain');
+    assert.equal(s.topicChain.length, 1, 'explicit section signal must reset chain');
     assert.equal(s.topicChain[0].question, 'Round 2: system design questions.');
   });
 
@@ -274,7 +274,7 @@ describe('Test I — explicit section signal resets chain', () => {
     let s = emptyState(m1);
     s = advance(s, { scope: m1, question: 'First question.', interviewIntent: algorithmIntent });
     s = advance(s, { scope: m1, question: 'Section 2: behavioral questions.', interviewIntent: algorithmIntent });
-    assert.equal(s.chainDepth, 1);
+    assert.equal(s.topicChain.length, 1);
   });
 });
 
