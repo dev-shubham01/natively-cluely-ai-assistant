@@ -60,7 +60,6 @@ const decisionStub = (over = {}) => ({
 const interviewIntent = (over = {}) => ({
   intent: 'concept_explanation',
   domain: ['general_cs'],
-  questionStyle: 'what',
   interviewerBehavior: 'QUESTION',
   contextRequirements: {
     conversation: false, resume: false, projects: false,
@@ -68,7 +67,7 @@ const interviewIntent = (over = {}) => ({
   },
   expectedAnswer: {
     depth: 'standard', structure: 'direct_definition',
-    includeExample: true, includeTradeoffs: false, includeCode: false, includeComplexity: false,
+    includeTradeoffs: false, includeCode: false, includeComplexity: false,
   },
   followUpLikelihood: 'medium',
   ...over,

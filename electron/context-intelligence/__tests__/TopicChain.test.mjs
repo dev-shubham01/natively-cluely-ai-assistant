@@ -37,10 +37,9 @@ const m2 = { userId: 'u1', meetingId: 'm2' };
 const makeIntent = (overrides = {}) => ({
   intent: 'concept_explanation',
   domain: ['algorithms'],
-  questionStyle: 'what',
   interviewerBehavior: 'QUESTION',
   contextRequirements: { conversation: false, resume: false, projects: false, code: false, documents: false, stories: false, generalKnowledge: true },
-  expectedAnswer: { depth: 'standard', structure: 'direct_definition', includeExample: false, includeTradeoffs: false, includeCode: false, includeComplexity: false },
+  expectedAnswer: { depth: 'standard', structure: 'direct_definition', includeTradeoffs: false, includeCode: false, includeComplexity: false },
   followUpLikelihood: 'medium',
   ...overrides,
 });
