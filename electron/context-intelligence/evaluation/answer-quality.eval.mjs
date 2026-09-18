@@ -40,10 +40,13 @@ if (!API_KEY) {
 const base = path.resolve(process.cwd(), 'dist-electron/electron/context-intelligence');
 
 let decide, composePrompt, MODE_POLICIES;
+let advanceConversationState, clearConversationState, getConversationState, recordAnswerSummary;
 try {
   ({ decide }        = await import(pathToFileURL(path.join(base, 'orchestration/orchestrator.js')).href));
   ({ composePrompt } = await import(pathToFileURL(path.join(base, 'generation/prompt-composer.js')).href));
   ({ MODE_POLICIES } = await import(pathToFileURL(path.join(base, 'policies/mode-policy-registry.js')).href));
+  ({ advanceConversationState, clearConversationState, getConversationState, recordAnswerSummary } =
+    await import(pathToFileURL(path.join(base, 'question/conversation-state-store.js')).href));
 } catch (err) {
   console.error(
     '\n[eval:interview] Failed to load dist-electron modules.\n' +
@@ -53,6 +56,60 @@ try {
 }
 
 const POLICY = MODE_POLICIES['technical-interview'];
+
+// ── Shared evaluation scope ───────────────────────────────────────────────────
+
+const EVAL_SCOPE = { userId: 'eval', modeId: 'technical-interview' };
+
+// ── Multi-turn helpers ────────────────────────────────────────────────────────
+
+// formatChainForEval: mirrors engine-bridge.ts formatTopicChain() which is private
+// (not exported from engine-bridge.js). Produces the same string the live production
+// path passes as conversationSummary to composePrompt.
+function formatChainForEval(chain) {
+  if (!chain || chain.length === 0) return '';
+  const last = chain[chain.length - 1];
+  if (chain.length === 1) {
+    let s = `Previous question: ${last.question}`;
+    if (last.answerSummary) s += `\nPrevious answer (referent only, NOT evidence): ${last.answerSummary}`;
+    return s;
+  }
+  const lines = chain.map((t, i) => `[${i + 1}] ${t.question}`);
+  let s = `Conversation chain (${chain.length} turns):\n${lines.join('\n')}`;
+  if (last.answerSummary) s += `\nPrevious answer (referent only, NOT evidence): ${last.answerSummary}`;
+  return s;
+}
+
+// setupPriorTurns: establish prior turns in the production conversation-state store
+// before evaluating the final fixture question. Uses the same functions that
+// orchestrate() calls after each turn — advanceConversationState + recordAnswerSummary.
+// No Gemini call is made for prior turns; syntheticAnswer is used directly.
+function setupPriorTurns(fixture, sessionId) {
+  clearConversationState(sessionId);
+  for (const pt of fixture.priorTurns) {
+    const d = decide({
+      requestId: `${fixture.id}-prior`, requestSequence: 0,
+      surface: 'manual_chat', modeId: 'technical-interview',
+      scope: EVAL_SCOPE, sessionId,
+      manualQuestion: pt.question,
+    });
+    advanceConversationState({
+      sessionId,
+      scope: EVAL_SCOPE,
+      question: pt.question,
+      interviewIntent: d.interviewIntent,
+    });
+    recordAnswerSummary(sessionId, pt.syntheticAnswer);
+  }
+  const state = getConversationState(sessionId);
+  const chain = state?.topicChain ?? [];
+  if (chain.length !== fixture.priorTurns.length) {
+    console.error(
+      `  [${fixture.id}] WARN: expected chain length ${fixture.priorTurns.length}, got ${chain.length}`,
+    );
+  }
+  return chain;
+}
 
 // ── Models ───────────────────────────────────────────────────────────────────
 
@@ -126,8 +183,11 @@ const FIXTURES = [
   },
   {
     id: 'aq_007',
+    // Phase 5 Step 4A: corrected from 'comparison' to 'tradeoff'.
+    // "tradeoffs" in the question matches /\b(?:tradeoffs?|…)\b/i at
+    // turn-classifier.ts:1354 before the comparison branch at :1352.
     question: 'What are the tradeoffs between SQL and NoSQL databases?',
-    expectedIntent: 'comparison',
+    expectedIntent: 'tradeoff',
     expectedFollowUpLikelihood: 'high',
     expectedDepth: 'standard',
     requiredDimensions: ['voice', 'strategy_adherence', 'depth', 'pacing'],
@@ -149,8 +209,12 @@ const FIXTURES = [
   },
   {
     id: 'aq_009',
+    // Phase 5 GAP-2: expectedIntent corrected from 'scalability' to 'system_design'.
+    // "How would you scale X to N users" matches SYSTEM_DESIGN_RE's `scale (a|the|to)`
+    // pattern before the scalability branch is reached (turn-classifier.ts:377 vs :1358).
+    // The classifier correctly returns 'system_design' for this phrasing; the fixture was wrong.
     question: 'How would you scale a social media feed to 100 million daily active users?',
-    expectedIntent: 'scalability',
+    expectedIntent: 'system_design',
     expectedFollowUpLikelihood: 'high',
     expectedDepth: 'deep',
     requiredDimensions: ['voice', 'strategy_adherence', 'depth', 'pacing'],
@@ -188,6 +252,84 @@ const FIXTURES = [
     expectedDepth: 'standard',
     requiredDimensions: ['voice', 'strategy_adherence', 'depth'],
     notes: 'Optimization intent — medium likelihood',
+  },
+
+  // ── Phase 5 GAP-3: evidence-free intent coverage (aq_013–aq_016) ─────────────
+  // NOTE: aq_007 is labeled expectedIntent:'comparison' but actually routes to
+  // 'tradeoff' ("tradeoffs" matches the tradeoff branch before comparison).
+  // That mislabel is a discovered problem reported separately; do not fix here.
+  // aq_013 adds genuine comparison coverage.
+  {
+    id: 'aq_013',
+    question: 'What is the difference between REST and GraphQL?',
+    expectedIntent: 'comparison',
+    expectedFollowUpLikelihood: 'high',
+    expectedDepth: 'standard',
+    requiredDimensions: ['voice', 'strategy_adherence', 'depth', 'pacing'],
+  },
+  {
+    id: 'aq_014',
+    // knowledge_check: depth=brief, followUpLikelihood=low, stories=false.
+    // "Are you comfortable with X?" triggers the knowledge_check branch (line 1369
+    // of turn-classifier.ts). No personal evidence required — the model produces a
+    // "yes + brief explanation" pattern without resume claims.
+    question: 'Are you comfortable with async/await in JavaScript?',
+    expectedIntent: 'knowledge_check',
+    expectedFollowUpLikelihood: 'low',
+    expectedDepth: 'brief',
+    requiredDimensions: ['voice', 'strategy_adherence', 'depth', 'pacing'],
+  },
+  // aq_015 removed: technology_decision has contextRequirements.stories=true.
+  // With evidence:[], the prompt fires noEvidenceNotice — a hard production refusal
+  // directing the user to add their profile. This is correct production behavior and
+  // is not a gradeable answer-quality failure. A technology_decision fixture requires
+  // StoryBank evidence (mock or real) to produce a gradeable answer; adding fabricated
+  // personal history would violate PERMANENT_RULES. Removed rather than silenced.
+  {
+    id: 'aq_016',
+    // scalability: depth=deep, followUpLikelihood=high. Uses "traffic grows" phrasing
+    // which routes to scalability (turn-classifier.ts:1358). Avoids "scale (a|the|to)"
+    // which would route to system_design via SYSTEM_DESIGN_RE instead.
+    // Question rephrased (Phase 5 Step 6): original "What strategies would you apply when
+    // traffic grows by 10x?" gave no baseline numbers, making analyze_scale step 1
+    // ("Restate the scale target — DAU, QPS, storage") semantically unfulfillable.
+    // The new phrasing gives a concrete starting point (5K RPS, monolithic + single DB)
+    // so the model can anchor step 1, identify bottlenecks (step 2), and quantify
+    // headroom (step 3) without fabricating numbers.
+    question: 'Your service handles around 5,000 requests per second on a monolithic backend with a single database. Traffic is expected to grow 10x over the next quarter. What would you do?',
+    expectedIntent: 'scalability',
+    expectedFollowUpLikelihood: 'high',
+    expectedDepth: 'deep',
+    requiredDimensions: ['voice', 'strategy_adherence', 'depth', 'pacing'],
+  },
+
+  // ── Phase 5 Step 5: follow_up_generic multi-turn fixture (aq_017) ─────────────
+  // Uses priorTurns to establish conversation state via the production state-store
+  // functions (advanceConversationState + recordAnswerSummary) before evaluating
+  // the DEEPENING turn. No Gemini call is made for the prior turn — syntheticAnswer
+  // is used directly. Pacing is not a required dimension: low followUpLikelihood
+  // ("complete and direct") conflicts with DEEPENING elaboration behavior; the judge
+  // would produce unreliable pacing verdicts. strategy_adherence covers the
+  // deepening_elaboration structure instead.
+  {
+    id: 'aq_017',
+    // "elaborate" triggers IB_DEEPENING_RE → DEEPENING → isOverrideBehavior=true
+    // → intent=follow_up_generic (turn-classifier.ts:1318-1319).
+    question: 'Can you elaborate on the memory cost tradeoff?',
+    expectedIntent: 'follow_up_generic',
+    expectedFollowUpLikelihood: 'low',
+    expectedDepth: 'standard',
+    requiredDimensions: ['voice', 'strategy_adherence', 'depth'],
+    notes: 'Multi-turn: prior turn established via priorTurns. Pacing omitted — low followUpLikelihood conflicts with DEEPENING elaboration.',
+    priorTurns: [
+      {
+        question: 'Why would you choose Redis for the URL shortener?',
+        syntheticAnswer:
+          "I'd use Redis mainly for the hot read path because URL lookups are frequent " +
+          "and predictable. The main tradeoff is memory cost, so I'd keep the durable " +
+          'mapping in a database.',
+      },
+    ],
   },
 ];
 
@@ -355,12 +497,24 @@ async function run() {
     const depthTag = fixture.expectedDepth === 'deep' ? '[deep/1024t] ' : '[std/512t]  ';
     process.stdout.write(`  ${fixture.id}  ${depthTag}${fixture.question.slice(0, 48).padEnd(48)} `);
 
-    // 1. Classify and compose prompt
+    // 1. Classify and compose prompt.
+    // Multi-turn fixtures (priorTurns present) use a unique sessionId and establish
+    // prior turns in the production state store before classifying the final question,
+    // replicating what orchestrate() does via advanceConversationState + recordAnswerSummary.
+    const isMultiTurn = Array.isArray(fixture.priorTurns) && fixture.priorTurns.length > 0;
+    const sessionId   = isMultiTurn ? fixture.id : 'eval-session';
+
+    let conversationSummary;
+    if (isMultiTurn) {
+      const chain = setupPriorTurns(fixture, sessionId);
+      conversationSummary = formatChainForEval(chain);
+    }
+
     const d = decide({
       requestId: fixture.id, requestSequence: 1,
       surface: 'manual_chat', modeId: 'technical-interview',
-      scope: { userId: 'eval', modeId: 'technical-interview' },
-      sessionId: 'eval-session',
+      scope: EVAL_SCOPE,
+      sessionId,
       manualQuestion: fixture.question,
     });
 
@@ -368,7 +522,24 @@ async function run() {
     const actualFollowUpLikelihood = d.interviewIntent?.followUpLikelihood ?? '';
     const steps                    = d.answerStrategy?.steps ?? [];
 
-    const composed = composePrompt({ decision: d, policy: POLICY, evidence: [] });
+    const composed = composePrompt({
+      decision: d, policy: POLICY, evidence: [],
+      ...(conversationSummary ? { conversationSummary } : {}),
+    });
+
+    // Deterministic checks for multi-turn fixtures.
+    if (isMultiTurn) {
+      if (actualIntent !== fixture.expectedIntent) {
+        console.error(`  [${fixture.id}] WARN: expected intent ${fixture.expectedIntent}, got ${actualIntent}`);
+      }
+      if (!composed.user.includes('Conversation so far')) {
+        console.error(`  [${fixture.id}] WARN: conversation section absent from final prompt — context injection may have failed`);
+      }
+      const priorQ = fixture.priorTurns[0]?.question ?? '';
+      if (priorQ && !composed.user.includes(priorQ.slice(0, 40))) {
+        console.error(`  [${fixture.id}] WARN: prior question not visible in composed prompt`);
+      }
+    }
 
     // 2. Generate answer — deep fixtures get a larger token budget so 8-step
     // strategies (ANALYZE_SCALE, DESIGN_SYSTEM) have room to cover every step.

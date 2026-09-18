@@ -537,3 +537,91 @@ describe('Test O — design-intent QUESTION turns inject chain; concept_explanat
       'concept_explanation QUESTION must not inject chain (Test J behavior preserved)');
   });
 });
+
+// ── P: Mid-design optimization/tradeoff/comparison turns inherit chain ─────────
+//
+// Phase 5 GAP-1: tradeoff, comparison, and optimization QUESTION turns that appear
+// inside an ongoing design thread must receive the existing topic chain so that
+// established context (requirements, scale, system shape) is not invisible to them.
+// These intents are now in DESIGN_INTENTS alongside system_design/lld/scalability.
+// concept_explanation QUESTION behavior remains gated OFF (Test J/O unchanged).
+
+describe('Test P — mid-design tradeoff/comparison/optimization turns inherit chain', () => {
+  beforeEach(enable);
+
+  test('tradeoff QUESTION after design thread receives conversation section', async () => {
+    const sid = 'test-p-tradeoff';
+    // Turn 1: establish design context
+    await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'Design a URL shortener.',
+      modeTemplateType: 'technical-interview',
+      scope: { sessionId: sid },
+    });
+    // Turn 2: add constraint (QUESTION behavior, no follow-up signal)
+    await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'Assume we have 100 million users.',
+      modeTemplateType: 'technical-interview',
+      scope: { sessionId: sid },
+    });
+    // Turn 3: tradeoff question mid-design — "tradeoffs?" → intent=tradeoff, behavior=QUESTION
+    const r = await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'What are the tradeoffs between PostgreSQL and Cassandra for this system?',
+      modeTemplateType: 'technical-interview',
+      scope: { sessionId: sid },
+    });
+    assert.ok(r, 'expected a prompt');
+    assert.match(r.user, /Conversation so far/,
+      'tradeoff QUESTION in design thread must open the conversation gate');
+    assert.match(r.user, /URL shortener|100 million/i,
+      'pre-orchestration chain must contain established design context');
+  });
+
+  test('comparison QUESTION after design thread receives conversation section', async () => {
+    const sid = 'test-p-comparison';
+    // Turn 1: design context
+    await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'Design a distributed cache.',
+      modeTemplateType: 'technical-interview',
+      scope: { sessionId: sid },
+    });
+    // Turn 2: comparison question — "compare X vs Y" → intent=comparison, behavior=QUESTION
+    const r = await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'Compare Redis versus Memcached for this use case.',
+      modeTemplateType: 'technical-interview',
+      scope: { sessionId: sid },
+    });
+    assert.ok(r, 'expected a prompt');
+    assert.match(r.user, /Conversation so far/,
+      'comparison QUESTION in design thread must open the conversation gate');
+    assert.match(r.user, /distributed cache/i,
+      'pre-orchestration chain must contain the design context');
+  });
+
+  test('optimization QUESTION after design thread receives conversation section', async () => {
+    const sid = 'test-p-optimization';
+    // Turn 1: design context
+    await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'Design a rate limiter.',
+      modeTemplateType: 'technical-interview',
+      scope: { sessionId: sid },
+    });
+    // Turn 2: optimization question — "optimize" → intent=optimization, behavior=QUESTION
+    const r = await buildV3Prompt({
+      surface: 'manual-chat',
+      question: 'How would you optimize the token bucket algorithm to reduce latency?',
+      modeTemplateType: 'technical-interview',
+      scope: { sessionId: sid },
+    });
+    assert.ok(r, 'expected a prompt');
+    assert.match(r.user, /Conversation so far/,
+      'optimization QUESTION in design thread must open the conversation gate');
+    assert.match(r.user, /rate limiter/i,
+      'pre-orchestration chain must contain the design context');
+  });
+});

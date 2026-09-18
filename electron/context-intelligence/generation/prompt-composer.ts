@@ -530,6 +530,12 @@ function renderAnswerStrategy(d: Readonly<TurnDecision>): string {
   const s = d.answerStrategy;
   if (!s) return '';
   const steps = s.steps.map((step, i) => `${i + 1}. ${step}`).join('\n');
+  // Strategies with 6+ steps require explicit completion enforcement: without it,
+  // question framing pulls the model toward the most interesting step while skipping
+  // the structured opening steps (requirements, scale anchoring, entity identification).
+  const completionNote = s.steps.length >= 6
+    ? '\n\nWork through every step; do not skip early steps to reach the more interesting ones.'
+    : '';
   const voiceNote = EXPLANATION_STRATEGIES.has(s.id)
     ? '\n\nVoice: the whole answer should sound like a candidate speaking in a live '
       + 'interview, not a reference entry. Step 1: avoid the "[Term] is a [noun phrase]" '
@@ -538,7 +544,7 @@ function renderAnswerStrategy(d: Readonly<TurnDecision>): string {
       + 'where natural ("I\'d expect", "what trips people up here is", "the tricky part '
       + 'is") rather than continuous third-person technical exposition.'
     : '';
-  return `# Answer approach\n${s.promptSection}\n\nSteps:\n${steps}${voiceNote}`;
+  return `# Answer approach\n${s.promptSection}\n\nSteps:\n${steps}${completionNote}${voiceNote}`;
 }
 
 /**

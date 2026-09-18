@@ -1,19 +1,19 @@
 {
-  "date": "2026-09-17T11:34:48.779Z",
+  "date": "2026-09-17T18:54:37.079Z",
   "model": "gemini-3.1-flash-lite",
   "judgeModel": "gemini-3.1-flash-lite",
-  "totalCases": 12,
-  "passed": 12,
-  "failed": 0,
+  "totalCases": 16,
+  "passed": 15,
+  "failed": 1,
   "skipped": 0,
-  "passRate": 1,
+  "passRate": 0.9375,
   "results": [
     {
       "caseId": "aq_001",
       "question": "What is a closure?",
       "actualIntent": "concept_explanation",
       "actualFollowUpLikelihood": "high",
-      "answer": "I think of a closure as a function that \"remembers\" the variables from its lexical scope, even after the outer function has finished executing. It’s essentially a way to bundle a function together with its surrounding state, which is incredibly useful for creating private data or factory functions.\n\nFor example, if you have a function that returns an inner function incrementing a counter, that inner function maintains access to the `count` variable defined in the outer scope:\n\n```javascript\nfunction createCounter() {\n  let count = 0;\n  return () => ++count;\n}\n\nconst counter = createCounter();\nconsole.log(counter()); // 1\nconsole.log(counter()); // 2\n```\n\nThe one thing to keep in mind is that because closures hold onto their scope, they can lead to memory leaks if you aren't careful about keeping references to large objects that are no longer needed.",
+      "answer": "I think of a closure as a function that \"remembers\" the environment in which it was created, even after that outer scope has finished executing. It basically lets you bundle a function together with its lexical state, which is incredibly useful for creating private variables or factory functions.\n\nFor example, if you have a function that returns another function, that inner function keeps access to the outer function's variables:\n\n```javascript\nfunction createCounter() {\n  let count = 0;\n  return () => ++count;\n}\n\nconst counter = createCounter();\nconsole.log(counter()); // 1\nconsole.log(counter()); // 2\n```\n\nThe one thing to watch out for is memory usage; because the closure holds onto those variables, they can't be garbage collected as long as the inner function exists, which can lead to leaks if you're not careful with large objects.",
       "scores": {
         "voice": 5,
         "strategy_adherence": 5,
@@ -31,7 +31,7 @@
       "question": "How does garbage collection work in JavaScript?",
       "actualIntent": "mechanism_explanation",
       "actualFollowUpLikelihood": "high",
-      "answer": "I think of JavaScript garbage collection as an automated cleanup process that periodically reclaims memory occupied by objects that are no longer reachable from the root of your application.\n\nThe mechanism relies on a \"mark-and-sweep\" algorithm. It starts by identifying a set of \"roots\"—typically the global object or active stack frames—and then traverses the entire object graph to mark everything it can reach. Once that traversal finishes, the engine performs a sweep phase where it identifies any objects in memory that weren't marked, effectively treating them as unreachable and freeing up that memory.\n\nThe key actors here are the garbage collector itself, which runs in the background, and the object graph that tracks these references. A major design choice is that this process is non-deterministic; you don't control exactly when it runs, which is why you might see minor performance stutters during heavy allocation cycles.\n\nThe main gotcha to watch out for is \"unintentional memory leaks,\" which usually happen when you keep references to objects in global variables or closures that you no longer actually need. Even if you aren't using the object, the collector sees that active reference and assumes it’s still required, so it won't clean it up.",
+      "answer": "I think of garbage collection in JavaScript as a background process that automatically reclaims memory by identifying objects that are no longer reachable from the root of your application.\n\nThe primary mechanism used in modern engines like V8 is a \"mark-and-sweep\" algorithm. It starts by traversing the object graph from root references—like the global object or active stack frames—and marks every object it can reach as \"alive.\" Once that traversal is complete, the engine performs a sweep phase where it identifies any memory blocks that weren't marked and deallocates them.\n\nTo keep things efficient, engines usually split the heap into \"generations.\" Most objects die young, so the engine frequently performs a \"minor GC\" on the young generation, while the \"major GC\" runs less often on the older, more stable objects.\n\nThe main design choice here is the trade-off between memory footprint and performance; by running these cycles asynchronously, the engine tries to avoid blocking the main thread. The biggest gotcha to watch out for is that even if you aren't using an object, if you’ve accidentally left a reference to it in a global variable or a long-lived closure, the collector will still see it as reachable and won't free that memory, which is how you end up with memory leaks.",
       "scores": {
         "voice": 5,
         "strategy_adherence": 5,
@@ -49,10 +49,10 @@
       "question": "Implement a function to detect a cycle in a linked list.",
       "actualIntent": "coding_task",
       "actualFollowUpLikelihood": "high",
-      "answer": "To detect a cycle, I'll use Floyd’s Cycle-Finding algorithm, often called the \"tortoise and the hare\" approach. The key insight is that if a cycle exists, a fast pointer moving two steps at a time will eventually \"lap\" a slow pointer moving one step at a time, causing them to meet at the same node.\n\nThe naive approach would be to store every visited node in a hash set to check for duplicates, but that requires O(n) extra space. Using two pointers allows us to solve this with constant space.\n\nHere is how I’d implement that:\n\n```python\ndef has_cycle(head):\n    slow = head\n    fast = head\n    \n    while fast and fast.next:\n        slow = slow.next\n        fast = fast.next.next\n        \n        if slow == fast:\n            return True\n            \n    return False\n```\n\nThe time complexity is O(n), where n is the number of nodes in the list, because the fast pointer will traverse the list at most twice. The space complexity is O(1) since we only maintain two pointer references regardless of the list size.\n\nThis handles edge cases like an empty list or a single-node list without a cycle by immediately returning `False` via the `while` loop condition. It assumes the list structure is standard and doesn't contain any corrupt pointers pointing to arbitrary memory.",
+      "answer": "To detect a cycle, I’ll use Floyd’s Cycle-Finding algorithm, often called the \"tortoise and the hare\" approach. The key insight is that if a cycle exists, a fast pointer moving two steps at a time will eventually \"lap\" a slow pointer moving one step at a time, causing them to meet at the same node.\n\nThe naive approach would be to store every visited node in a hash set to check for duplicates, but that uses O(n) extra space. Using two pointers allows us to solve this with constant space.\n\nHere is how I’d implement it:\n\n```python\ndef has_cycle(head):\n    slow = head\n    fast = head\n    \n    while fast and fast.next:\n        slow = slow.next\n        fast = fast.next.next\n        \n        if slow == fast:\n            return True\n            \n    return False\n```\n\nThis runs in O(n) time, where n is the number of nodes in the list, because in the worst case, the fast pointer traverses the list a constant number of times. The space complexity is O(1) since we only store two pointers regardless of the list size.\n\nThis implementation handles an empty list or a single-node list without a cycle gracefully, as the `while` condition `fast and fast.next` will immediately evaluate to false. It assumes the list structure is standard and doesn't contain any corrupted pointers outside of the cycle itself.",
       "scores": {
         "voice": 4,
-        "strategy_adherence": 4,
+        "strategy_adherence": 5,
         "depth": "pass",
         "pacing": "pass",
         "grounding": null
@@ -60,17 +60,17 @@
       "flags": [],
       "grade": "PASS",
       "gradedBy": "deterministic+llm_judge",
-      "judgeExplanation": "The answer followed all strategy steps effectively. It missed a formal clarification of input/output (though it was implicitly clear), but otherwise adhered well to the structure."
+      "judgeExplanation": "all pass"
     },
     {
       "caseId": "aq_004",
       "question": "Design a URL shortener at scale.",
       "actualIntent": "system_design",
       "actualFollowUpLikelihood": "high",
-      "answer": "To design a URL shortener at scale, I’d start by clarifying the expected traffic. Assuming we’re aiming for high availability and low latency, we’re looking at a system where read operations—redirecting users—vastly outnumber write operations—creating new links.\n\nAt a high level, the architecture consists of a load balancer, a set of application servers, a key-generation service, and a storage layer. For the data model, we need a simple mapping: `short_url` (the primary key) to `long_url`.\n\nHere is how I’d approach the core components:\n\n*   **Key Generation:** To avoid collisions and ensure performance, I’d use a distributed ID generator like Snowflake or a pre-computed pool of base-62 encoded strings. This is more efficient than hashing the long URL, which can lead to collisions and requires extra checks.\n*   **Storage:** I’d use a NoSQL database like Cassandra or DynamoDB. Since we’re looking up by a unique key, these provide the horizontal scalability and low-latency reads we need.\n*   **Caching:** Because a small percentage of URLs will account for the majority of traffic, I’d put a Redis cluster in front of the database. This drastically reduces the load on the primary storage for popular links.\n\nFor scaling, we can shard the database by the `short_url` hash to distribute the load evenly. If a specific region sees a spike, we can deploy edge caches or CDNs to serve redirects closer to the user.\n\nThe biggest tradeoff here is consistency versus availability. In this design, we favor availability—if a new link isn't immediately available globally due to replication lag, the user experience is generally unaffected. We’d handle failure by using a multi-region deployment for our caches and databases, ensuring that if one zone goes down, traffic is rerouted to the next closest healthy node.\n\nDoes this high-level structure align with the scale you’re anticipating, or should we dive deeper into the key generation strategy or the database sharding logic?",
+      "answer": "To design a URL shortener, I’d start by clarifying the scale: are we talking about millions of redirects per day, and do we need to support custom aliases or just random strings? Assuming a high-read, low-write ratio, the core requirement is low-latency redirection and high availability.\n\nAt a high level, the architecture consists of a load balancer, a set of application servers, and a persistent storage layer. For the data model, I’d use a simple key-value mapping: the short URL (the key) and the original long URL (the value).\n\nFor the URL generation, I’d use a base-62 encoding scheme on a unique incrementing integer ID. This avoids collisions and keeps the short URL length predictable. I’d use a distributed ID generator, like Snowflake, to ensure IDs are unique across multiple nodes without needing a central database lock.\n\nRegarding storage, I’d use a NoSQL database like Cassandra or DynamoDB because they handle high-volume read/write operations well and scale horizontally. Since reads will significantly outpace writes, I’d place a Redis cache in front of the database to store the most frequently accessed URLs, which would keep latency in the sub-millisecond range for popular links.\n\nIf the system fails, the first bottleneck is usually the database. I’d mitigate this by sharding the data based on the hash of the short URL to distribute the load. For recovery, I’d rely on database replication across multiple availability zones.\n\nA key tradeoff here is between consistency and availability. In this design, I’d favor eventual consistency to ensure the system remains highly available for redirects, even if a new URL takes a few milliseconds to propagate across all nodes. Does this approach align with the throughput requirements you have in mind, or should we look closer at how to handle cache invalidation?",
       "scores": {
         "voice": 4,
-        "strategy_adherence": 4,
+        "strategy_adherence": 5,
         "depth": "pass",
         "pacing": "pass",
         "grounding": null
@@ -78,14 +78,14 @@
       "flags": [],
       "grade": "PASS",
       "gradedBy": "deterministic+llm_judge",
-      "judgeExplanation": "The answer follows the strategy well, though it skips formal estimation of scale (Step 2) and API contracts (Step 4). It maintains a conversational tone and appropriate pacing for a high follow-up likelihood."
+      "judgeExplanation": "all pass"
     },
     {
       "caseId": "aq_005",
       "question": "How does the JavaScript event loop work?",
       "actualIntent": "mechanism_explanation",
       "actualFollowUpLikelihood": "high",
-      "answer": "I think of the event loop as the traffic controller that lets JavaScript handle asynchronous tasks despite being single-threaded. It works by constantly checking if the call stack is empty; if it is, it pushes the first task from the callback queue onto the stack to be executed.\n\nThe process relies on three main actors: the call stack, where your synchronous code runs; the Web APIs or Node.js APIs, which handle background tasks like timers or network requests; and the task queues, where callbacks wait for their turn. When an asynchronous operation finishes, its callback is moved to the queue, but it can't run until the stack is completely clear of all synchronous execution.\n\nA key design choice here is the distinction between the \"macrotask\" queue and the \"microtask\" queue. Microtasks, like Promise resolutions, have higher priority and are processed immediately after the current task finishes, before the event loop moves on to the next macrotask or renders the UI. The main gotcha is that if you block the call stack with a long-running synchronous loop, you’ll starve the event loop, meaning no callbacks or UI updates can process until that loop finishes.",
+      "answer": "I think of the event loop as the traffic controller that lets JavaScript handle asynchronous tasks despite being single-threaded. It works by constantly checking if the call stack is empty; if it is, it pulls the first task from the callback queue and pushes it onto the stack for execution.\n\nThe process flows through a few key phases:\n*   **The Call Stack:** Where your synchronous code executes line by line.\n*   **Web APIs:** Where the browser handles background tasks like `setTimeout` or fetch requests.\n*   **The Task Queue:** Where callbacks wait once those background tasks finish.\n*   **The Microtask Queue:** A higher-priority queue for things like Promises that the loop checks immediately after the current script finishes, before moving to the next task in the callback queue.\n\nThe reason it’s designed this way is to keep the UI responsive—by offloading heavy operations to the browser's APIs, the main thread stays free to handle user input. The biggest \"gotcha\" here is that if you perform a long-running synchronous operation on the main thread, you block the loop entirely, which freezes the browser and prevents any pending callbacks or user interactions from being processed.",
       "scores": {
         "voice": 5,
         "strategy_adherence": 5,
@@ -103,7 +103,7 @@
       "question": "What is Kubernetes?",
       "actualIntent": "concept_explanation",
       "actualFollowUpLikelihood": "high",
-      "answer": "I think of Kubernetes as an orchestration engine that automates the deployment, scaling, and management of containerized applications across a cluster of machines. It solves the problem of manual infrastructure overhead by ensuring your containers are running exactly where and how you defined them, even if a node fails.\n\nFor example, if you define a \"Deployment\" with three replicas of a web server, Kubernetes constantly monitors the cluster to ensure those three instances are healthy and running; if one crashes, it automatically replaces it. The main thing to keep in mind is that it’s declarative—you tell it the desired state of your system, and the control plane works to reconcile the actual state to match that target.",
+      "answer": "I think of Kubernetes as an orchestration layer that automates the deployment, scaling, and management of containerized applications across a cluster of machines. It solves the problem of manual operational overhead by constantly reconciling the actual state of your cluster—like how many replicas are running—with the desired state you’ve defined in your configuration.\n\nFor example, if you define a Deployment with three replicas of a web server, Kubernetes ensures those three pods stay running; if one node fails, it automatically schedules a replacement on a healthy node. The main thing to watch out for is that it’s quite complex to manage yourself, which is why most teams end up using managed services like EKS or GKE to handle the underlying control plane.",
       "scores": {
         "voice": 5,
         "strategy_adherence": 5,
@@ -121,7 +121,7 @@
       "question": "What are the tradeoffs between SQL and NoSQL databases?",
       "actualIntent": "tradeoff",
       "actualFollowUpLikelihood": "high",
-      "answer": "When choosing between SQL and NoSQL, it really comes down to whether you need strict data integrity or massive, flexible scale.\n\nThe main dimensions to consider are:\n\n*   **Schema Flexibility:** SQL requires a predefined schema, which is great for consistency but slows down iteration when your data model is evolving. NoSQL is schema-less, allowing you to store unstructured or polymorphic data without migrations.\n*   **Consistency vs. Availability:** SQL databases typically prioritize ACID compliance, ensuring your data is always accurate and consistent. NoSQL systems often favor the CAP theorem’s availability and partition tolerance, which is essential for high-velocity, distributed workloads where a slight delay in data synchronization is acceptable.\n*   **Scaling:** SQL is traditionally scaled vertically by adding more power to a single server, whereas NoSQL is designed to scale horizontally across clusters, making it the clear winner for handling massive, unpredictable traffic spikes.\n*   **Query Complexity:** SQL excels at complex joins and multi-table transactions. If your application relies on deep relationships between entities, SQL saves you from having to manage those joins in your application code.\n\nIf you’re building a financial system or an application where data relationships are the core of the product, go with SQL—you’re sacrificing the ability to scale horizontally on the fly, but you gain peace of mind with data integrity. If you’re dealing with high-volume, rapidly changing data like IoT logs, user activity feeds, or real-time analytics, NoSQL is the better bet, though you’ll be trading off complex query capabilities and strict consistency. \n\nUltimately, the right choice depends on whether your priority is the reliability of the data structure or the velocity and scale of the data ingestion.",
+      "answer": "Choosing between SQL and NoSQL usually comes down to how much you value structured consistency versus flexible, high-velocity scaling.\n\nThe main dimensions to consider are:\n\n*   **Data Structure:** SQL databases enforce a rigid schema, which is great for maintaining data integrity and complex relationships. NoSQL databases are schema-agnostic, allowing you to store unstructured or rapidly evolving data without downtime for migrations.\n*   **Scaling:** SQL typically scales vertically by increasing server power, which eventually hits a cost or hardware ceiling. NoSQL is designed to scale horizontally by distributing data across many commodity servers, making it better for massive, unpredictable traffic spikes.\n*   **Query Complexity:** SQL uses a standardized, powerful language for complex joins and multi-table transactions. NoSQL is generally optimized for key-value lookups or specific data patterns, making complex cross-document queries significantly harder or less efficient.\n*   **Consistency:** SQL emphasizes ACID compliance, ensuring that transactions are processed reliably. Many NoSQL systems prioritize the CAP theorem’s availability and partition tolerance, often opting for \"eventual consistency\" to keep the system fast under load.\n\nIf you’re building a financial system where transaction accuracy is non-negotiable, SQL is the clear winner. If you’re handling a massive stream of telemetry data or a content management system where the schema changes weekly, NoSQL’s flexibility is a huge advantage.\n\nUltimately, it depends on your data model: if your data is highly relational, the cost of forcing it into a NoSQL structure will eventually outweigh the scaling benefits. If your data is sparse or hierarchical, trying to force it into a rigid SQL schema will just slow down your development and query performance.",
       "scores": {
         "voice": 4,
         "strategy_adherence": 5,
@@ -139,27 +139,27 @@
       "question": "A React component re-renders on every keystroke even though its props have not changed. Walk me through how you would debug this.",
       "actualIntent": "debugging",
       "actualFollowUpLikelihood": "medium",
-      "answer": "When a component re-renders on every keystroke despite stable props, the most likely culprit is an unstable reference being passed down or a parent component re-rendering and triggering a cascade.\n\nI’d start by confirming the re-render source using the React DevTools Profiler to see exactly which component triggered the update. If the parent is re-rendering, I’d look for two common issues:\n\n1. **Unstable object or function references:** If you’re defining an object or a function inside the parent's render body, it gets a new memory address every time, causing children to think props have changed. I’d check if these are wrapped in `useMemo` or `useCallback`.\n2. **Context updates:** If the component consumes a Context provider, any state change within that provider will force all consumers to re-render, regardless of prop stability. I’d check if the context value is memoized.\n\nTo test these, I’d wrap the child component in `React.memo` and log the props inside the component body to see if they are truly identical by reference. If the re-renders persist, I’d inspect the Context providers higher up the tree.\n\nThe fix is usually to stabilize those references or split the Context into smaller, more granular providers to limit the blast radius of state updates. To prevent this from recurring, I’d add a test using `jest` and `react-testing-library` to assert that the component only renders when specific props change, or use the `why-did-you-render` library during development to catch these unnecessary updates automatically.",
+      "answer": "If a component is re-rendering on every keystroke, the most likely cause is that a parent component is re-rendering and passing down a new object or function reference as a prop, or the component is consuming a context that updates on every keystroke.\n\nTo debug this, I’d start by using the React DevTools Profiler to confirm exactly which component triggered the render cycle. Once I’ve isolated the culprit, I’d check these three areas:\n\n1. **Unstable Prop References:** If the parent creates a new object or function on every render, I’d look for inline object literals or functions defined inside the parent’s render body. I’d test this by wrapping those in `useMemo` or `useCallback` to maintain referential identity.\n2. **Context Subscriptions:** If the component uses `useContext`, it will re-render whenever the context value changes. I’d check if the context provider is wrapping the input field and passing down a value that changes with every keystroke.\n3. **State Placement:** It’s possible the state being updated by the keystrokes is defined too high in the component tree. I’d verify if moving that state closer to the input element stops the unnecessary re-renders of the surrounding components.\n\nThe most probable cause is usually an unstable prop reference, where a parent passes a new function or object to a child, causing React to treat it as a \"changed\" prop. My fix would be to memoize those values using `useMemo` or `useCallback`. To verify, I’d use the \"Why did this render?\" feature in the React DevTools to confirm the component no longer triggers on those specific prop updates. To prevent this from recurring, I’d add a regression test using `jest` and `react-testing-library` to assert that the component only renders when specific, expected props change.",
       "scores": {
-        "voice": 4,
+        "voice": 3,
         "strategy_adherence": 4,
         "depth": "pass",
         "pacing": "pass",
         "grounding": null
       },
       "flags": [],
-      "grade": "PASS",
+      "grade": "FAIL",
       "gradedBy": "deterministic+llm_judge",
-      "judgeExplanation": "The answer is excellent and follows the strategy well. It missed a formal 'restatement of symptoms' at the very beginning (starting directly with the diagnosis), but otherwise covers all steps including verification and prevention."
+      "judgeExplanation": "The answer follows the strategy well but misses the explicit step of restating the symptoms precisely as requested in step 1, instead jumping straight to the likely causes."
     },
     {
       "caseId": "aq_009",
       "question": "How would you scale a social media feed to 100 million daily active users?",
       "actualIntent": "system_design",
       "actualFollowUpLikelihood": "high",
-      "answer": "To scale a feed to 100 million DAU, I’d prioritize pre-computing feeds for active users rather than calculating them on the fly, as the read-to-write ratio is heavily skewed toward reads. I’d use a \"push\" model for most users, where a post is fanned out to followers' pre-computed feed caches in a distributed key-value store, while using a \"pull\" model for celebrities or high-volume accounts to avoid massive fan-out spikes.\n\nAt this scale, the architecture would look like this:\n\n1. **Feed Service:** Manages the ingestion of posts and the fan-out process.\n2. **Cache Layer:** A distributed cache (like Redis) stores the most recent feed IDs for active users, keeping the hot data in memory.\n3. **Storage Layer:** A partitioned database stores the actual post content, sharded by user ID to ensure horizontal scalability.\n4. **Fan-out Workers:** Asynchronous background tasks that push new posts into the feed caches of followers.\n\nFor the data model, I’d keep the feed cache as a simple list of post IDs, which allows for fast pagination. When a user requests their feed, the service fetches the IDs from the cache, then performs a multi-get against the content database to hydrate the post details.\n\nThe biggest bottleneck is the \"celebrity problem,\" where a single post could trigger millions of writes. I’d handle this by flagging high-follower accounts and excluding them from the push fan-out; instead, the feed service would merge their posts at read-time. \n\nIf a service fails, we rely on the persistent database as the source of truth, allowing us to rebuild the cache for a user on-demand. The main tradeoff here is storage versus latency: we’re trading increased storage and background processing complexity for near-instant feed load times for the end user. Does that high-level approach align with the constraints you’re thinking of, or should we dive deeper into the fan-out logic or the sharding strategy?",
+      "answer": "To handle 100 million daily active users, I’d start by clarifying if we’re prioritizing low-latency delivery for active users or consistency for all posts. Assuming a standard feed, we’re looking at massive read-heavy traffic, likely in the range of millions of requests per second, which means we can’t rely on a single database query to construct a feed on the fly.\n\nHigh-level, I’d use a push-based model for most users—pre-computing feeds into a cache—while using a pull-based model for \"celebrity\" accounts with millions of followers to avoid fan-out amplification issues.\n\nHere is how I’d break down the architecture:\n\n1.  **Data Model:** I’d separate the feed into two stores: a relational database (like PostgreSQL) as the source of truth for posts, and a distributed cache (like Redis) for the feed metadata. The feed cache would store a list of Post IDs for each user, ordered by timestamp.\n2.  **The Fan-out Service:** When a user posts, an asynchronous worker service pushes that Post ID into the pre-computed feed caches of all their followers.\n3.  **Handling Scale:** For high-follower accounts, I’d skip the push-to-cache step. Instead, when a follower of a celebrity requests their feed, the system merges the celebrity’s recent posts with the pre-computed feed at read-time.\n4.  **Scaling Strategy:** I’d shard the feed cache by User ID to distribute the memory load across a Redis cluster. To handle spikes, I’d implement aggressive read-through caching and use a CDN for static media assets to offload the core infrastructure.\n5.  **Failure Modes:** The biggest risk is the fan-out service falling behind. I’d use a message queue (like Kafka) to buffer these updates, ensuring that if a worker node fails, the task is retried without dropping the post update.\n\nThe core tradeoff here is between storage and latency: we’re trading memory in Redis for significantly faster read times. We’re also accepting eventual consistency, as a user might not see a post the exact millisecond it’s published.\n\nDoes this approach to the fan-out logic align with the latency requirements you had in mind, or should we look closer at how to optimize the celebrity-account read path?",
       "scores": {
-        "voice": 4,
+        "voice": 5,
         "strategy_adherence": 4,
         "depth": "pass",
         "pacing": "pass",
@@ -168,16 +168,16 @@
       "flags": [],
       "grade": "PASS",
       "gradedBy": "deterministic+llm_judge",
-      "judgeExplanation": "The answer follows the strategy well, though it skips explicit estimation of scale (Step 2) and formal API contracts (Step 4). However, it covers the core architectural requirements, tradeoffs, and failure modes effectively while maintaining a conversational tone that invites follow-up."
+      "judgeExplanation": "The answer follows the strategy well, though it skips a formal explicit section for scale estimation (it mentions QPS but doesn't calculate storage/bandwidth). It maintains a conversational tone and leaves excellent entry points for follow-up."
     },
     {
       "caseId": "aq_010",
       "question": "What are the tradeoffs of using TypeScript over JavaScript?",
       "actualIntent": "tradeoff",
       "actualFollowUpLikelihood": "high",
-      "answer": "The main trade-off is that TypeScript prioritizes long-term maintainability and developer confidence at the cost of upfront setup and build complexity.\n\nWhen you choose TypeScript, you're optimizing for:\n*   **Early Error Detection:** You catch type-related bugs during development rather than at runtime, which is a massive win for larger codebases.\n*   **Refactoring Safety:** IDE tooling becomes much more reliable, making it safer to rename variables or change function signatures across a project.\n*   **Self-Documenting Code:** Types act as a contract, so you spend less time guessing what shape an object should be or what a function returns.\n\nHowever, you sacrifice:\n*   **Development Velocity:** You have to write type definitions and manage the compiler, which can feel like friction in the early prototyping phase.\n*   **Build Complexity:** You introduce a compilation step, which adds overhead to your build pipeline and can complicate debugging if source maps aren't configured perfectly.\n*   **Learning Curve:** Your team needs to understand the type system, which can lead to \"type gymnastics\" where the code becomes harder to read because the types are overly complex.\n\nI’d recommend TypeScript for any project that will be maintained by more than one person or that has a lifespan beyond a few weeks. If you're building a quick proof-of-concept or a tiny script where you need to move as fast as possible without any build steps, plain JavaScript is usually the better choice.",
+      "answer": "The main tradeoff is that you’re trading upfront development speed for long-term maintainability and safety. \n\nWhen you choose TypeScript, you’re optimizing for early error detection and better developer tooling—like autocompletion and refactoring support—which is a huge win as a codebase grows. The sacrifice, however, is the added friction of managing types, the need for a build step, and the initial overhead of configuring the compiler.\n\nIn a small, throwaway prototype or a script where you need to move fast, JavaScript is usually the winner because you don't have to fight the type system. But for any long-lived project or team environment, TypeScript is almost always the better bet because it catches those \"undefined is not a function\" errors before they ever hit production.\n\nUltimately, it comes down to scale: if you have a large team or a complex domain model, the cost of TypeScript pays for itself quickly. If you're working solo on a quick experiment, the extra type definitions might just feel like unnecessary busywork.",
       "scores": {
-        "voice": 4,
+        "voice": 5,
         "strategy_adherence": 5,
         "depth": "pass",
         "pacing": "pass",
@@ -193,9 +193,9 @@
       "question": "Design a parking lot with object-oriented classes.",
       "actualIntent": "lld",
       "actualFollowUpLikelihood": "high",
-      "answer": "To design a parking lot, I’d break it down into three core entities: the `ParkingLot` itself, the `ParkingSpot`, and the `Vehicle`.\n\nThe `ParkingLot` acts as the manager, handling the entry and exit of vehicles. The `ParkingSpot` is responsible for tracking its own state—whether it's occupied or free—and knowing its size capacity. The `Vehicle` is a simple data object that carries its own type, which allows us to match it to the right spot.\n\nHere is how I would structure the interfaces:\n\n```java\ninterface Vehicle {\n    VehicleType getType();\n}\n\ninterface ParkingSpot {\n    boolean isAvailable();\n    boolean canFit(Vehicle vehicle);\n    void park(Vehicle vehicle);\n    void removeVehicle();\n}\n\nclass ParkingLot {\n    private List<ParkingSpot> spots;\n    \n    public boolean park(Vehicle vehicle) { /* Find first available spot that fits */ }\n    public void leave(ParkingSpot spot) { /* Mark spot as empty */ }\n}\n```\n\nThe primary flow works like this: when a vehicle arrives, the `ParkingLot` iterates through its `spots` collection. It calls `canFit(vehicle)` on each spot to ensure the size matches and `isAvailable()` to check if it's empty. Once a match is found, it calls `park(vehicle)` to update the state.\n\nFor extension points, this design is quite flexible. If you wanted to add support for electric vehicle charging, you could create an `ElectricParkingSpot` that implements the `ParkingSpot` interface, adding a `charge()` method without changing the `ParkingLot` logic. Similarly, you could implement a `ParkingStrategy` pattern if you needed to change how spots are assigned—for example, prioritizing spots closest to the entrance rather than just the first available one.\n\nDoes this structure align with the scale you had in mind, or should we look closer at how the `ParkingLot` handles concurrency when multiple vehicles arrive at once?",
+      "answer": "To design a parking lot, I’d focus on three core entities: the `ParkingLot` itself, the `ParkingSpot`, and the `Vehicle`.\n\nThe `ParkingLot` acts as the orchestrator, managing a collection of `ParkingSpot` objects. Each `ParkingSpot` has a single responsibility: tracking its own availability and the `Vehicle` currently occupying it. The `Vehicle` is an abstract base class or interface, which allows us to handle different types like `Car`, `Motorcycle`, or `Truck` polymorphically.\n\nHere is how the core interfaces would look:\n\n```java\ninterface Vehicle {\n    String getLicensePlate();\n    VehicleType getType();\n}\n\nclass ParkingSpot {\n    private final String spotId;\n    private Vehicle parkedVehicle;\n    \n    public boolean isAvailable() { return parkedVehicle == null; }\n    public void park(Vehicle v) { this.parkedVehicle = v; }\n    public void vacate() { this.parkedVehicle = null; }\n}\n\nclass ParkingLot {\n    private List<ParkingSpot> spots;\n    \n    public boolean parkVehicle(Vehicle v) {\n        return spots.stream().filter(ParkingSpot::isAvailable).findFirst()\n            .map(s -> { s.park(v); return true; }).orElse(false);\n    }\n}\n```\n\nIn a primary use case, a `Vehicle` arrives at the `ParkingLot`. The lot iterates through its `ParkingSpot` collection, checks `isAvailable()`, and if found, calls `park(vehicle)`. \n\nThis design is highly extensible. Because we use a `Vehicle` interface, adding a new type like an `ElectricVehicle` requires no changes to the `ParkingLot` logic. Similarly, we could implement a `PricingStrategy` interface to calculate costs without modifying the `ParkingSpot` class, which follows the Open/Closed Principle. \n\nI’d typically use the Strategy pattern here if we need to support different parking rates, or a Factory pattern if we need to handle complex vehicle instantiation. Would you like to dive deeper into how we might handle multi-level parking or specific vehicle-to-spot size constraints?",
       "scores": {
-        "voice": 5,
+        "voice": 4,
         "strategy_adherence": 5,
         "depth": "pass",
         "pacing": "pass",
@@ -211,9 +211,9 @@
       "question": "How would you optimize a slow database query?",
       "actualIntent": "optimization",
       "actualFollowUpLikelihood": "medium",
-      "answer": "I'd start by running an `EXPLAIN` plan to see if the query is doing a full table scan or missing an index. Before changing anything, I need to confirm if the bottleneck is disk I/O, CPU, or lock contention, because the fix depends entirely on where the time is actually being spent.\n\nIf the query is hitting a large table without an index, the theoretical minimum is usually logarithmic time, so adding a B-tree index is the highest-impact, lowest-effort move. If that's not enough, I'd look at whether we're fetching too much data—like using `SELECT *` when we only need two columns—which wastes memory and network bandwidth. \n\nIf the query is still slow, I'd consider:\n\n* Denormalization: Pre-computing the result if the data doesn't need to be strictly real-time, though this adds complexity to your write paths.\n* Query refactoring: Breaking a complex join into smaller, indexed steps if the optimizer is struggling with the execution plan.\n* Partitioning: If the table is massive, splitting it by range or list can significantly reduce the amount of data scanned.\n\nI’d stop as soon as the latency meets our requirements, since every layer of optimization adds maintenance overhead and potential for bugs.",
+      "answer": "I always start by running an `EXPLAIN` plan to see exactly where the execution is stalling, whether it's a full table scan, a missing index, or a join that’s ballooning in size. The goal is to get as close to $O(\\log n)$ or $O(1)$ lookup time as possible, depending on the access pattern.\n\nIf the query is slow, my first step is to add an index on the columns used in `WHERE`, `JOIN`, or `ORDER BY` clauses, which usually provides the biggest performance jump for the least amount of code change. If that isn't enough, I look at the query structure itself—like replacing expensive subqueries with joins or using covering indexes to avoid hitting the data pages entirely.\n\nIf the data volume is massive, I’d consider denormalization or partitioning to reduce the search space, though that adds significant maintenance overhead and risks data consistency issues. I’d stop once the query execution time meets our latency requirements, as over-optimizing beyond that just adds unnecessary complexity to the schema.",
       "scores": {
-        "voice": 5,
+        "voice": 4,
         "strategy_adherence": 5,
         "depth": "pass",
         "pacing": "pass",
@@ -223,6 +223,78 @@
       "grade": "PASS",
       "gradedBy": "deterministic+llm_judge",
       "judgeExplanation": "all pass"
+    },
+    {
+      "caseId": "aq_013",
+      "question": "What is the difference between REST and GraphQL?",
+      "actualIntent": "comparison",
+      "actualFollowUpLikelihood": "high",
+      "answer": "The main difference comes down to how you handle data fetching: REST is resource-oriented, while GraphQL is query-oriented.\n\nYou can think about it across three dimensions:\n\n*   **Data Fetching:** In REST, you hit fixed endpoints that return a predefined structure, which often leads to over-fetching or under-fetching data. GraphQL gives you a single endpoint where the client defines exactly what fields it needs, so you get back only what you asked for.\n*   **Versioning:** REST usually requires versioning your API (like `/v1/` vs `/v2/`) when the data structure changes. GraphQL avoids this by allowing you to deprecate specific fields within the schema without breaking existing queries.\n*   **Complexity:** REST is much simpler to implement and leverages standard HTTP caching mechanisms out of the box. GraphQL requires more setup on the server side to handle the schema and resolver logic, and caching becomes significantly more complex because you’re dealing with POST requests for almost everything.\n\nIf you’re building a simple service with predictable data needs, REST is usually the better, faster choice. If you’re working on a complex application with many different client views—like a mobile app and a web dashboard—that need different subsets of the same data, GraphQL’s flexibility is worth the extra overhead.",
+      "scores": {
+        "voice": 4,
+        "strategy_adherence": 5,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "all pass"
+    },
+    {
+      "caseId": "aq_014",
+      "question": "Are you comfortable with async/await in JavaScript?",
+      "actualIntent": "knowledge_check",
+      "actualFollowUpLikelihood": "low",
+      "answer": "I'm definitely comfortable with async/await, though I should note that my provided resume doesn't explicitly detail my work with it. I use it to write asynchronous code that reads like synchronous logic, which avoids the \"callback hell\" you get with nested promises. For example, I’d use it to fetch data by simply awaiting a promise-returning function, which makes the control flow much easier to follow and debug.",
+      "scores": {
+        "voice": 5,
+        "strategy_adherence": 4,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "The answer is excellent, though it omits a specific 'gotcha' or property as requested in step 4 of the strategy."
+    },
+    {
+      "caseId": "aq_016",
+      "question": "Your service handles around 5,000 requests per second on a monolithic backend with a single database. Traffic is expected to grow 10x over the next quarter. What would you do?",
+      "actualIntent": "scalability",
+      "actualFollowUpLikelihood": "high",
+      "answer": "My résumé and profile material do not contain information regarding my experience with scaling systems to 50,000 requests per second. However, approaching this from a general systems design perspective, here is how I would tackle that growth.\n\nAt 50,000 requests per second, the first bottleneck is almost certainly the database connection pool and write contention on the single primary node. I would start by implementing a read-replica strategy to offload read-heavy traffic, which is usually the cheapest way to gain immediate headroom. \n\nNext, I would look at the monolithic backend. Since it’s a single unit, I’d move toward horizontal scaling by containerizing the service and placing it behind a load balancer. This allows us to scale the compute layer independently of the stateful database.\n\nThe hardest part will be the database state. Once read replicas are saturated, I would move to database sharding—partitioning the data based on a key like user ID—to distribute the write load across multiple nodes. \n\nFinally, I’d introduce a caching layer like Redis in front of the database to absorb the most frequent read requests. This keeps the database from having to process the same queries repeatedly, which is critical when you're scaling by an order of magnitude. Does one of these layers—the compute, the caching, or the database sharding—seem like the most urgent area to dive into first?",
+      "scores": {
+        "voice": 4,
+        "strategy_adherence": 4,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "all pass"
+    },
+    {
+      "caseId": "aq_017",
+      "question": "Can you elaborate on the memory cost tradeoff?",
+      "actualIntent": "follow_up_generic",
+      "actualFollowUpLikelihood": "low",
+      "answer": "The provided material doesn't specify the exact memory costs or hardware constraints for this project, so I can't give you the specific trade-off analysis for this implementation. \n\nGenerally speaking, though, the trade-off is between latency and cost: you're essentially buying sub-millisecond read performance by paying for high-cost, volatile RAM. If the dataset grows beyond what fits in memory, you have to decide between horizontal scaling—which adds complexity in partitioning your keys—or implementing an eviction policy like LRU, which risks cache misses and forces a slower fallback to your persistent database.",
+      "scores": {
+        "voice": 4,
+        "strategy_adherence": 4,
+        "depth": "pass",
+        "pacing": "pass",
+        "grounding": null
+      },
+      "flags": [],
+      "grade": "PASS",
+      "gradedBy": "deterministic+llm_judge",
+      "judgeExplanation": "The answer identifies the previous lack of depth and provides a concrete trade-off analysis (LRU/partitioning vs. latency). It adheres to the low follow-up likelihood by providing a complete, direct answer without inviting further questions."
     }
   ]
 }

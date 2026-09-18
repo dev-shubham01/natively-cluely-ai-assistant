@@ -1792,4 +1792,52 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       structure:           'direct_definition',
     },
   },
+
+  // ── Phase 5 GAP-4: machine-coding coverage (gc_118–gc_120) ──────────────────
+  // Machine-coding questions use "Implement a" → CODING_TASK_RE; they route
+  // through the same coding_task → implement_solution path as DSA questions.
+  // These cases distinguish frontend/UI-oriented machine coding from the
+  // existing DSA-focused coding_task fixtures (gc_033–gc_035, gc_077).
+  {
+    id: 'gc_118',
+    question: 'Implement a React stopwatch component with start, pause, and reset buttons that tracks elapsed time in seconds.',
+    risk: 'medium',
+    notes: 'Phase 5 GAP-4: frontend machine coding — React UI component (useState/useRef/useEffect); "implement a" → CODING_TASK_RE → coding_task; distinct from DSA-focused gc_033/gc_035/gc_077',
+    expected: {
+      intent: 'coding_task',
+      strategy: 'implement_solution',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+      structure:           'implementation_walkthrough',
+    },
+  },
+  {
+    id: 'gc_119',
+    question: 'Implement a throttle function that limits how often a callback can fire.',
+    risk: 'medium',
+    notes: 'Phase 5 GAP-4: frontend machine coding — JS utility function; "implement a" → CODING_TASK_RE → coding_task; throttle is distinct from gc_034 debounce',
+    expected: {
+      intent: 'coding_task',
+      strategy: 'implement_solution',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+      structure:           'implementation_walkthrough',
+    },
+  },
+  {
+    id: 'gc_120',
+    question: 'Implement a useLocalStorage React hook that persists state to localStorage.',
+    risk: 'medium',
+    notes: 'Phase 5 GAP-4: frontend machine coding — custom React hook pattern; "implement a" → CODING_TASK_RE → coding_task; hook-specific machine coding distinct from gc_034/gc_033',
+    expected: {
+      intent: 'coding_task',
+      strategy: 'implement_solution',
+      behavior: 'QUESTION',
+      contextRequirements: { generalKnowledge: true },
+      storyBankActivated: false,
+      structure:           'implementation_walkthrough',
+    },
+  },
 ] as const;
