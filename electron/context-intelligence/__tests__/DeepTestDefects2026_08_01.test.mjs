@@ -30,6 +30,7 @@ const { MODE_POLICIES } = await load('policies/mode-policy-registry.js');
 const { CLAIM_AUTHORITY } = await load('policies/source-authority-policy.js');
 const { decide, evaluateAnswerability, orchestrate, evidenceSupportsClaim } = await load('orchestration/orchestrator.js');
 const { advance, resolveReference, emptyState } = await load('question/conversation-state.js');
+const { getConversationState } = await load('question/conversation-state-store.js');
 const { sourceTypeForFile, attachmentSourceTypeExtensions } = await load('retrieval/mode-retrieval-port.js');
 const { composePrompt } = await load('generation/prompt-composer.js');
 
@@ -286,11 +287,10 @@ describe('D9: follow-up referent typing', () => {
       requestId: `p${n}`, requestSequence: n, surface: 'manual_chat', modeId: 'technical-interview',
       scope: { userId: 'u1', modeId: 'technical-interview', sessionId }, sessionId,
       manualQuestion: q,
-    }, port);
+    }, port, getConversationState(sessionId));
     await mk("What is Leena's strongest signal?", 1);
     const r2 = await mk('Has she used GCP?', 2);
     // the stored state for turn 3 must not contain the rewrite suffix
-    const { getConversationState } = await load('question/conversation-state-store.js');
     const st = getConversationState(sessionId);
     assert.ok(!String(st?.previousQuestion ?? '').includes('(referring to:'),
       `state ingested the rewritten question: ${st?.previousQuestion}`);

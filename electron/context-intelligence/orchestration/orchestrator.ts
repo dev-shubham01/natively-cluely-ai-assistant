@@ -25,6 +25,9 @@ import { classifyTurn, isBareFollowUp, SECONDARY_DOC_RE } from '../question/turn
 import { applyContextRequirementsGuard } from './context-requirements-guard';
 import { selectStrategy } from '../strategies/selector';
 import type { AnswerTrace, RetrievalAttemptTrace } from '../observability/answer-trace';
+import type { ConversationState } from '../question/conversation-state';
+import { resolveReference } from '../question/conversation-state';
+import { advanceConversationState } from '../question/conversation-state-store';
 
 export interface AnswerRequest {
   requestId: string;
@@ -681,6 +684,7 @@ export function evaluateAnswerability(
 export async function orchestrate(
   req: AnswerRequest,
   retrieval?: RetrievalPort,
+  priorState?: ConversationState | null,
 ): Promise<OrchestratorResult> {
   const t0 = 0;
 
@@ -705,19 +709,18 @@ export async function orchestrate(
   const originalQuestion = (req.manualQuestion ?? req.transcriptQuestion ?? '').trim();
   let priorDecision: import('../contracts/types').PriorTurnDecision | undefined;
   try {
-    const { resolveAgainstSession, getConversationState } = require('../question/conversation-state-store');
     const rawQ = originalQuestion;
     if (rawQ) {
-      const priorState = getConversationState(req.sessionId);
-      priorDecision = priorState?.previousDecision;
-      const ref = resolveAgainstSession(req.sessionId, rawQ);
+      const stateForResolution = priorState ?? null;
+      priorDecision = stateForResolution?.previousDecision;
+      const ref = resolveReference(rawQ, stateForResolution);
       referentResolution = {
         applied: Boolean(ref.usedState && ref.resolved !== rawQ),
         ...(ref.referent ? { referent: ref.referent } : {}),
         ...(ref.reason ? { reason: ref.reason } : {}),
-        ...(priorState?.activePerson ? { activePerson: priorState.activePerson } : {}),
-        ...(priorState?.activeTopic ? { activeTopic: priorState.activeTopic } : {}),
-        ...(priorState?.previousQuestion ? { previousQuestion: priorState.previousQuestion } : {}),
+        ...(stateForResolution?.activePerson ? { activePerson: stateForResolution.activePerson } : {}),
+        ...(stateForResolution?.activeTopic ? { activeTopic: stateForResolution.activeTopic } : {}),
+        ...(stateForResolution?.previousQuestion ? { previousQuestion: stateForResolution.previousQuestion } : {}),
       };
       if (ref.usedState && ref.resolved !== rawQ) {
         referentWasResolved = true;
@@ -902,8 +905,6 @@ export async function orchestrate(
   // Question + evidence identity only; the transport appends the answer
   // summary after the stream completes (recordAnswerSummary).
   try {
-    const { advanceConversationState } = require('../question/conversation-state-store');
-
     // Record this turn's source-precedence outcome (Pattern F). Derived from
     // NON-debug-gated inputs only — evidence metadata and the port's rejection
     // records — never from the debug collector, whose inputs are level-gated

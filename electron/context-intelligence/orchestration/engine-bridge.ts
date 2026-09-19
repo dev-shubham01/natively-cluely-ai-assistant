@@ -397,7 +397,7 @@ export async function buildV3Prompt(input: BridgeInput): Promise<BridgeResult | 
       preOrchState = getConversationState(req.sessionId);
     } catch { /* continuity must never break a turn */ }
 
-    const result = await orchestrate(req, input.retrieval);
+    const result = await orchestrate(req, input.retrieval, preOrchState);
 
     // Build conversation summary AFTER orchestrate() so we have the current turn's
     // interviewIntent to consult the gate — but USING the pre-orchestration chain.

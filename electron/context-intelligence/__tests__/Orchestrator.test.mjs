@@ -12,7 +12,7 @@ const base = path.resolve(process.cwd(), 'dist-electron/electron/context-intelli
 const { decide, orchestrate, evaluateAnswerability, propertyHeadTerms } =
   await import(pathToFileURL(path.join(base, 'orchestration/orchestrator.js')).href);
 const { adaptLegacyChunks } = await import(pathToFileURL(path.join(base, 'retrieval/legacy-adapter.js')).href);
-const { clearConversationState } = await import(pathToFileURL(path.join(base, 'question/conversation-state-store.js')).href);
+const { clearConversationState, getConversationState } = await import(pathToFileURL(path.join(base, 'question/conversation-state-store.js')).href);
 
 const req = (over = {}) => ({
   requestId: 'r1', requestSequence: 1, surface: 'manual-chat',
@@ -297,10 +297,11 @@ describe('a bare follow-up with no antecedent is not FULL', () => {
     clearConversationState('s1');
     await orchestrate(req({ manualQuestion: 'Tell me about the Kubernetes migration' }), port(
       [{ sourceId: 'resume-1', text: 'Led the Kubernetes migration for the pipeline', chunkIndex: 0, score: 0.9 }],
-    ));
+    ), null);
+    const priorState = getConversationState('s1');
     const r = await orchestrate(req({ manualQuestion: 'Would that scale?' }), port(
       [{ sourceId: 'resume-1', text: 'Led the Kubernetes migration for the pipeline', chunkIndex: 0, score: 0.9 }],
-    ));
+    ), priorState);
     assert.ok(r.decision.resolvedQuestion.includes('referring to'),
       `expected a resolved referent, got: ${r.decision.resolvedQuestion}`);
     assert.notEqual(r.trace.fallbackUsed, 'CLARIFICATION',

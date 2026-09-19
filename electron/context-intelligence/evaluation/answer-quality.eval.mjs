@@ -39,12 +39,13 @@ if (!API_KEY) {
 
 const base = path.resolve(process.cwd(), 'dist-electron/electron/context-intelligence');
 
-let decide, composePrompt, MODE_POLICIES;
+let decide, composePrompt, MODE_POLICIES, adaptLegacyChunks;
 let advanceConversationState, clearConversationState, getConversationState, recordAnswerSummary;
 try {
-  ({ decide }        = await import(pathToFileURL(path.join(base, 'orchestration/orchestrator.js')).href));
-  ({ composePrompt } = await import(pathToFileURL(path.join(base, 'generation/prompt-composer.js')).href));
-  ({ MODE_POLICIES } = await import(pathToFileURL(path.join(base, 'policies/mode-policy-registry.js')).href));
+  ({ decide }             = await import(pathToFileURL(path.join(base, 'orchestration/orchestrator.js')).href));
+  ({ composePrompt }      = await import(pathToFileURL(path.join(base, 'generation/prompt-composer.js')).href));
+  ({ MODE_POLICIES }      = await import(pathToFileURL(path.join(base, 'policies/mode-policy-registry.js')).href));
+  ({ adaptLegacyChunks }  = await import(pathToFileURL(path.join(base, 'retrieval/legacy-adapter.js')).href));
   ({ advanceConversationState, clearConversationState, getConversationState, recordAnswerSummary } =
     await import(pathToFileURL(path.join(base, 'question/conversation-state-store.js')).href));
 } catch (err) {
@@ -60,6 +61,45 @@ const POLICY = MODE_POLICIES['technical-interview'];
 // ── Shared evaluation scope ───────────────────────────────────────────────────
 
 const EVAL_SCOPE = { userId: 'eval', modeId: 'technical-interview' };
+
+// ── Mock evidence infrastructure (Phase 8 Step 9, 2026-09-19) ────────────────
+//
+// Fixtures that test stories=true intents (behavioral, introduction,
+// experience_question, project_context, project_deep_dive, technology_decision)
+// must supply fictional evidence so composePrompt grounds the answer instead of
+// firing noEvidenceNotice.
+//
+// mockEvidence fixture field: Array of MockEvidenceDescriptor
+//   { sourceId: string, sourceType: SourceType, text: string,
+//     chunkIndex?: number, score?: number }
+//
+// All content must be entirely fictional — invented company names, invented
+// metrics, invented tech stack. Never real user profile data.
+//
+// When the field is absent or an empty array, evidence = [] exactly as before.
+// No existing fixture has this field, so existing evaluator behavior is unchanged.
+
+function buildMockEvidence(descriptors) {
+  if (!descriptors || descriptors.length === 0) return [];
+  const MOCK_VERSION   = 'mock-v1';
+  const sourceTypes    = new Map(descriptors.map((d) => [d.sourceId, d.sourceType]));
+  const activeVersions = new Map(descriptors.map((d) => [d.sourceId, MOCK_VERSION]));
+  const chunkVersions  = new Map(descriptors.map((d) => [d.sourceId, MOCK_VERSION]));
+  const chunks = descriptors.map((d, i) => ({
+    sourceId:   d.sourceId,
+    text:       d.text,
+    chunkIndex: d.chunkIndex ?? i,
+    score:      d.score ?? 0.9,
+  }));
+  const { evidence } = adaptLegacyChunks(chunks, {
+    scope: EVAL_SCOPE,
+    sourceTypes,
+    activeVersions,
+    chunkVersions,
+    assumeInScopeWhenUnknown: true,
+  });
+  return evidence;
+}
 
 // ── Multi-turn helpers ────────────────────────────────────────────────────────
 
@@ -303,6 +343,215 @@ const FIXTURES = [
     requiredDimensions: ['voice', 'strategy_adherence', 'depth', 'pacing'],
   },
 
+  // ── Phase 8 Step 10: evidence-backed fixtures for stories=true intents ────────
+  // All six intents below require personal evidence (contextRequirements.stories=true).
+  // Without mockEvidence the prompt fires noEvidenceNotice — the correct production
+  // behavior when no StoryBank is present, but ungradeable. Each fixture carries
+  // entirely fictional evidence (Helix Commerce / Orion project — invented company,
+  // invented project, invented metrics) sufficient for the strategy to answer from.
+  //
+  // Source-type note:
+  //   RESUME     → authoritative for USER_EMPLOYMENT, USER_PROJECT, USER_SKILL, etc.
+  //   PROFILE_FACT → additionally authoritative for USER_MOTIVATION (prohibited on RESUME).
+  //   technology_decision uses PROFILE_FACT because it noteClaims USER_MOTIVATION.
+  {
+    id: 'aq_018',
+    // behavioral: BEHAVIORAL_FRAMING_RE ("tell me about a time") fires at
+    // turn-classifier.ts:1358 → intent=behavioral, strategy=tell_behavioral_story.
+    // followUpLikelihood=medium (not in HIGH or LOW literal arrays).
+    // Pacing not required: medium likelihood makes pass/fail ambiguous.
+    question: 'Tell me about a time you had to convince your team to adopt a different technical approach.',
+    expectedIntent: 'behavioral',
+    expectedStrategy: 'tell_behavioral_story',
+    expectedFollowUpLikelihood: 'medium',
+    expectedDepth: 'standard',
+    requiredDimensions: ['voice', 'strategy_adherence', 'depth'],
+    notes: 'Medium follow-up likelihood — pacing not checked',
+    mockEvidence: [
+      {
+        sourceId:   'mock-resume-behavioral-1',
+        sourceType: 'RESUME',
+        text:
+          'At Helix Commerce (fictional B2B SaaS), I proposed replacing our polling-based ' +
+          'inventory sync with Kafka for the Orion order-processing service. The team was ' +
+          'sceptical — none of us had operated Kafka in production, and the on-call overhead ' +
+          'worried two senior engineers. I volunteered to build a proof of concept in one week, ' +
+          'wrote a short operations runbook covering common failure modes, and ran a load-test ' +
+          'demo showing a 4× reduction in inventory desync events under simulated peak traffic. ' +
+          'After reviewing the runbook and demo results, the team agreed to proceed. We shipped ' +
+          'Kafka-based async inventory sync six weeks later; desync incidents dropped from ' +
+          'roughly three per week to fewer than one per month.',
+        chunkIndex: 0,
+        score: 0.92,
+      },
+    ],
+  },
+  {
+    id: 'aq_019',
+    // introduction: INTRODUCTION_RE ("tell me about yourself") fires at
+    // turn-classifier.ts:1360 → intent=introduction, strategy=introduce_self.
+    // followUpLikelihood=low (in LOW_LIKELIHOOD literal array).
+    question: 'Tell me about yourself.',
+    expectedIntent: 'introduction',
+    expectedStrategy: 'introduce_self',
+    expectedFollowUpLikelihood: 'low',
+    expectedDepth: 'standard',
+    requiredDimensions: ['voice', 'strategy_adherence', 'depth', 'pacing'],
+    mockEvidence: [
+      {
+        sourceId:   'mock-resume-intro-1',
+        sourceType: 'RESUME',
+        text:
+          'Senior Backend Engineer at Helix Commerce (fictional B2B SaaS) for two years. ' +
+          'Prior to that, three years as a full-stack engineer at two early-stage startups ' +
+          'building customer-facing APIs and learning to tune PostgreSQL under concurrent write loads. ' +
+          'At Helix Commerce I moved fully into backend infrastructure. Most significant project: ' +
+          'Orion — an order-processing microservice I led from architecture to production. Orion ' +
+          'reduced checkout p99 latency from 1.2 s to 340 ms and now handles roughly 2,000 orders ' +
+          'per day. Currently looking for a role focused on distributed systems at larger scale ' +
+          'where I can deepen this experience.',
+        chunkIndex: 0,
+        score: 0.93,
+      },
+    ],
+  },
+  {
+    id: 'aq_020',
+    // experience_question: EXPERIENCE_CHALLENGE_RE ("tell me about a challenging...")
+    // fires at turn-classifier.ts:1364 → intent=experience_question,
+    // strategy=narrate_experience. followUpLikelihood=medium.
+    question: 'Tell me about a challenging production incident you had to resolve.',
+    expectedIntent: 'experience_question',
+    expectedStrategy: 'narrate_experience',
+    expectedFollowUpLikelihood: 'medium',
+    expectedDepth: 'standard',
+    requiredDimensions: ['voice', 'strategy_adherence', 'depth'],
+    notes: 'Medium follow-up likelihood — pacing not checked',
+    mockEvidence: [
+      {
+        sourceId:   'mock-resume-experience-1',
+        sourceType: 'RESUME',
+        text:
+          'During the Black Friday load peak at Helix Commerce (fictional), the Orion checkout ' +
+          'service began timing out under concurrent order submissions. I pulled pg_stat_activity ' +
+          'and found hundreds of transactions waiting on row-level locks in the inventory ' +
+          'reservation step — a deadlock cycle between two queries updating the same inventory ' +
+          'row in different lock orders. Root cause: the reservation query did not enforce a ' +
+          'consistent row-ID ordering across concurrent sessions. I deployed a fix that imposed ' +
+          'ascending row-ID lock order across all callers. Within ten minutes of the deploy, ' +
+          'checkout timeout errors dropped from roughly 800 per minute to near zero. ' +
+          'p99 latency recovered from 4.1 s to under 400 ms. I followed up by adding a ' +
+          'pg_stat_activity-based deadlock alert so we would catch recurrences before users did.',
+        chunkIndex: 0,
+        score: 0.91,
+      },
+    ],
+  },
+  {
+    id: 'aq_021',
+    // project_context: "your project" triggers PERSONAL_RE + PROJECT_RE →
+    // PERSONAL_PROJECT at turn-classifier.ts:665. No PROJECT_DEEP_RE or "why" →
+    // falls through to intent=project_context at line 1372,
+    // strategy=describe_project. followUpLikelihood=medium.
+    question: 'Walk me through your most recent project and the role you played in it.',
+    expectedIntent: 'project_context',
+    expectedStrategy: 'describe_project',
+    expectedFollowUpLikelihood: 'medium',
+    expectedDepth: 'standard',
+    requiredDimensions: ['voice', 'strategy_adherence', 'depth'],
+    notes: 'Medium follow-up likelihood — pacing not checked',
+    mockEvidence: [
+      {
+        sourceId:   'mock-resume-project-1',
+        sourceType: 'RESUME',
+        text:
+          'Most recent project: Orion — order and inventory management microservice at Helix ' +
+          'Commerce (fictional). Tech lead and primary implementer, working with one junior ' +
+          'engineer. Orion replaced a monolithic checkout module that had become the primary ' +
+          'reliability bottleneck. Built in Node.js with TypeScript, backed by PostgreSQL for ' +
+          'order state and Redis for inventory read cache. Async inventory reconciliation runs ' +
+          'over Kafka. My role covered architecture design, database schema, API contract, Kafka ' +
+          'topic design, and all production hardening. Core challenge: maintaining consistency ' +
+          'across the synchronous order placement path and the asynchronous inventory update path. ' +
+          'Resolved using a reservation-then-confirm pattern with an outbox table. Orion handles ' +
+          'roughly 2,000 orders per day with a p99 checkout latency of 340 ms.',
+        chunkIndex: 0,
+        score: 0.93,
+      },
+    ],
+  },
+  {
+    id: 'aq_022',
+    // project_deep_dive: PROJECT_DEEP_RE ("how did you handle") AND PERSONAL_PROJECT
+    // ("did you" via PERSONAL_RE, "built" via PROJECT_RE) →
+    // intent=project_deep_dive at turn-classifier.ts:1370, strategy=describe_project.
+    // followUpLikelihood=medium. Depth=deep: deep-dive expects comprehensive detail.
+    question: 'How did you handle database reliability in the service you built?',
+    expectedIntent: 'project_deep_dive',
+    expectedStrategy: 'describe_project',
+    expectedFollowUpLikelihood: 'medium',
+    expectedDepth: 'deep',
+    requiredDimensions: ['voice', 'strategy_adherence', 'depth'],
+    notes: 'Medium follow-up likelihood — pacing not checked. Depth=deep: deep-dive warrants comprehensive detail.',
+    mockEvidence: [
+      {
+        sourceId:   'mock-resume-deepdive-1',
+        sourceType: 'RESUME',
+        text:
+          'In the Orion service at Helix Commerce (fictional), database reliability used three layers. ' +
+          'First, all order-placement writes ran inside a serializable transaction covering both the ' +
+          'inventory reservation and the order record insert, preventing partial writes under any ' +
+          'crash scenario. Second, Kafka-consumer inventory updates used optimistic locking: each ' +
+          'inventory row carried a version counter, and a conflicting update retried up to five times ' +
+          'with exponential back-off before failing with a structured error rather than silently ' +
+          'dropping the update. Third, an outbox table decoupled order confirmation from Kafka ' +
+          'publish: if the broker was unreachable the order still committed atomically, and a ' +
+          'background reconciler replayed the outbox row when the broker recovered. During a ' +
+          'four-hour Kafka outage in staging, zero order records were lost. We also ran weekly ' +
+          'chaos drills that killed the PostgreSQL primary under active load to verify automatic ' +
+          'failover behaviour.',
+        chunkIndex: 0,
+        score: 0.91,
+      },
+    ],
+  },
+  {
+    id: 'aq_023',
+    // technology_decision: TECH_DECISION_FRAMING_RE ("why did you choose") AND
+    // TECH_DECISION_SUBJECT_RE ("PostgreSQL", "MongoDB") both match →
+    // intent=technology_decision at turn-classifier.ts:1366, strategy=justify_decision.
+    // followUpLikelihood=high (in HIGH_LIKELIHOOD literal array).
+    // Source type = PROFILE_FACT (not RESUME): technology_decision noteClaims
+    // USER_MOTIVATION, which prohibits RESUME as an authoritative source
+    // (source-authority-policy.ts:55). PROFILE_FACT covers both USER_MOTIVATION
+    // and USER_PROJECT.
+    question: 'Why did you choose PostgreSQL over MongoDB for your project?',
+    expectedIntent: 'technology_decision',
+    expectedStrategy: 'justify_decision',
+    expectedFollowUpLikelihood: 'high',
+    expectedDepth: 'standard',
+    requiredDimensions: ['voice', 'strategy_adherence', 'depth', 'pacing'],
+    mockEvidence: [
+      {
+        sourceId:   'mock-profile-techd-1',
+        sourceType: 'PROFILE_FACT',
+        text:
+          'For the Orion order-processing service at Helix Commerce (fictional), chose PostgreSQL ' +
+          'over MongoDB. Deciding factor: checkout required atomic writes across two tables — the ' +
+          'orders table and the inventory reservation table — in a single ACID transaction. At the ' +
+          'version of MongoDB available to the team, multi-document cross-collection transactions ' +
+          'were either unavailable or insufficiently mature for production use. PostgreSQL row-level ' +
+          'locking also fit the reservation-then-confirm pattern directly: we could lock specific ' +
+          'inventory rows during checkout without blocking the entire collection. Main tradeoff: ' +
+          'schema changes required coordinated migrations, whereas MongoDB would have allowed ' +
+          'field additions without schema overhead. Given the stable domain model and the hard ' +
+          'consistency requirement on order placement, PostgreSQL was the correct call for this context.',
+        chunkIndex: 0,
+        score: 0.94,
+      },
+    ],
+  },
+
   // ── Phase 5 Step 5: follow_up_generic multi-turn fixture (aq_017) ─────────────
   // Uses priorTurns to establish conversation state via the production state-store
   // functions (advanceConversationState + recordAnswerSummary) before evaluating
@@ -522,8 +771,12 @@ async function run() {
     const actualFollowUpLikelihood = d.interviewIntent?.followUpLikelihood ?? '';
     const steps                    = d.answerStrategy?.steps ?? [];
 
+    const evidence = Array.isArray(fixture.mockEvidence) && fixture.mockEvidence.length > 0
+      ? buildMockEvidence(fixture.mockEvidence)
+      : [];
+
     const composed = composePrompt({
-      decision: d, policy: POLICY, evidence: [],
+      decision: d, policy: POLICY, evidence,
       ...(conversationSummary ? { conversationSummary } : {}),
     });
 

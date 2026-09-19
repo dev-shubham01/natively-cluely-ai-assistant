@@ -21,7 +21,7 @@ const { orchestrate } = await load('orchestration/orchestrator.js');
 const { createLegacyRetrievalPort } = await load('retrieval/legacy-retrieval-port.js');
 const { composePrompt } = await load('generation/prompt-composer.js');
 const { MODE_POLICIES } = await load('policies/mode-policy-registry.js');
-const { clearConversationState } = await load('question/conversation-state-store.js');
+const { clearConversationState, getConversationState } = await load('question/conversation-state-store.js');
 
 // PROJECT_FILE (not REFERENCE_FILE) — technical-interview, the only
 // surviving mode, does not authorize REFERENCE_FILE. The source-type and
@@ -47,10 +47,10 @@ describe('pattern F: precedence follow-ups use the recorded prior decision', () 
   test('a why-follow-up carries the prior selected/ignored record with reason', async () => {
     clearConversationState();
     const port = createLegacyRetrievalPort({ registry, retrieve: async () => chunks });
-    const first = await orchestrate(req('What is the current Team price?', 'sess-f1'), port);
+    const first = await orchestrate(req('What is the current Team price?', 'sess-f1'), port, null);
     assert.ok(first.evidence.length > 0, 'first turn must retrieve');
 
-    const second = await orchestrate(req('Why are the lower values not current?', 'sess-f1'), port);
+    const second = await orchestrate(req('Why are the lower values not current?', 'sess-f1'), port, getConversationState('sess-f1'));
     const h = second.decision.precedenceHistory;
     assert.ok(h, 'precedenceHistory must be attached to the follow-up decision');
     assert.match(h.question, /current Team price/);
@@ -63,32 +63,34 @@ describe('pattern F: precedence follow-ups use the recorded prior decision', () 
   test('"Why did you ignore the other values?" also matches', async () => {
     clearConversationState();
     const port = createLegacyRetrievalPort({ registry, retrieve: async () => chunks });
-    await orchestrate(req('What is the current Team price?', 'sess-f2'), port);
-    const second = await orchestrate(req('Why did you ignore the other values?', 'sess-f2'), port);
+    await orchestrate(req('What is the current Team price?', 'sess-f2'), port, null);
+    const second = await orchestrate(req('Why did you ignore the other values?', 'sess-f2'), port, getConversationState('sess-f2'));
     assert.ok(second.decision.precedenceHistory, 'history must attach');
   });
 
   test('an unrelated why-question does NOT get the record', async () => {
     clearConversationState();
     const port = createLegacyRetrievalPort({ registry, retrieve: async () => chunks });
-    await orchestrate(req('What is the current Team price?', 'sess-f3'), port);
-    const second = await orchestrate(req('Why should a customer choose the Team plan?', 'sess-f3'), port);
+    await orchestrate(req('What is the current Team price?', 'sess-f3'), port, null);
+    const second = await orchestrate(req('Why should a customer choose the Team plan?', 'sess-f3'), port, getConversationState('sess-f3'));
     assert.equal(second.decision.precedenceHistory, undefined);
   });
 
   test('no recorded decision (fresh session) ⇒ nothing attaches', async () => {
     clearConversationState();
     const port = createLegacyRetrievalPort({ registry, retrieve: async () => chunks });
-    const only = await orchestrate(req('Why are the lower values not current?', 'sess-f4'), port);
+    const only = await orchestrate(req('Why are the lower values not current?', 'sess-f4'), port, null);
     assert.equal(only.decision.precedenceHistory, undefined);
   });
 
   test('an intervening FAST turn preserves the decision record', async () => {
     clearConversationState();
     const port = createLegacyRetrievalPort({ registry, retrieve: async () => chunks });
-    await orchestrate(req('What is the current Team price?', 'sess-f5'), port);
-    await orchestrate(req('What is a mutex?', 'sess-f5'), port); // FAST, no retrieval
-    const third = await orchestrate(req('Why are the lower values not current?', 'sess-f5'), port);
+    await orchestrate(req('What is the current Team price?', 'sess-f5'), port, null);
+    const state5a = getConversationState('sess-f5');
+    await orchestrate(req('What is a mutex?', 'sess-f5'), port, state5a); // FAST, no retrieval
+    const state5b = getConversationState('sess-f5');
+    const third = await orchestrate(req('Why are the lower values not current?', 'sess-f5'), port, state5b);
     assert.ok(third.decision.precedenceHistory,
       'a definition question in between must not erase the recorded decision');
   });
@@ -96,15 +98,15 @@ describe('pattern F: precedence follow-ups use the recorded prior decision', () 
   test('the composer renders the record with an answer-from-this instruction', async () => {
     clearConversationState();
     const port = createLegacyRetrievalPort({ registry, retrieve: async () => chunks });
-    await orchestrate(req('What is the current Team price?', 'sess-f6'), port);
-    const second = await orchestrate(req('Why are the lower values not current?', 'sess-f6'), port);
+    await orchestrate(req('What is the current Team price?', 'sess-f6'), port, null);
+    const second = await orchestrate(req('Why are the lower values not current?', 'sess-f6'), port, getConversationState('sess-f6'));
     const composed = composePrompt({ decision: second.decision, policy: MODE_POLICIES['technical-interview'], evidence: second.evidence });
     assert.ok(composed.sections.includes('precedence_history'), composed.sections.join(','));
     assert.match(composed.system, /Previous source decision \(recorded\)/);
     assert.match(composed.system, /never\s+claim you lack access/i);
     // Without the record, the section must not render.
     const plain = composePrompt({
-      decision: (await orchestrate(req('What is the current Team price?', 'sess-f7'), port)).decision,
+      decision: (await orchestrate(req('What is the current Team price?', 'sess-f7'), port, null)).decision,
       policy: MODE_POLICIES['technical-interview'], evidence: [],
     });
     assert.ok(!plain.sections.includes('precedence_history'));
@@ -115,7 +117,7 @@ describe('pattern E: conversation section carries the referent-only rule', () =>
   test('the section header states history is not evidence', async () => {
     clearConversationState();
     const port = createLegacyRetrievalPort({ registry, retrieve: async () => chunks });
-    const r = await orchestrate(req('What is the current Team price?', 'sess-e1'), port);
+    const r = await orchestrate(req('What is the current Team price?', 'sess-e1'), port, null);
     const composed = composePrompt({
       decision: r.decision, policy: MODE_POLICIES['technical-interview'], evidence: r.evidence,
       conversationSummary: 'USER: earlier question\nASSISTANT: earlier answer',

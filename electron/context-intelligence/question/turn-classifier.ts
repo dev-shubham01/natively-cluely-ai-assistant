@@ -148,6 +148,27 @@ const TECH_SELF_TALK_RE = /\b(segfault|error|exception|crash\w*|bug\b|bugs\b|sta
 const DEVICE_ARTIFACT_RE = /\b(laptops?|desktops?|computers?|macbook|imac|iphone|ipad|phones?|tablets?|browsers?|chrome|safari|firefox|wi-?fi|bluetooth|battery|charger|printers?|routers?|monitors?|keyboards?|mouse|trackpad|(?:an?|this|my|the) app(?:lication)?s?\b|login items?|(?:start ?up|startup) (?:items?|programs?|apps?)|my (?:mac|pc)\b)\b/;
 const DEVICE_SYMPTOM_RE = /\b(overheat\w*|(?:gets?|getting|becomes?|becoming|is|are|runs?|running) (?:very |too |really |so )?(?:hot|slow|loud|sluggish)|fans? (?:run|runs|running|spin\w*)|freez\w*|frozen|lags?\b|lagging|drain\w*|won'?t (?:open|start|charge|connect|turn|boot)|not (?:working|responding|charging|connecting|booting)|keeps? (?:crashing|freezing|restarting|disconnecting|opening|popping)|open(?:s|ing)? automatically|start(?:s|ing)? automatically|launch(?:es|ing)? (?:automatically|at (?:startup|login))|pop-?ups?|uninstall\w*|reinstall\w*|factory reset|what should i (?:check|do|try)|how (?:do|can) i (?:stop|disable|turn off|remove|fix|speed up))\b/;
 
+// ── Possessive hypothetical technical scenario (Phase 8, 2026-09-19) ─────────
+//
+// "Your service handles 5K RPS on a monolith. Traffic grows 10x. What would you
+// do?" — a scenario-framing question that names a technical system with "your"
+// as a narrative device, then asks a conditional problem-solving question.
+// PERSONAL_RE reads "your" as a personal-history cue and routes USER_EMPLOYMENT,
+// which claims the résumé. With no résumé evidence, noEvidenceNotice fires and
+// competes with the strategy instructions, causing stochastic LLM resolution
+// (measured: voice 2/3/4 across three eval runs, 2026-09-19).
+//
+// Two discriminators, both required:
+//   1. "your [tech system noun]" — possessive over a TECHNICAL ENTITY, ruling out
+//      "your background", "your experience", "your previous role" etc.
+//   2. Conditional problem-solving ask — "what would you do/change", "how would
+//      you scale/handle/optimize" etc. — ruling out "how would you describe your
+//      experience" (reflective) or "tell me about a service you worked on" (past).
+//
+// Tested on the WHOLE question — the scenario setup and the ask usually sit in
+// different sentences; clause splitting separates them.
+const HYPOTHETICAL_SCENARIO_RE = /\byour\s+(?:\w+\s+){0,3}(?:service|api|backend|system|application|app|server|database|db|infrastructure|infra|pipeline|cluster|platform|monolith|microservice|codebase|endpoint)\b[\s\S]*?\b(?:what would you (?:do|change|prioritize|recommend|approach|consider|focus on)|how would you (?:scale|handle|approach|design|address|improve|optimize|fix|solve|prioritize|tackle|deal with|architect))\b/i;
+
 // ── Self-contained arithmetic (2026-08-02) ───────────────────────────────────
 //
 // "A product costs 2,400 rupees after a 20% discount. What was the original
@@ -568,6 +589,7 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
   // so these cannot be judged per clause. Both are OPEN-KNOWLEDGE shapes that
   // first-person grammar or bare digits previously routed at private sources.
   const deviceTroubleshoot = DEVICE_ARTIFACT_RE.test(q) && DEVICE_SYMPTOM_RE.test(q);
+  const hypotheticalScenario = HYPOTHETICAL_SCENARIO_RE.test(q);
   const selfContainedMath = MATH_OPERAND_RE.test(q) && MATH_ASK_RE.test(q)
     // A named entity or a document pointer means the values may live in a
     // source after all — "What was the original price listed in the sales
@@ -685,7 +707,7 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
     // exact catch-all is what planned the résumé for a fan question. Whole-
     // question signal, because the artifact and the ask usually sit in
     // different clauses.
-    if (personal && !namedAnAspect && !deviceTroubleshoot
+    if (personal && !namedAnAspect && !deviceTroubleshoot && !hypotheticalScenario
         && !CODING_TASK_RE.test(clause) && !SYSTEM_DESIGN_RE.test(clause) && !TECH_SELF_TALK_RE.test(clause)) {
       types.add('PERSONAL_EXPERIENCE'); noteClaim('USER_EMPLOYMENT', clause);
     }
@@ -891,7 +913,7 @@ function detectTypes(q: string, input: ClassificationInput): { types: QuestionTy
   // were measured reaching the primary-source fallback — the fan question via
   // "what should I check" and the discount exercise via its own digits.
   const techTask = TECH_SELF_TALK_RE.test(q) || CODING_TASK_RE.test(q) || SYSTEM_DESIGN_RE.test(q)
-    || deviceTroubleshoot || selfContainedMath;
+    || deviceTroubleshoot || hypotheticalScenario || selfContainedMath;
 
   // ── Definite value lookup (deep-test D2/D3, 2026-08-01) ────────────────────
   //
@@ -1575,7 +1597,11 @@ export function classifyTurn(input: ClassificationInput): Classification {
   const digitsOnlyEntity = specificEntity && !hasCapsOrIdentifierEntity(input.resolvedQuestion);
   const onlyGeneralClaims = claims.length > 0
     && claims.every((c) => (CLAIM_AUTHORITY[c]?.authoritative ?? []).length === 0);
-  const entityBlocksFastPath = specificEntity && !(digitsOnlyEntity && onlyGeneralClaims);
+  // Hypothetical scenario framing ("your service handles 5K RPS… what would you
+  // do?") is general technical knowledge regardless of scale metrics in the text.
+  // "10x", "p99", etc. are entity-shaped but name no private artifact.
+  const entityBlocksFastPath = specificEntity && !(digitsOnlyEntity && onlyGeneralClaims)
+    && !HYPOTHETICAL_SCENARIO_RE.test(input.resolvedQuestion);
 
   const isPurelyGeneral =
     requiredSourceTypes.length === 0 &&
